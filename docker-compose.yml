@@ -1,0 +1,144 @@
+version: '3.9'
+
+networks:
+  cap-epac-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  uploads-data:
+  logs-data:
+
+services:
+  # ─────────────────────────────────────────
+  # Base de données MySQL
+  # ─────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: cap-epac-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-CapEpac@Root2025}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cap_epac_telephonie}
+      MYSQL_USER: ${MYSQL_USER:-cap_epac_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-CapEpac@2025}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - cap-epac-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-CapEpac@Root2025}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "3307:3306"
+
+  # ─────────────────────────────────────────
+  # Cache Redis
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: cap-epac-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-CapEpacRedis2025}
+    volumes:
+      - redis-data:/data
+    networks:
+      - cap-epac-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-CapEpacRedis2025}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Backend Node.js
+  # ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cap-epac-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-cap_epac_telephonie}
+      DB_USER: ${MYSQL_USER:-cap_epac_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-CapEpac@2025}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-CapEpacRedis2025}
+      JWT_SECRET: ${JWT_SECRET:-CapEpacJWT_SuperSecret_2025_LAN}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-CapEpacRefresh_SuperSecret_2025}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      SERVER_LAN_IP: ${SERVER_LAN_IP:-192.168.1.10}
+      UPLOAD_MAX_SIZE: 104857600
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://192.168.1.10}
+    volumes:
+      - uploads-data:/app/uploads
+      - logs-data:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cap-epac-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Frontend React (build statique servi par Nginx)
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://${SERVER_LAN_IP:-192.168.1.10}/api
+        VITE_SOCKET_URL: https://${SERVER_LAN_IP:-192.168.1.10}
+    container_name: cap-epac-frontend
+    restart: unless-stopped
+    networks:
+      - cap-epac-network
+
+  # ─────────────────────────────────────────
+  # Serveur TURN/STUN Coturn
+  # ─────────────────────────────────────────
+  coturn:
+    image: coturn/coturn:4.6
+    container_name: cap-epac-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./nginx/coturn.conf:/etc/coturn/turnserver.conf:ro
+    command: -c /etc/coturn/turnserver.conf
+
+  # ─────────────────────────────────────────
+  # Reverse Proxy Nginx
+  # ─────────────────────────────────────────
+  nginx:
+    image: nginx:1.26-alpine
+    container_name: cap-epac-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - cap-epac-network

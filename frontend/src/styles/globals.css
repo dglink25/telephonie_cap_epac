@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Import Google Fonts ──────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ── Variables CSS ────────────────────────────────────────────── */
+:root {
+  --color-primary:       #16a34a;
+  --color-primary-light: #22c55e;
+  --color-primary-dark:  #15803d;
+  --color-white:         #ffffff;
+  --color-off-white:     #f0fdf4;
+  --color-bg:            #f8fafb;
+  --color-sidebar-bg:    #15803d;
+  --color-sidebar-text:  #ffffff;
+  --radius-sm:  0.375rem;
+  --radius-md:  0.5rem;
+  --radius-lg:  0.75rem;
+  --radius-xl:  1rem;
+  --shadow-sm:  0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:  0 4px 6px rgba(0,0,0,.07);
+  --shadow-lg:  0 10px 25px rgba(0,0,0,.1);
+  --transition: all 0.2s ease;
+}
+
+/* ── Reset & Base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-bg);
+  color: #1e293b;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar personnalisée ──────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: #f1f5f9; border-radius: 3px; }
+::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Classes utilitaires personnalisées ───────────────────────── */
+@layer components {
+
+  /* Boutons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-primary-700 border border-primary-300 hover:bg-primary-50 focus:ring-primary-400;
+  }
+
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors duration-200;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white placeholder-slate-400 transition-all duration-200;
+  }
+
+  .input-error {
+    @apply border-red-400 focus:ring-red-400;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-slate-100 p-5;
+  }
+
+  /* Badge de statut de présence */
+  .presence-dot {
+    @apply w-2.5 h-2.5 rounded-full border-2 border-white;
+  }
+  .presence-online  { @apply bg-primary-500; }
+  .presence-away    { @apply bg-yellow-400; }
+  .presence-dnd     { @apply bg-red-500; }
+  .presence-offline { @apply bg-slate-400; }
+
+  /* Message bubbles */
+  .msg-bubble-own {
+    @apply bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-md shadow-sm;
+  }
+  .msg-bubble-other {
+    @apply bg-white text-slate-800 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-md shadow-sm border border-slate-100;
+  }
+
+  /* Sidebar nav items */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary-100 hover:bg-primary-700 hover:text-white transition-all duration-150 cursor-pointer;
+  }
+  .nav-item.active {
+    @apply bg-primary-800 text-white;
+  }
+
+  /* Call controls */
+  .call-btn {
+    @apply flex flex-col items-center gap-1.5 cursor-pointer;
+  }
+  .call-btn-circle {
+    @apply w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200;
+  }
+}
+
+/* ── Animations ───────────────────────────────────────────────── */
+@keyframes incoming-call-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+  50%       { box-shadow: 0 0 0 20px rgba(22, 163, 74, 0); }
+}
+
+.ring-animation {
+  animation: incoming-call-ring 1.5s ease-out infinite;
+}
+
+/* ── Scrollbar masquée (pour flex overflow) ───────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Toast personnalisé ───────────────────────────────────────── */
+.react-hot-toast {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 0.875rem !important;
+}
