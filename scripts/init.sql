@@ -183,7 +183,7 @@ INSERT IGNORE INTO `users` (
   UUID(),
   'admin',
   'admin@cap-epac.local',
-  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.5g5O',
+  '$2b$12$cWVazL3y6VAfP8FF9X.hKu9YlUaPwR0dFMeE0.n0HIOY80GEtiYUO',
   'Administrateur CAP-EPAC',
   'admin',
   'offline',
