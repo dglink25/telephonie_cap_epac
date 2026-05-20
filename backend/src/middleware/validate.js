@@ -38,14 +38,17 @@ const schemas = {
       .min(3, 'Minimum 3 caractères')
       .max(50)
       .regex(/^[a-zA-Z0-9._-]+$/, 'Caractères alphanumériques, points, tirets uniquement'),
-    email: z.string().email('Email invalide').max(100),
+    // email composé automatiquement côté serveur — ne pas exiger ici
     password: z
       .string()
       .min(8, 'Minimum 8 caractères')
       .regex(/[A-Z]/, 'Au moins une majuscule')
       .regex(/[0-9]/, 'Au moins un chiffre'),
     display_name: z.string().min(2).max(100),
-    department: z.string().max(100).optional(),
+    department: z.enum(
+      ['Direction', 'Responsable Division', 'Secrétariat', 'Soutien Informatique'],
+      { errorMap: () => ({ message: 'Service invalide ou manquant.' }) }
+    ),
   }),
 
   login: z.object({

@@ -8,28 +8,64 @@ const { blacklistToken, incrementLoginAttempts, resetLoginAttempts } = require('
 const { addUserToGeneralGroup } = require('../services/generalGroupService');
 const logger = require('../utils/logger');
 
-const MAX_LOGIN_ATTEMPTS  = 5;
-const LOCK_DURATION_MIN   = 30;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_DURATION_MIN  = 30;
+const EMAIL_DOMAIN       = 'cap-epac.bj';
 
 // ── POST /api/auth/register ──────────────────────────────────────
 const register = async (req, res, next) => {
   try {
-    const { username, email, password, display_name, department } = req.body;
+    const { username, password, display_name, department } = req.body;
 
-    const existing = await User.findOne({ where: { username } });
-    if (existing) return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà pris' });
+    // Validation des champs obligatoires
+    if (!username || !password || !display_name) {
+      return res.status(400).json({ success: false, message: 'Champs obligatoires manquants.' });
+    }
 
+    // Validation du département
+    const VALID_DEPARTMENTS = ['Direction', 'Responsable Division', 'Secrétariat', 'Soutien Informatique'];
+    if (!department || !VALID_DEPARTMENTS.includes(department)) {
+      return res.status(400).json({ success: false, message: 'Service invalide ou manquant.' });
+    }
+
+    // Normaliser l'identifiant (minuscules, trim)
+    const normalizedUsername = username.trim().toLowerCase();
+
+    // Composer l'email automatiquement
+    const email = `${normalizedUsername}@${EMAIL_DOMAIN}`;
+
+    // Vérifier l'unicité de l'identifiant
+    const existingUsername = await User.findOne({ where: { username: normalizedUsername } });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà pris.' });
+    }
+
+    // Vérifier l'unicité de l'email (au cas où)
     const existingEmail = await User.findOne({ where: { email } });
-    if (existingEmail) return res.status(409).json({ success: false, message: 'Cet email est déjà utilisé' });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, message: 'Cet identifiant génère un email déjà utilisé.' });
+    }
 
     const password_hash = await User.hashPassword(password);
-    const user = await User.create({ username, email, password_hash, display_name, department: department || null, role: 'user' });
+
+    const user = await User.create({
+      username:     normalizedUsername,
+      email,
+      password_hash,
+      display_name: display_name.trim(),
+      department,
+      role: 'user',
+    });
 
     await addUserToGeneralGroup(user.id, false);
 
-    logger.info(`Nouvel utilisateur créé: ${username} (${user.id})`);
+    logger.info(`Nouvel utilisateur créé: ${normalizedUsername} → ${email} (${user.id})`);
 
-    return res.status(201).json({ success: true, message: 'Compte créé avec succès', data: { user: user.toPublic() } });
+    return res.status(201).json({
+      success: true,
+      message: 'Compte créé avec succès.',
+      data: { user: user.toPublic() },
+    });
   } catch (err) { next(err); }
 };
 
@@ -39,15 +75,28 @@ const login = async (req, res, next) => {
     const { username, password } = req.body;
     const clientIp = req.ip;
 
-    const user = await User.findOne({ where: { username } });
+    // Accepter la connexion par identifiant OU par email
+    const { Op } = require('sequelize');
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { username: username?.trim().toLowerCase() },
+          { email:    username?.trim().toLowerCase() },
+        ],
+      },
+    });
+
     if (!user || !user.is_active) {
       await incrementLoginAttempts(clientIp);
-      return res.status(401).json({ success: false, message: 'Identifiant ou mot de passe incorrect' });
+      return res.status(401).json({ success: false, message: 'Identifiant ou mot de passe incorrect.' });
     }
 
     if (user.locked_until && new Date() < new Date(user.locked_until)) {
       const minutesLeft = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
-      return res.status(403).json({ success: false, message: `Compte verrouillé. Réessayez dans ${minutesLeft} minute(s).` });
+      return res.status(403).json({
+        success: false,
+        message: `Compte verrouillé. Réessayez dans ${minutesLeft} minute(s).`,
+      });
     }
 
     const isValid = await user.verifyPassword(password);
@@ -56,13 +105,20 @@ const login = async (req, res, next) => {
       if (user.login_attempts >= MAX_LOGIN_ATTEMPTS) {
         const lockedUntil = new Date();
         lockedUntil.setMinutes(lockedUntil.getMinutes() + LOCK_DURATION_MIN);
-        user.locked_until = lockedUntil;
+        user.locked_until   = lockedUntil;
         user.login_attempts = 0;
         await user.save();
-        return res.status(403).json({ success: false, message: `Compte verrouillé pour ${LOCK_DURATION_MIN} minutes.` });
+        return res.status(403).json({
+          success: false,
+          message: `Compte verrouillé pour ${LOCK_DURATION_MIN} minutes.`,
+        });
       }
       await user.save();
-      return res.status(401).json({ success: false, message: 'Identifiant ou mot de passe incorrect', attemptsLeft: MAX_LOGIN_ATTEMPTS - user.login_attempts });
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiant ou mot de passe incorrect.',
+        attemptsLeft: MAX_LOGIN_ATTEMPTS - user.login_attempts,
+      });
     }
 
     user.login_attempts = 0;
@@ -75,12 +131,19 @@ const login = async (req, res, next) => {
     const refreshToken = await generateRefreshToken(user, req.headers['user-agent'] || null);
 
     res.cookie('refresh_token', refreshToken, {
-      httpOnly: true, secure: true, sameSite: 'Strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/auth/refresh',
+      httpOnly: true,
+      secure:   true,
+      sameSite: 'Strict',
+      maxAge:   7 * 24 * 60 * 60 * 1000,
+      path:     '/api/auth/refresh',
     });
 
-    logger.info(`Connexion réussie: ${username} depuis ${clientIp}`);
-    return res.json({ success: true, message: 'Connexion réussie', data: { accessToken, user: user.toPublic() } });
+    logger.info(`Connexion réussie: ${user.username} depuis ${clientIp}`);
+    return res.json({
+      success: true,
+      message: 'Connexion réussie.',
+      data: { accessToken, user: user.toPublic() },
+    });
   } catch (err) { next(err); }
 };
 
@@ -88,23 +151,26 @@ const login = async (req, res, next) => {
 const refresh = async (req, res, next) => {
   try {
     const rawToken = req.cookies?.refresh_token;
-    if (!rawToken) return res.status(401).json({ success: false, message: 'Refresh token manquant' });
+    if (!rawToken) return res.status(401).json({ success: false, message: 'Refresh token manquant.' });
 
     const userId = req.body.user_id;
-    if (!userId) return res.status(400).json({ success: false, message: 'user_id requis' });
+    if (!userId) return res.status(400).json({ success: false, message: 'user_id requis.' });
 
     const tokenRecord = await verifyRefreshToken(rawToken, userId);
-    if (!tokenRecord) return res.status(401).json({ success: false, message: 'Refresh token invalide ou expiré' });
+    if (!tokenRecord) return res.status(401).json({ success: false, message: 'Refresh token invalide ou expiré.' });
 
     const user = await User.findByPk(userId);
-    if (!user || !user.is_active) return res.status(401).json({ success: false, message: 'Utilisateur introuvable' });
+    if (!user || !user.is_active) return res.status(401).json({ success: false, message: 'Utilisateur introuvable.' });
 
     const newAccessToken  = generateAccessToken(user);
     const newRefreshToken = await generateRefreshToken(user, req.headers['user-agent']);
 
     res.cookie('refresh_token', newRefreshToken, {
-      httpOnly: true, secure: true, sameSite: 'Strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/auth/refresh',
+      httpOnly: true,
+      secure:   true,
+      sameSite: 'Strict',
+      maxAge:   7 * 24 * 60 * 60 * 1000,
+      path:     '/api/auth/refresh',
     });
 
     return res.json({ success: true, data: { accessToken: newAccessToken } });
@@ -116,7 +182,7 @@ const logout = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader) {
-      const token = authHeader.split(' ')[1];
+      const token   = authHeader.split(' ')[1];
       const decoded = decodeToken(token);
       if (decoded?.jti) {
         const ttl = getTokenTTL(decoded);
@@ -125,7 +191,7 @@ const logout = async (req, res, next) => {
     }
     if (req.user?.id) await revokeAllTokens(req.user.id);
     res.clearCookie('refresh_token', { path: '/api/auth/refresh' });
-    return res.json({ success: true, message: 'Déconnexion réussie' });
+    return res.json({ success: true, message: 'Déconnexion réussie.' });
   } catch (err) { next(err); }
 };
 
@@ -134,7 +200,7 @@ const logoutAll = async (req, res, next) => {
   try {
     await revokeAllTokens(req.user.id);
     res.clearCookie('refresh_token', { path: '/api/auth/refresh' });
-    return res.json({ success: true, message: 'Déconnexion de toutes les sessions' });
+    return res.json({ success: true, message: 'Déconnexion de toutes les sessions.' });
   } catch (err) { next(err); }
 };
 
@@ -147,7 +213,7 @@ const changePassword = async (req, res, next) => {
     const { current_password, new_password } = req.body;
     const user = req.user;
     const isValid = await user.verifyPassword(current_password);
-    if (!isValid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect' });
+    if (!isValid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect.' });
     user.password_hash = await User.hashPassword(new_password);
     await user.save();
     await revokeAllTokens(user.id);
