@@ -6,7 +6,7 @@ import {
   Send, Paperclip, Phone, Video, Search, Plus, ArrowLeft,
   Edit2, Trash2, Reply, MessageSquare, Loader2, X, Mic,
   MicOff, StopCircle, Image, Film, FileText, Music, Check,
-  CheckCheck, Clock, AlertCircle,
+  CheckCheck, Clock, AlertCircle, Settings,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -17,6 +17,7 @@ import useSocketStore from '../store/socketStore';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import AudioPlayer from '../components/chat/AudioPlayer';
 import FilePreview from '../components/chat/FilePreview';
+import GroupSettings from '../components/chat/GroupSettings';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -176,11 +177,11 @@ function ConversationItem({ conv, isActive, currentUserId, onClick }) {
   const lastMsgPreview = () => {
     const m = conv.lastMessage;
     if (!m) return 'Aucun message';
-    if (m.is_deleted) return '🗑 Message retiré';
-    if (m.type === 'audio') return '🎙 Message vocal';
-    if (m.type === 'image') return '🖼 Image';
-    if (m.type === 'video') return '🎬 Vidéo';
-    if (m.type === 'file')  return `📎 ${m.file_name || 'Fichier'}`;
+    if (m.is_deleted) return 'Message retiré';
+    if (m.type === 'audio') return 'Message vocal';
+    if (m.type === 'image') return 'Image';
+    if (m.type === 'video') return 'Vidéo';
+    if (m.type === 'file')  return `${m.file_name || 'Fichier'}`;
     return m.content || '';
   };
 
@@ -273,6 +274,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewConv, setShowNewConv] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
 
   const messagesEndRef = useRef(null);
   const typingTimer = useRef(null);
@@ -337,7 +339,7 @@ export default function ChatPage() {
     onError: (err) => {
       const code = err.response?.data?.code;
       if (code === 'EDIT_WINDOW_EXPIRED') {
-        toast.error('⏱ Délai de 15 minutes dépassé — modification impossible');
+        toast.error('Délai de 15 minutes dépassé — modification impossible');
       } else {
         toast.error(err.response?.data?.message || 'Erreur modification');
       }
@@ -500,6 +502,11 @@ export default function ChatPage() {
             <div className="flex items-center gap-1">
               <button onClick={() => handleCall('audio')} className="btn-icon text-primary-600 hover:bg-primary-50"><Phone className="w-5 h-5" /></button>
               <button onClick={() => handleCall('video')} className="btn-icon text-primary-600 hover:bg-primary-50"><Video className="w-5 h-5" /></button>
+              {activeConv?.type === 'group' && (
+                <button onClick={() => setShowGroupSettings(true)} className="btn-icon text-slate-500 hover:bg-slate-100 hover:text-primary-600" title="Paramètres du groupe">
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -664,6 +671,15 @@ export default function ChatPage() {
             <Plus className="w-4 h-4" /> Nouvelle conversation
           </button>
         </div>
+      )}
+
+      {/* Paramètres groupe */}
+      {showGroupSettings && activeConv?.type === 'group' && (
+        <GroupSettings
+          conversationId={conversationId}
+          onClose={() => setShowGroupSettings(false)}
+          onLeft={() => { setShowGroupSettings(false); navigate('/chat'); qc.invalidateQueries(['conversations']); }}
+        />
       )}
 
       {/* Modal retirer message */}

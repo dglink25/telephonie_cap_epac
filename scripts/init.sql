@@ -57,16 +57,19 @@ CREATE TABLE IF NOT EXISTS `token_blacklist` (
 
 -- ── Table conversations ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `conversations` (
-  `id`         CHAR(36)     NOT NULL DEFAULT (UUID()),
-  `name`       VARCHAR(100) DEFAULT NULL,
-  `type`       ENUM('direct','group') NOT NULL DEFAULT 'direct',
-  `avatar_url` TEXT         DEFAULT NULL,
-  `created_by` CHAR(36)     NOT NULL,
-  `is_muted`   TINYINT(1)   NOT NULL DEFAULT 0,
-  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `id`          CHAR(36)     NOT NULL DEFAULT (UUID()),
+  `name`        VARCHAR(100) DEFAULT NULL,
+  `description` TEXT         DEFAULT NULL,
+  `type`        ENUM('direct','group') NOT NULL DEFAULT 'direct',
+  `avatar_url`  TEXT         DEFAULT NULL,
+  `created_by`  CHAR(36)     NOT NULL,
+  `is_muted`    TINYINT(1)   NOT NULL DEFAULT 0,
+  `is_general`  TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_conv_type` (`type`),
+  INDEX `idx_conv_is_general` (`is_general`),
   INDEX `idx_conv_created_by` (`created_by`),
   CONSTRAINT `fk_conv_creator` FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -93,7 +96,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `conversation_id` CHAR(36)  NOT NULL,
   `sender_id`       CHAR(36)  NOT NULL,
   `content`         TEXT      DEFAULT NULL,
-  `type`            ENUM('text','image','file','system','audio') NOT NULL DEFAULT 'text',
+  `type`            ENUM('text','image','file','system','audio','video') NOT NULL DEFAULT 'text',
   `reply_to_id`     CHAR(36)  DEFAULT NULL,
   `file_url`        TEXT      DEFAULT NULL,
   `file_name`       VARCHAR(255) DEFAULT NULL,
@@ -150,66 +153,30 @@ CREATE TABLE IF NOT EXISTS `call_logs` (
   `started_at`       DATETIME  DEFAULT NULL,
   `ended_at`         DATETIME  DEFAULT NULL,
   `duration_seconds` INT       DEFAULT 0,
-  `recording_path`   TEXT      DEFAULT NULL,
-  `sdp_offer`        TEXT      DEFAULT NULL,
-  `sdp_answer`       TEXT      DEFAULT NULL,
   `created_at`       DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_call_caller` (`caller_id`),
   INDEX `idx_call_callee` (`callee_id`),
   INDEX `idx_call_status` (`status`),
-  INDEX `idx_call_created` (`created_at`),
   CONSTRAINT `fk_call_caller` FOREIGN KEY (`caller_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_call_callee` FOREIGN KEY (`callee_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Table call_participants ─────────────────────────────────────
-CREATE TABLE IF NOT EXISTS `call_participants` (
-  `id`         CHAR(36) NOT NULL DEFAULT (UUID()),
-  `call_id`    CHAR(36) NOT NULL,
-  `user_id`    CHAR(36) NOT NULL,
-  `joined_at`  DATETIME DEFAULT NULL,
-  `left_at`    DATETIME DEFAULT NULL,
-  `is_muted`   TINYINT(1) NOT NULL DEFAULT 0,
-  `video_on`   TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  INDEX `idx_cp_call` (`call_id`),
-  CONSTRAINT `fk_cp_call` FOREIGN KEY (`call_id`) REFERENCES `call_logs`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cp_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Table contacts ──────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS `contacts` (
-  `id`         CHAR(36) NOT NULL DEFAULT (UUID()),
-  `user_id`    CHAR(36) NOT NULL,
-  `contact_id` CHAR(36) NOT NULL,
-  `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_contact` (`user_id`, `contact_id`),
-  CONSTRAINT `fk_ct_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_ct_contact` FOREIGN KEY (`contact_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── Table audit_logs ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS `audit_logs` (
-  `id`         CHAR(36)     NOT NULL DEFAULT (UUID()),
-  `user_id`    CHAR(36)     DEFAULT NULL,
-  `action`     VARCHAR(100) NOT NULL,
-  `resource`   VARCHAR(100) DEFAULT NULL,
-  `ip_address` VARCHAR(45)  DEFAULT NULL,
-  `details`    JSON         DEFAULT NULL,
-  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_audit_user` (`user_id`),
-  INDEX `idx_audit_action` (`action`),
-  INDEX `idx_audit_created` (`created_at`)
+-- ── Table refresh_tokens ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `refresh_tokens_v2` (
+  `id`         CHAR(36)  NOT NULL DEFAULT (UUID()),
+  `user_id`    CHAR(36)  NOT NULL,
+  `token_hash` TEXT      NOT NULL,
+  `device_info` VARCHAR(255) DEFAULT NULL,
+  `expires_at` DATETIME  NOT NULL,
+  `created_at` DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- ── Données initiales : Compte administrateur ───────────────────
--- Mot de passe par défaut : Admin@CapEpac2025  (bcrypt hash)
+-- ── Admin par défaut ─────────────────────────────────────────────
+-- Mot de passe : Admin@CapEpac2025
 INSERT IGNORE INTO `users` (
   `id`, `username`, `email`, `password_hash`, `display_name`, `role`, `presence_status`, `department`
 ) VALUES (
@@ -222,3 +189,6 @@ INSERT IGNORE INTO `users` (
   'offline',
   'Administration'
 );
+
+-- ── Groupe Général (créé automatiquement) ────────────────────────
+-- Sera géré par le backend au démarrage

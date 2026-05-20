@@ -1,7 +1,5 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Génération certificats SSL auto-signés LAN
-# ═══════════════════════════════════════════════════════════════
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,11 +10,7 @@ SSL_DIR="$PROJECT_DIR/nginx/ssl"
 SERVER_IP="${1:-$(grep SERVER_LAN_IP "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d ' ')}"
 SERVER_IP="${SERVER_IP:-192.168.1.10}"
 
-echo ""
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║    CAP-EPAC — Génération Certificats SSL LAN        ║"
-echo "╚══════════════════════════════════════════════════════╝"
-echo ""
+
 echo "  IP du serveur LAN : $SERVER_IP"
 echo "  Répertoire SSL    : $SSL_DIR"
 echo ""
@@ -40,14 +34,12 @@ openssl req -new -x509 \
 chmod 600 "$SSL_DIR/key.pem"
 chmod 644 "$SSL_DIR/cert.pem"
 
-echo ""
-echo "✅ Certificats générés avec succès !"
+
 echo "   • Clé privée  : $SSL_DIR/key.pem"
 echo "   • Certificat  : $SSL_DIR/cert.pem"
 echo "   • Validité    : 10 ans"
 echo "   • IP couverte : $SERVER_IP"
-echo ""
-echo "⚠️  Pour éviter l'avertissement du navigateur :"
+
 echo "   Importez '$SSL_DIR/cert.pem' dans les autorités de"
 echo "   certification de chaque navigateur sur le LAN."
 echo ""

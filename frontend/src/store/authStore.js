@@ -14,6 +14,12 @@ const useAuthStore = create(
       setAuth: (user, accessToken) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         set({ user, accessToken, isAuthenticated: true });
+
+        // Reconnecter le socket avec le nouveau token
+        // Import dynamique pour éviter la dépendance circulaire
+        import('./socketStore').then(({ default: useSocketStore }) => {
+          useSocketStore.getState().reconnectWithToken(accessToken);
+        });
       },
 
       updateUser: (userData) =>
@@ -21,6 +27,9 @@ const useAuthStore = create(
 
       clearAuth: () => {
         delete api.defaults.headers.common['Authorization'];
+        import('./socketStore').then(({ default: useSocketStore }) => {
+          useSocketStore.getState().disconnect();
+        });
         set({ user: null, accessToken: null, isAuthenticated: false });
       },
 
@@ -32,17 +41,14 @@ const useAuthStore = create(
           get().setAuth(user, accessToken);
           return { success: true };
         } catch (err) {
-          const msg = err.response?.data?.message || 'Erreur de connexion';
-          return { success: false, message: msg };
+          return { success: false, message: err.response?.data?.message || 'Erreur de connexion' };
         } finally {
           set({ isLoading: false });
         }
       },
 
       logout: async () => {
-        try {
-          await api.post('/auth/logout');
-        } catch (_) {}
+        try { await api.post('/auth/logout'); } catch (_) {}
         get().clearAuth();
       },
 
@@ -54,6 +60,12 @@ const useAuthStore = create(
           const { accessToken } = data.data;
           api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
           set({ accessToken });
+
+          // ✅ Reconnecter le socket avec le NOUVEAU token
+          import('./socketStore').then(({ default: useSocketStore }) => {
+            useSocketStore.getState().reconnectWithToken(accessToken);
+          });
+
           return true;
         } catch (_) {
           get().clearAuth();
