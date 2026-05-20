@@ -1,29 +1,21 @@
 // src/routes/users.js
 const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const path = require('path');
-const sharp = require('sharp');
+const router  = express.Router();
+const multer  = require('multer');
+const path    = require('path');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { validate, schemas } = require('../middleware/validate');
+const { validate, schemas }          = require('../middleware/validate');
 const {
-  getUsers,
-  getUserById,
-  updateProfile,
-  uploadAvatar,
-  updatePresence,
-  getMyPresence,
-  adminCreateUser,
-  adminUpdateUser,
-  adminDeleteUser,
+  getUsers, getUsersAdmin,
+  getUserById, updateProfile, uploadAvatar,
+  updatePresence, getMyPresence,
+  adminCreateUser, adminUpdateUser, adminDeleteUser,
 } = require('../controllers/userController');
 
-// Configuration Multer pour avatars
+// ── Multer avatars ───────────────────────────────────────────────
 const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads/avatars'));
-  },
-  filename: (req, file, cb) => {
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads/avatars')),
+  filename:    (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `avatar_${req.user.id}_${Date.now()}${ext}`);
   },
@@ -31,109 +23,32 @@ const avatarStorage = multer.diskStorage({
 
 const avatarUpload = multer({
   storage: avatarStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 Mo
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Format d\'image non supporté'), false);
+    allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error('Format non supporté'), false);
   },
 });
 
-// ── Routes publiques (authentifiées) ────────────────────────────
+// ── Routes fixes AVANT /:id ──────────────────────────────────────
+// IMPORTANT : toutes les routes avec un segment fixe doivent être
+// déclarées AVANT router.get('/:id') sinon Express les capture comme ID.
 
-/**
- * @swagger
- * /users:
- *   get:
- *     summary: Annuaire des utilisateurs
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- *     parameters:
- *       - in: query
- *         name: search
- *         schema: { type: string }
- *       - in: query
- *         name: department
- *         schema: { type: string }
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 50 }
- */
-router.get('/', authenticate, getUsers);
+router.get('/me/presence',  authenticate, getMyPresence);
+router.put('/me/presence',  authenticate, validate(schemas.updatePresence), updatePresence);
+router.put('/me',           authenticate, validate(schemas.updateProfile), updateProfile);
+router.post('/me/avatar',   authenticate, avatarUpload.single('avatar'), uploadAvatar);
 
-/**
- * @swagger
- * /users/me:
- *   put:
- *     summary: Mettre à jour son profil
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- */
-router.put('/me', authenticate, validate(schemas.updateProfile), updateProfile);
+// Route admin-list : déclarée AVANT /:id
+router.get('/admin-list',   authenticate, requireAdmin, getUsersAdmin);
 
-/**
- * @swagger
- * /users/me/avatar:
- *   post:
- *     summary: Changer sa photo de profil
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- */
-router.post('/me/avatar', authenticate, avatarUpload.single('avatar'), uploadAvatar);
-
-/**
- * @swagger
- * /users/me/presence:
- *   get:
- *     summary: Obtenir son statut de présence
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- *   put:
- *     summary: Mettre à jour son statut de présence
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- */
-router.get('/me/presence', authenticate, getMyPresence);
-router.put('/me/presence', authenticate, validate(schemas.updatePresence), updatePresence);
-
-/**
- * @swagger
- * /users/{id}:
- *   get:
- *     summary: Profil d'un utilisateur par ID
- *     tags: [Utilisateurs]
- *     security: [{bearerAuth: []}]
- */
-router.get('/:id', authenticate, getUserById);
-
-// ── Routes Admin ─────────────────────────────────────────────────
-
-/**
- * @swagger
- * /users/admin:
- *   post:
- *     summary: Créer un utilisateur (admin uniquement)
- *     tags: [Administration]
- *     security: [{bearerAuth: []}]
- */
-router.post('/admin', authenticate, requireAdmin, validate(schemas.register), adminCreateUser);
-
-/**
- * @swagger
- * /users/admin/{id}:
- *   put:
- *     summary: Modifier un utilisateur (admin)
- *     tags: [Administration]
- *     security: [{bearerAuth: []}]
- *   delete:
- *     summary: Désactiver un utilisateur (admin)
- *     tags: [Administration]
- *     security: [{bearerAuth: []}]
- */
-router.put('/admin/:id', authenticate, requireAdmin, adminUpdateUser);
+// Routes admin CRUD
+router.post('/admin',       authenticate, requireAdmin, validate(schemas.register), adminCreateUser);
+router.put('/admin/:id',    authenticate, requireAdmin, adminUpdateUser);
 router.delete('/admin/:id', authenticate, requireAdmin, adminDeleteUser);
+
+// ── Routes génériques (APRÈS les routes fixes) ───────────────────
+router.get('/',    authenticate, getUsers);
+router.get('/:id', authenticate, getUserById);
 
 module.exports = router;

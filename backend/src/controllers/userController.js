@@ -6,9 +6,7 @@ const { User } = require('../models');
 const { setUserPresence, getUserPresence } = require('../config/redis');
 const logger = require('../utils/logger');
 
-/**
- * GET /api/users — Annuaire (admin ou tous les users authentifiés)
- */
+
 const getUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 50, search = '', department } = req.query;
@@ -28,7 +26,7 @@ const getUsers = async (req, res, next) => {
 
     const { count, rows } = await User.findAndCountAll({
       where,
-      attributes: ['id', 'username', 'display_name', 'email', 'avatar_url', 'role', 'presence_status', 'department', 'phone_extension', 'last_seen_at'],
+      attributes: ['id', 'username', 'display_name', 'email', 'avatar_url', 'role', 'presence_status', 'department', 'phone_extension', 'last_seen_at', 'is_active'],
       order: [['display_name', 'ASC']],
       limit: parseInt(limit),
       offset,
@@ -63,9 +61,62 @@ const getUsers = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/users/:id — Profil d'un utilisateur
- */
+
+const getUsersAdmin = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 50, search = '', department } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {}; // Inclure les utilisateurs inactifs pour les admins};
+    if (search) {
+      where[Op.or] = [
+        { display_name: { [Op.like]: `%${search}%` } },
+        { username: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+      ];
+    }
+    if (department) {
+      where.department = department;
+    }
+
+    const { count, rows } = await User.findAndCountAll({
+      where,
+      attributes: ['id', 'username', 'display_name', 'email', 'avatar_url', 'role', 'presence_status', 'department', 'phone_extension', 'last_seen_at', 'is_active'],
+      order: [['display_name', 'ASC']],
+      limit: parseInt(limit),
+      offset,
+    });
+
+    // Enrichir avec la présence Redis
+    const usersWithPresence = await Promise.all(
+      rows.map(async (user) => {
+        const presence = await getUserPresence(user.id);
+        const userData = user.toJSON();
+        if (presence && presence.status) {
+          userData.presence_status = presence.status;
+        }
+        return userData;
+      })
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        users: usersWithPresence,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / parseInt(limit)),
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 const getUserById = async (req, res, next) => {
   try {
     const user = await User.findOne({
@@ -87,9 +138,6 @@ const getUserById = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/users/me — Mettre à jour son profil
- */
 const updateProfile = async (req, res, next) => {
   try {
     const { display_name, department, phone_extension } = req.body;
@@ -111,9 +159,7 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/users/me/avatar — Upload d'avatar
- */
+
 const uploadAvatar = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -143,9 +189,7 @@ const uploadAvatar = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/users/me/presence — Mettre à jour le statut de présence
- */
+
 const updatePresence = async (req, res, next) => {
   try {
     const { status } = req.body;
@@ -172,9 +216,7 @@ const updatePresence = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/users/me/presence — Obtenir sa propre présence
- */
+
 const getMyPresence = async (req, res, next) => {
   try {
     const presence = await getUserPresence(req.user.id);
@@ -189,9 +231,7 @@ const getMyPresence = async (req, res, next) => {
 
 // ── Admin ────────────────────────────────────────────────────────
 
-/**
- * POST /api/admin/users — Créer un utilisateur (admin)
- */
+
 const adminCreateUser = async (req, res, next) => {
   try {
     const { username, email, password, display_name, role, department } = req.body;
@@ -212,9 +252,6 @@ const adminCreateUser = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/admin/users/:id — Modifier un utilisateur (admin)
- */
 const adminUpdateUser = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.params.id);
@@ -235,9 +272,7 @@ const adminUpdateUser = async (req, res, next) => {
   }
 };
 
-/**
- * DELETE /api/admin/users/:id — Désactiver un utilisateur
- */
+
 const adminDeleteUser = async (req, res, next) => {
   try {
     if (req.params.id === req.user.id) {
@@ -258,6 +293,7 @@ const adminDeleteUser = async (req, res, next) => {
 
 module.exports = {
   getUsers,
+  getUsersAdmin,
   getUserById,
   updateProfile,
   uploadAvatar,

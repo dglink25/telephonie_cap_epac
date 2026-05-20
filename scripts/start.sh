@@ -1,7 +1,5 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Script de démarrage
-# ═══════════════════════════════════════════════════════════════
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,11 +16,7 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 section() { echo -e "\n${BLUE}══ $1 ══${NC}"; }
 
-echo ""
-echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║       Téléphonie CAP-EPAC — Démarrage               ║${NC}"
-echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
-echo ""
+
 
 cd "$PROJECT_DIR"
 
