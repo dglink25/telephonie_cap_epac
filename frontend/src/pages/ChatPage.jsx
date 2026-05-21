@@ -6,7 +6,7 @@ import {
   Send, Paperclip, Phone, Video, Search, Plus, ArrowLeft,
   Edit2, Trash2, Reply, MessageSquare, Loader2, X, Mic,
   MicOff, StopCircle, Image, Film, FileText, Music, Check,
-  CheckCheck, Clock, AlertCircle, Settings,
+  CheckCheck, Clock, AlertCircle, Settings, Smile,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -18,6 +18,9 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import AudioPlayer from '../components/chat/AudioPlayer';
 import FilePreview from '../components/chat/FilePreview';
 import GroupSettings from '../components/chat/GroupSettings';
+import MentionPicker from '../components/chat/MentionPicker';
+import EmojiPickerPanel from '../components/chat/EmojiPicker';
+import { useMention } from '../hooks/useMention';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,22 @@ function PresenceBadge({ status }) {
 }
 
 // ─── Bulle de message ─────────────────────────────────────────────────────────
+
+// Rendre le texte avec les @mentions en surbrillance
+function renderTextWithMentions(text, isOwn) {
+  if (!text) return null;
+  const parts = text.split(/(@[^\s@]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@') && part.length > 1) {
+      return (
+        <span key={i} className={`font-semibold ${isOwn ? 'text-white underline decoration-white/50' : 'text-primary-600'}`}>
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 
 function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
   const isOwn = msg.sender_id === currentUserId;
@@ -90,7 +109,7 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
       case 'file':
         return <FilePreview fileUrl={msg.file_url} fileName={msg.file_name} fileSize={msg.file_size} fileMime={msg.file_mime} isOwn={isOwn} />;
       default:
-        return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>;
+        return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderTextWithMentions(msg.content, isOwn)}</p>;
     }
   };
 
@@ -177,11 +196,11 @@ function ConversationItem({ conv, isActive, currentUserId, onClick }) {
   const lastMsgPreview = () => {
     const m = conv.lastMessage;
     if (!m) return 'Aucun message';
-    if (m.is_deleted) return 'Message retiré';
-    if (m.type === 'audio') return 'Message vocal';
-    if (m.type === 'image') return 'Image';
-    if (m.type === 'video') return 'Vidéo';
-    if (m.type === 'file')  return `${m.file_name || 'Fichier'}`;
+    if (m.is_deleted) return '🗑 Message retiré';
+    if (m.type === 'audio') return '🎙 Message vocal';
+    if (m.type === 'image') return '🖼 Image';
+    if (m.type === 'video') return '🎬 Vidéo';
+    if (m.type === 'file')  return `📎 ${m.file_name || 'Fichier'}`;
     return m.content || '';
   };
 
@@ -275,6 +294,8 @@ export default function ChatPage() {
   const [showNewConv, setShowNewConv] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const { isMentioning, mentionQuery, handleChange: handleMentionChange, insertMention, cancel: cancelMention } = useMention();
 
   const messagesEndRef = useRef(null);
   const typingTimer = useRef(null);
@@ -282,6 +303,7 @@ export default function ChatPage() {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const attachMenuRef = useRef(null);
+  const textareaRef = useRef(null);
 
   // ── Enregistrement vocal ─────────────────────────────────────────
   const recorder = useVoiceRecorder({
@@ -339,7 +361,7 @@ export default function ChatPage() {
     onError: (err) => {
       const code = err.response?.data?.code;
       if (code === 'EDIT_WINDOW_EXPIRED') {
-        toast.error('Délai de 15 minutes dépassé — modification impossible');
+        toast.error('⏱ Délai de 15 minutes dépassé — modification impossible');
       } else {
         toast.error(err.response?.data?.message || 'Erreur modification');
       }
@@ -400,6 +422,26 @@ export default function ChatPage() {
       sendMutation.mutate(body);
     }
   }, [message, editingMsg, replyTo]);
+
+  // Insérer un emoji dans le textarea
+  const handleEmojiSelect = useCallback((emoji) => {
+    const textarea = textareaRef.current;
+    if (!textarea) { setMessage((m) => m + emoji); setShowEmojiPicker(false); return; }
+    const start = textarea.selectionStart;
+    const end   = textarea.selectionEnd;
+    const newVal = message.slice(0, start) + emoji + message.slice(end);
+    setMessage(newVal);
+    setShowEmojiPicker(false);
+    // Repositionner le curseur après l'emoji
+    setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + emoji.length; textarea.focus(); }, 0);
+  }, [message]);
+
+  // Sélectionner un membre mentionné
+  const handleMentionSelect = useCallback((member) => {
+    const newVal = insertMention(message, member);
+    setMessage(newVal);
+    textareaRef.current?.focus();
+  }, [message, insertMention]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -575,7 +617,7 @@ export default function ChatPage() {
                 </div>
               )}
 
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-2 relative">
                 {/* Bouton pièces jointes */}
                 <div className="relative" ref={attachMenuRef}>
                   <button
@@ -626,13 +668,47 @@ export default function ChatPage() {
 
                 {/* Textarea */}
                 <textarea
+                  ref={textareaRef}
                   className="flex-1 input resize-none min-h-[42px] max-h-36 py-2.5 text-sm"
                   placeholder={editingMsg ? 'Modifier le message…' : 'Écrire un message… (Entrée pour envoyer)'}
                   value={message}
-                  onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMessage(val);
+                    handleTyping();
+                    handleMentionChange(val, e.target.selectionStart);
+                  }}
                   onKeyDown={handleKeyDown}
                   rows={1}
                 />
+
+                {/* Bouton emoji */}
+                <div className="relative self-end mb-0.5">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`btn-icon transition-colors ${showEmojiPicker ? 'text-primary-600 bg-primary-50' : 'text-slate-500 hover:text-primary-600 hover:bg-primary-50'}`}
+                    title="Emojis"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  {showEmojiPicker && (
+                    <EmojiPickerPanel
+                      onSelect={handleEmojiSelect}
+                      onClose={() => setShowEmojiPicker(false)}
+                    />
+                  )}
+                </div>
+
+                {/* MentionPicker — s'affiche au-dessus du textarea */}
+                {isMentioning && activeConv?.type === 'group' && (
+                  <div className="absolute bottom-full left-16 mb-1 z-20">
+                    <MentionPicker
+                      members={(activeConv?.members || []).filter((m) => m.id !== user.id)}
+                      query={mentionQuery}
+                      onSelect={handleMentionSelect}
+                    />
+                  </div>
+                )}
 
                 {/* Bouton micro OU envoyer */}
                 {message.trim() || editingMsg ? (
