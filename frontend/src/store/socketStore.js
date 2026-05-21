@@ -1,13 +1,3 @@
-// src/store/socketStore.js
-/**
- * Store Socket.IO avec reconnexion automatique après refresh JWT
- *
- * Problème résolu :
- * - Le token JWT expire après 15min
- * - Le socket se déconnecte (backend rejette le token expiré)
- * - auth/refresh regénère un nouveau token
- * - Le socket doit se reconnecter avec le NOUVEAU token
- */
 import { create } from 'zustand';
 import { io } from 'socket.io-client';
 

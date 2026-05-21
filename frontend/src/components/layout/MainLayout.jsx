@@ -156,7 +156,7 @@ export default function MainLayout() {
                 <Menu className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-white text-sm leading-tight">CAP-EPAC</h1>
+                <h1 className="font-bold text-white text-sm leading-tight">Téléphonie CAP-EPAC</h1>
                 <p className="text-primary-200 text-xs">Téléphonie LAN</p>
               </div>
             </div>

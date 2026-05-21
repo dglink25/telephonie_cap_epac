@@ -1,7 +1,4 @@
-// src/components/calls/OutgoingCallModal.jsx
-/**
- * Modal d'appel SORTANT — affiché chez l'appelant pendant que ça sonne
- */
+
 import { useEffect, useRef } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import useCallStore from '../../store/callStore';
@@ -37,7 +34,7 @@ export default function OutgoingCallModal() {
     <>
       {/* Ton de retour */}
       <audio ref={audioRef} loop preload="auto">
-        <source src="/sounds/ringback.wav" type="audio/mpeg" />
+        <source src="/sounds/ringtone.wav" type="audio/mpeg" />
       </audio>
 
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

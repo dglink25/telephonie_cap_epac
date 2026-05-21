@@ -12,6 +12,22 @@ export default function IncomingCallModal() {
   const [accepting, setAccepting] = useState(false);
   // Stocker l'offre SDP dès qu'elle arrive, même avant que l'utilisateur clique
   const pendingOfferRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // Sonnerie côté appelé
+  useEffect(() => {
+    if (incomingCall) {
+      audioRef.current?.play().catch(() => {});
+    } else {
+      audioRef.current?.pause();
+      if (audioRef.current) audioRef.current.currentTime = 0;
+    }
+  }, [incomingCall]);
+
+  const stopRingtone = () => {
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+  };
 
   useEffect(() => {
     if (!incomingCall) {
@@ -35,6 +51,7 @@ export default function IncomingCallModal() {
 
     const onEnded = ({ callId }) => {
       if (incomingCall?.callId === callId) {
+        stopRingtone();
         clearIncomingCall();
         toast('Appel annulé');
       }
@@ -54,6 +71,7 @@ export default function IncomingCallModal() {
   const handleAccept = async () => {
     if (!incomingCall || accepting) return;
     setAccepting(true);
+    stopRingtone();
     console.log('[IncomingModal] ✅ accepter callId=', incomingCall.callId);
 
     try {
@@ -96,6 +114,7 @@ export default function IncomingCallModal() {
   const handleReject = () => {
     if (!incomingCall) return;
     console.log('[IncomingModal] ❌ refuser callId=', incomingCall.callId);
+    stopRingtone();
     socket.emit('call:reject', { callId: incomingCall.callId });
     clearIncomingCall();
   };
@@ -126,59 +145,66 @@ export default function IncomingCallModal() {
   if (!incomingCall) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in">
+    <>
+      {/* Sonnerie appel entrant */}
+      <audio ref={audioRef} loop preload="auto">
+        <source src="/sounds/preview.wav" type="audio/wav" />
+      </audio>
 
-        <div className="bg-gradient-to-br from-primary-600 to-primary-700 px-6 py-8 text-center">
-          <div className="relative inline-block mb-4">
-            <div className="w-20 h-20 bg-primary-500 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-animation">
-              {incomingCall.callerName?.charAt(0)?.toUpperCase() || '?'}
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in">
+
+          <div className="bg-gradient-to-br from-primary-600 to-primary-700 px-6 py-8 text-center">
+            <div className="relative inline-block mb-4">
+              <div className="w-20 h-20 bg-primary-500 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-animation">
+                {incomingCall.callerName?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white flex items-center justify-center">
+                {incomingCall.type === 'video'
+                  ? <Video className="w-4 h-4 text-primary-600" />
+                  : <Phone className="w-4 h-4 text-primary-600" />
+                }
+              </div>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white flex items-center justify-center">
-              {incomingCall.type === 'video'
-                ? <Video className="w-4 h-4 text-primary-600" />
-                : <Phone className="w-4 h-4 text-primary-600" />
-              }
+            <p className="text-primary-200 text-sm mb-1">
+              Appel {incomingCall.type === 'video' ? 'vidéo' : 'audio'} entrant
+            </p>
+            <h3 className="text-2xl font-bold text-white">{incomingCall.callerName}</h3>
+            {accepting && (
+              <p className="text-primary-200 text-xs mt-2 animate-pulse">Connexion en cours…</p>
+            )}
+          </div>
+
+          <div className="px-6 py-6 flex items-center justify-around">
+            <div className="call-btn">
+              <button
+                onClick={handleReject}
+                disabled={accepting}
+                className="call-btn-circle w-14 h-14 bg-red-500 hover:bg-red-600 text-white shadow-md disabled:opacity-50"
+              >
+                <PhoneOff className="w-6 h-6" />
+              </button>
+              <span className="text-xs text-slate-500 font-medium">Refuser</span>
+            </div>
+            <div className="call-btn">
+              <button
+                onClick={handleAccept}
+                disabled={accepting}
+                className="call-btn-circle w-14 h-14 bg-primary-500 hover:bg-primary-600 text-white shadow-md disabled:opacity-80"
+              >
+                {accepting
+                  ? <Loader2 className="w-6 h-6 animate-spin" />
+                  : <Phone className="w-6 h-6" />
+                }
+              </button>
+              <span className="text-xs text-slate-500 font-medium">
+                {accepting ? 'Connexion…' : 'Accepter'}
+              </span>
             </div>
           </div>
-          <p className="text-primary-200 text-sm mb-1">
-            Appel {incomingCall.type === 'video' ? 'vidéo' : 'audio'} entrant
-          </p>
-          <h3 className="text-2xl font-bold text-white">{incomingCall.callerName}</h3>
-          {accepting && (
-            <p className="text-primary-200 text-xs mt-2 animate-pulse">Connexion en cours…</p>
-          )}
-        </div>
 
-        <div className="px-6 py-6 flex items-center justify-around">
-          <div className="call-btn">
-            <button
-              onClick={handleReject}
-              disabled={accepting}
-              className="call-btn-circle w-14 h-14 bg-red-500 hover:bg-red-600 text-white shadow-md disabled:opacity-50"
-            >
-              <PhoneOff className="w-6 h-6" />
-            </button>
-            <span className="text-xs text-slate-500 font-medium">Refuser</span>
-          </div>
-          <div className="call-btn">
-            <button
-              onClick={handleAccept}
-              disabled={accepting}
-              className="call-btn-circle w-14 h-14 bg-primary-500 hover:bg-primary-600 text-white shadow-md disabled:opacity-80"
-            >
-              {accepting
-                ? <Loader2 className="w-6 h-6 animate-spin" />
-                : <Phone className="w-6 h-6" />
-              }
-            </button>
-            <span className="text-xs text-slate-500 font-medium">
-              {accepting ? 'Connexion…' : 'Accepter'}
-            </span>
-          </div>
         </div>
-
       </div>
-    </div>
+    </>
   );
 }
