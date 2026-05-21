@@ -1,5 +1,7 @@
 // src/components/layout/MainLayout.jsx
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import useSocketStore from '../../store/socketStore';
 import { useEffect, useRef } from 'react';
@@ -15,6 +17,7 @@ import toast from 'react-hot-toast';
 export default function MainLayout() {
   const { socket } = useSocketStore();
   const { setIncomingCall, setOutgoingCall, clearOutgoingCall, endCall } = useCallStore();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // { calleeId, calleeName, calleeInitial, type, callId }
   const pendingRef = useRef(null);
@@ -128,9 +131,64 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* Sidebar Desktop */}
       <Sidebar />
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
+      
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      
+      {/* Mobile Sidebar */}
+      <aside className={`
+        fixed top-0 left-0 bottom-0 w-64 bg-primary-700 text-white z-50 
+        transform transition-transform duration-300 ease-in-out md:hidden
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex flex-col h-full">
+          {/* Header avec bouton fermer */}
+          <div className="px-4 py-5 border-b border-primary-600 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-primary-500 rounded-lg flex items-center justify-center">
+                <Menu className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-bold text-white text-sm leading-tight">CAP-EPAC</h1>
+                <p className="text-primary-200 text-xs">Téléphonie LAN</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 hover:bg-primary-600 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {/* Contenu de la sidebar mobile (réutiliser le contenu de Sidebar) */}
+          <Sidebar isMobile onNavigate={() => setIsMobileMenuOpen(false)} />
+        </div>
+      </aside>
+      
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Mobile Header */}
+        <div className="md:hidden bg-primary-700 text-white px-4 py-3 flex items-center justify-between shadow-md">
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 hover:bg-primary-600 rounded-lg transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <h1 className="font-bold text-lg">CAP-EPAC</h1>
+          <div className="w-10" /> {/* Spacer pour centrer le titre */}
+        </div>
+        
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

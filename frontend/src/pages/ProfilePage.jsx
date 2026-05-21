@@ -460,11 +460,11 @@ export default function ProfilePage() {
       `}</style>
 
       <div className="profile-page" style={{
-        flex:1, overflowY:'auto', padding:'1.5rem 1rem',
+        flex:1, overflowY:'auto', padding:'1rem', paddingBottom:'2rem',
         background:`linear-gradient(140deg,${C.primaryGhost} 0%,${C.white} 60%,${C.primaryPale} 100%)`,
-        minHeight:'100vh',
+        height:'100%',
       }}>
-        <div style={{ maxWidth:'38rem', margin:'0 auto', display:'flex', flexDirection:'column', gap:'1rem' }}>
+        <div style={{ maxWidth:'38rem', margin:'0 auto', display:'flex', flexDirection:'column', gap:'1rem', paddingBottom:'2rem' }}>
 
           {/* ── Hero ──────────────────────────────────────────── */}
           <div className="profile-card" style={cardStyle}>
@@ -604,11 +604,11 @@ export default function ProfilePage() {
               </div>
 
               {/* Actions */}
-              <div style={{ display:'flex', gap:'0.75rem', paddingTop:'0.25rem', flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:'0.5rem', paddingTop:'0.25rem', flexWrap:'wrap', width:'100%' }}>
                 <button className="btn-save" onClick={()=>profileMutation.mutate(profile)} disabled={profileMutation.isPending}
                   style={{
-                    display:'inline-flex', alignItems:'center', gap:'0.5rem',
-                    padding:'0.6rem 1.4rem',
+                    display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'0.5rem',
+                    padding:'0.65rem 1.2rem', flex:'1', minWidth:'140px',
                     background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
                     borderRadius:'0.75rem', color:C.white, fontWeight:600, fontSize:'0.875rem',
                     border:'none', cursor:'pointer', boxShadow:'0 4px 15px rgba(22,163,74,0.3)',
@@ -620,8 +620,8 @@ export default function ProfilePage() {
                 </button>
                 <button className="btn-pw" onClick={()=>setShowPasswordModal(true)}
                   style={{
-                    display:'inline-flex', alignItems:'center', gap:'0.5rem',
-                    padding:'0.6rem 1.4rem', background:C.white,
+                    display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'0.5rem',
+                    padding:'0.65rem 1.2rem', flex:'1', minWidth:'140px', background:C.white,
                     border:`1px solid ${C.border}`, borderRadius:'0.75rem',
                     color:C.primaryDark, fontWeight:600, fontSize:'0.875rem',
                     cursor:'pointer', transition:'all 0.2s', fontFamily:'inherit',

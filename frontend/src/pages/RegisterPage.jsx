@@ -194,26 +194,26 @@ export default function RegisterPage() {
     `input ${touched[field] && fieldErrors[field] ? 'border-red-300 ring-1 ring-red-200 focus:ring-red-300' : ''}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-700 via-primary-600 to-primary-500 flex items-center justify-center p-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary-700 via-primary-600 to-primary-500 flex items-center justify-center p-4 py-6 md:py-8">
       <div className="w-full max-w-md">
 
         {/* En-tête */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Phone className="w-10 h-10 text-primary-600" />
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl shadow-lg mb-3 md:mb-4">
+            <Phone className="w-8 h-8 md:w-10 md:h-10 text-primary-600" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Téléphonie CAP-EPAC</h1>
-          <p className="text-primary-100 mt-1 text-sm">Créer votre compte</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Téléphonie CAP-EPAC</h1>
+          <p className="text-primary-100 mt-1 text-xs md:text-sm">Créer votre compte</p>
         </div>
 
         {/* Carte */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
-          <h2 className="text-xl font-semibold text-slate-800 mb-1">Inscription</h2>
-          <p className="text-xs text-slate-400 mb-6">
+        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 md:p-8">
+          <h2 className="text-lg md:text-xl font-semibold text-slate-800 mb-1">Inscription</h2>
+          <p className="text-xs text-slate-400 mb-5 md:mb-6">
             Les champs marqués <span className="text-red-500">*</span> sont obligatoires.
           </p>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-3 md:space-y-4">
             <ErrorBanner message={globalError} onDismiss={() => setGlobalError('')} />
 
             {/* Nom complet */}
@@ -296,14 +296,14 @@ export default function RegisterPage() {
             </Field>
 
             {/* Soumettre */}
-            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 text-base mt-2">
+            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 md:py-3 text-sm md:text-base mt-2">
               {loading
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Création du compte…</>
                 : 'Créer le compte'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500 mt-5">
+          <p className="text-center text-xs md:text-sm text-slate-500 mt-4 md:mt-5">
             Déjà un compte ?{' '}
             <Link to="/login" className="text-primary-600 font-medium hover:underline">Se connecter</Link>
           </p>

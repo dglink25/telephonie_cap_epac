@@ -166,19 +166,19 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
 
         {/* En-tête */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Phone className="w-10 h-10 text-primary-600" />
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl shadow-lg mb-3 md:mb-4">
+            <Phone className="w-8 h-8 md:w-10 md:h-10 text-primary-600" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Téléphonie CAP-EPAC</h1>
-          <p className="text-primary-100 mt-1 text-sm">Système de communication réseau local</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Téléphonie CAP-EPAC</h1>
+          <p className="text-primary-100 mt-1 text-xs md:text-sm">Système de communication réseau local</p>
         </div>
 
         {/* Carte */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
-          <h2 className="text-xl font-semibold text-slate-800 mb-6">Connexion</h2>
+        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 md:p-8">
+          <h2 className="text-lg md:text-xl font-semibold text-slate-800 mb-5 md:mb-6">Connexion</h2>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-5">
 
             {/* Bannière d'erreur globale — reste jusqu'à dismiss */}
             <ErrorBanner
@@ -240,7 +240,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-primary w-full py-2.5 text-base mt-1"
+              className="btn-primary w-full py-2.5 md:py-3 text-sm md:text-base mt-1"
             >
               {isLoading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" />Connexion en cours…</>
@@ -250,7 +250,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500 mt-6">
+          <p className="text-center text-xs md:text-sm text-slate-500 mt-5 md:mt-6">
             Pas encore de compte ?{' '}
             <Link to="/register" className="text-primary-600 font-medium hover:underline">
               Créer un compte
@@ -258,7 +258,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="text-center text-primary-200 text-xs mt-6">
+        <p className="text-center text-primary-200 text-[10px] md:text-xs mt-4 md:mt-6">
           Communication 100 % locale — Réseau LAN sécurisé
         </p>
       </div>

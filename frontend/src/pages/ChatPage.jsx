@@ -86,7 +86,7 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
             <img
               src={msg.file_url}
               alt={msg.file_name || 'Image'}
-              className="max-w-[240px] rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+              className="max-w-[200px] md:max-w-[240px] rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
               loading="lazy"
             />
             {msg.content && <p className={`text-sm mt-1.5 ${isOwn ? 'text-white' : 'text-slate-800'}`}>{msg.content}</p>}
@@ -94,7 +94,7 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
         );
       case 'video':
         return (
-          <div className="max-w-[280px]">
+          <div className="max-w-[240px] md:max-w-[280px]">
             <video src={msg.file_url} controls className="rounded-xl w-full" preload="metadata" />
             {msg.content && <p className={`text-sm mt-1.5 ${isOwn ? 'text-white' : 'text-slate-800'}`}>{msg.content}</p>}
           </div>
@@ -110,10 +110,10 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
   const canDelete = !msg.is_deleted && isOwn;
 
   return (
-    <div className={`flex gap-2 group mb-4 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div className={`flex gap-2 group mb-3 md:mb-4 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
       {!isOwn && <Avatar user={msg.sender} size="sm" />}
 
-      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
+      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] md:max-w-[70%]`}>
         {!isOwn && (
           <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{msg.sender?.display_name}</span>
         )}
@@ -227,14 +227,14 @@ function ConversationItem({ conv, isActive, currentUserId, onClick }) {
 function DeleteModal({ message, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-        <h3 className="font-semibold text-slate-800 mb-2">Retirer le message ?</h3>
-        <p className="text-sm text-slate-500 mb-5">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 md:p-6">
+        <h3 className="font-semibold text-slate-800 mb-2 text-base md:text-lg">Retirer le message ?</h3>
+        <p className="text-xs md:text-sm text-slate-500 mb-4 md:mb-5">
           Le message sera retiré pour tout le monde et remplacé par "Message retiré".
         </p>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
-          <button onClick={onConfirm} className="btn-danger flex-1">Retirer</button>
+        <div className="flex gap-2 md:gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1 text-sm">Annuler</button>
+          <button onClick={onConfirm} className="btn-danger flex-1 text-sm">Retirer</button>
         </div>
       </div>
     </div>
@@ -556,7 +556,10 @@ export default function ChatPage() {
     <div className="flex h-full" onPaste={handlePaste}>
 
       {/* ── Liste des conversations ─────────────────────────────── */}
-      <div className="w-80 flex flex-col border-r border-slate-200 bg-white">
+      <div className={`
+        w-full md:w-80 flex flex-col border-r border-slate-200 bg-white
+        ${conversationId ? 'hidden md:flex' : 'flex'}
+      `}>
         <div className="p-4 border-b border-slate-100">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-slate-800">Messages</h2>
@@ -595,8 +598,10 @@ export default function ChatPage() {
           {pasteHover && <PasteDropOverlay fileName={pasteFileName} />}
 
           {/* Header */}
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 shadow-sm">
-            <button onClick={() => navigate('/chat')} className="md:hidden btn-icon text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3 px-4 md:px-5 py-3.5 border-b border-slate-100 shadow-sm">
+            <button onClick={() => navigate('/chat')} className="md:hidden btn-icon text-slate-500">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
             <div className="relative">
               {otherMember
                 ? <><Avatar user={otherMember} size="md" /><PresenceBadge status={otherMember.presence_status} /></>
@@ -624,7 +629,7 @@ export default function ChatPage() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4">
             {msgsLoading
               ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary-500" /></div>
               : messages.length === 0
@@ -805,8 +810,8 @@ export default function ChatPage() {
           )}
         </div>
       ) : (
-        /* Écran vide */
-        <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 to-white text-slate-400">
+        /* Écran vide - masqué sur mobile si aucune conversation sélectionnée */
+        <div className="flex-1 hidden md:flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 to-white text-slate-400">
           <div className="w-20 h-20 bg-primary-100 rounded-2xl flex items-center justify-center mb-4">
             <MessageSquare className="w-10 h-10 text-primary-500" />
           </div>
@@ -890,15 +895,15 @@ function NewConversationModal({ onClose, currentUserId, onCreated }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-          <div className="flex items-center justify-between p-5 border-b">
-            <h3 className="font-semibold">Nouvelle conversation</h3>
+        <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between p-4 md:p-5 border-b flex-shrink-0">
+            <h3 className="font-semibold text-base md:text-lg">Nouvelle conversation</h3>
             <button onClick={onClose}><X className="w-5 h-5 text-slate-500" /></button>
           </div>
-          <div className="p-5 space-y-4">
-            <input className="input" placeholder="Rechercher un utilisateur..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+          <div className="p-4 md:p-5 space-y-3 md:space-y-4 overflow-y-auto flex-1">
+            <input className="input text-sm md:text-base" placeholder="Rechercher un utilisateur..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
             {selected.length > 1 && (
-              <input className="input" placeholder="Nom du groupe" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+              <input className="input text-sm md:text-base" placeholder="Nom du groupe" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
             )}
             {selected.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -914,20 +919,20 @@ function NewConversationModal({ onClose, currentUserId, onCreated }) {
                 <button key={u.id} onClick={() => toggle(u)}
                   className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors text-left
                     ${selected.find((x) => x.id === u.id) ? 'bg-primary-50 border border-primary-200' : 'hover:bg-slate-50'}`}>
-                  <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-semibold">
+                  <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {u.display_name?.charAt(0)}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{u.display_name}</p>
-                    <p className="text-xs text-slate-500">@{u.username}{u.department ? ` · ${u.department}` : ''}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{u.display_name}</p>
+                    <p className="text-xs text-slate-500 truncate">@{u.username}{u.department ? ` · ${u.department}` : ''}</p>
                   </div>
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex gap-3 p-5 border-t">
-            <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
-            <button onClick={handleCreate} disabled={!selected.length || loading} className="btn-primary flex-1">
+          <div className="flex gap-2 md:gap-3 p-4 md:p-5 border-t flex-shrink-0">
+            <button onClick={onClose} className="btn-secondary flex-1 text-sm md:text-base">Annuler</button>
+            <button onClick={handleCreate} disabled={!selected.length || loading} className="btn-primary flex-1 text-sm md:text-base">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Créer'}
             </button>
           </div>
