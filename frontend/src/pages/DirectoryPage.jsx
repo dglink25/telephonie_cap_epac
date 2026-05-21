@@ -134,21 +134,21 @@ export default function DirectoryPage() {
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 py-5">
-        <h1 className="text-xl font-bold text-slate-800 mb-4">Annuaire</h1>
+      <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-4 md:py-5">
+        <h1 className="text-lg md:text-xl font-bold text-slate-800 mb-3 md:mb-4">Annuaire</h1>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
-              className="input pl-9"
+              className="input pl-9 w-full"
               placeholder="Rechercher par nom, identifiant..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <select
-            className="input w-48"
+            className="input w-full md:w-48"
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
           >
@@ -161,12 +161,12 @@ export default function DirectoryPage() {
       </div>
 
       {/* Compteur */}
-      <div className="px-6 py-3 text-sm text-slate-500">
+      <div className="px-4 md:px-6 py-3 text-sm text-slate-500">
         {isLoading ? '' : `${users.length} utilisateur${users.length > 1 ? 's' : ''}`}
       </div>
 
       {/* Grille */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6">
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-7 h-7 animate-spin text-primary-500" />

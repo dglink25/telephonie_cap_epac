@@ -84,7 +84,7 @@ body {
 
   /* Cards */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-slate-100 p-5;
+    @apply bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-5;
   }
 
   /* Badge de statut de présence */
@@ -98,10 +98,10 @@ body {
 
   /* Message bubbles */
   .msg-bubble-own {
-    @apply bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-md shadow-sm;
+    @apply bg-primary-600 text-white rounded-2xl rounded-br-sm px-3 md:px-4 py-2 md:py-2.5 max-w-md shadow-sm;
   }
   .msg-bubble-other {
-    @apply bg-white text-slate-800 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-md shadow-sm border border-slate-100;
+    @apply bg-white text-slate-800 rounded-2xl rounded-bl-sm px-3 md:px-4 py-2 md:py-2.5 max-w-md shadow-sm border border-slate-100;
   }
 
   /* Sidebar nav items */
@@ -117,7 +117,7 @@ body {
     @apply flex flex-col items-center gap-1.5 cursor-pointer;
   }
   .call-btn-circle {
-    @apply w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200;
+    @apply w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200;
   }
 }
 

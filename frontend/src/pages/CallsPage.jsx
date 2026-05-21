@@ -39,30 +39,30 @@ function CallRow({ call, currentUserId }) {
   };
 
   return (
-    <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.bg}`}>
+    <div className="flex items-center gap-3 md:gap-4 px-4 md:px-5 py-3 md:py-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+      <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.bg}`}>
         {isOutgoing
-          ? <PhoneOutgoing className={`w-5 h-5 ${config.color}`} />
+          ? <PhoneOutgoing className={`w-4 h-4 md:w-5 md:h-5 ${config.color}`} />
           : call.status === 'missed'
-          ? <PhoneMissed className="w-5 h-5 text-red-500" />
-          : <PhoneIncoming className={`w-5 h-5 ${config.color}`} />
+          ? <PhoneMissed className="w-4 h-4 md:w-5 md:h-5 text-red-500" />
+          : <PhoneIncoming className={`w-4 h-4 md:w-5 md:h-5 ${config.color}`} />
         }
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-800">{other?.display_name || 'Inconnu'}</span>
-          {call.type === 'video' && <Video className="w-3.5 h-3.5 text-slate-400" />}
-          <span className={`text-xs px-2 py-0.5 rounded-full ${config.bg} ${config.color} font-medium`}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-slate-800 text-sm md:text-base">{other?.display_name || 'Inconnu'}</span>
+          {call.type === 'video' && <Video className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-400" />}
+          <span className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded-full ${config.bg} ${config.color} font-medium`}>
             {config.label}
           </span>
         </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-xs text-slate-500">
+        <div className="flex items-center gap-2 md:gap-3 mt-0.5">
+          <span className="text-[10px] md:text-xs text-slate-500">
             {formatDistanceToNow(new Date(call.created_at), { addSuffix: true, locale: fr })}
           </span>
           {call.duration_seconds > 0 && (
-            <span className="text-xs text-slate-400 flex items-center gap-1">
+            <span className="text-[10px] md:text-xs text-slate-400 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {formatCallDuration(call.duration_seconds)}
             </span>
@@ -72,7 +72,7 @@ function CallRow({ call, currentUserId }) {
 
       <button
         onClick={handleCallback}
-        className="btn-icon text-primary-600 hover:bg-primary-50"
+        className="btn-icon text-primary-600 hover:bg-primary-50 flex-shrink-0"
         title="Rappeler"
       >
         <Phone className="w-4 h-4" />
@@ -105,17 +105,17 @@ export default function CallsPage() {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="px-6 py-5 border-b border-slate-100">
-        <h1 className="text-xl font-bold text-slate-800">Journal des appels</h1>
-        <p className="text-sm text-slate-500 mt-1">Historique de vos communications</p>
+      <div className="px-4 md:px-6 py-4 md:py-5 border-b border-slate-100">
+        <h1 className="text-lg md:text-xl font-bold text-slate-800">Journal des appels</h1>
+        <p className="text-xs md:text-sm text-slate-500 mt-1">Historique de vos communications</p>
       </div>
 
-      <div className="flex items-center gap-1 px-6 py-3 border-b border-slate-100 bg-slate-50">
+      <div className="flex items-center gap-1 px-4 md:px-6 py-3 border-b border-slate-100 bg-slate-50 overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setFilter(t.id)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
               filter === t.id
                 ? 'bg-primary-600 text-white'
                 : 'text-slate-600 hover:bg-white hover:text-slate-800'
