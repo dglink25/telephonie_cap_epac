@@ -1,90 +1,15 @@
-// src/pages/AdminPage.jsx
+
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, UserX, UserCheck, Shield, Loader2, X, Check,
   Mail, Phone, Building2, Calendar, User as UserIcon,
-  CheckCircle, XCircle, AlertTriangle,
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
+import { useFeedback } from '../components/ui/FeedbackModal';
 
-// ─────────────────────────────────────────────────────────────────
-// Modal de feedback (succès / erreur) avec animation
-// ─────────────────────────────────────────────────────────────────
-function FeedbackModal({ type, message, onClose }) {
-  const [visible, setVisible] = useState(false);
 
-  // Entrée : déclencher l'animation au montage
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
-  }, []);
-
-  const handleClose = useCallback(() => {
-    setVisible(false);
-    setTimeout(onClose, 250); // attendre la fin de l'anim de sortie
-  }, [onClose]);
-
-  const isSuccess = type === 'success';
-
-  const colors = isSuccess
-    ? { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-500', btn: 'bg-green-600 hover:bg-green-700 text-white', title: 'text-green-800' }
-    : { bg: 'bg-red-50',   border: 'border-red-200',   icon: 'text-red-500',   btn: 'bg-red-600   hover:bg-red-700   text-white', title: 'text-red-800' };
-
-  const Icon = isSuccess ? CheckCircle : XCircle;
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      style={{
-        background: `rgba(0,0,0,${visible ? 0.45 : 0})`,
-        transition: 'background 0.25s ease',
-      }}
-      onClick={handleClose}
-    >
-      <div
-        className={`relative w-full max-w-sm rounded-2xl border shadow-xl p-6 ${colors.bg} ${colors.border}`}
-        style={{
-          transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(16px)',
-          opacity:   visible ? 1 : 0,
-          transition: 'transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s ease',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Icône */}
-        <div className="flex justify-center mb-4">
-          <Icon className={`w-12 h-12 ${colors.icon}`} strokeWidth={1.5} />
-        </div>
-
-        {/* Message */}
-        <p className={`text-center text-sm font-medium mb-5 ${colors.title}`}>{message}</p>
-
-        {/* Bouton OK */}
-        <button
-          onClick={handleClose}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${colors.btn}`}
-        >
-          OK
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Hook utilitaire pour afficher le modal feedback
-function useFeedback() {
-  const [feedback, setFeedback] = useState(null); // { type, message }
-  const show = useCallback((type, message) => setFeedback({ type, message }), []);
-  const close = useCallback(() => setFeedback(null), []);
-  const node = feedback
-    ? <FeedbackModal type={feedback.type} message={feedback.message} onClose={close} />
-    : null;
-  return { show, node };
-}
-
-// ─────────────────────────────────────────────────────────────────
-// Modal profil (lecture seule)
-// ─────────────────────────────────────────────────────────────────
 function UserProfileModal({ user, onClose, onEdit }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
@@ -99,7 +24,8 @@ function UserProfileModal({ user, onClose, onEdit }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
         background: `rgba(0,0,0,${visible ? 0.45 : 0})`,
-        transition: 'background 0.22s ease',
+        backdropFilter: visible ? 'blur(4px)' : 'blur(0px)',
+        transition: 'background 0.22s ease, backdrop-filter 0.22s ease',
       }}
       onClick={handleClose}
     >
@@ -170,14 +96,11 @@ function ProfileRow({ icon, label, value }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Ligne tableau
-// ─────────────────────────────────────────────────────────────────
+
 function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
-  const isAdmin       = user.role === 'admin';
-  const isSelf        = user.id === currentUserId;
-  // Pas de bouton toggle si l'utilisateur est admin OU si c'est soi-même
-  const canToggle     = !isAdmin && !isSelf;
+  const isAdmin   = user.role === 'admin';
+  const isSelf    = user.id === currentUserId;
+  const canToggle = !isAdmin && !isSelf;
 
   return (
     <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => onView(user)}>
@@ -209,7 +132,6 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          {/* Bouton modifier toujours visible */}
           <button
             onClick={() => onEdit(user)}
             className="btn-icon w-8 h-8 text-slate-500 hover:text-primary-600 hover:bg-primary-50"
@@ -217,8 +139,6 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
           >
             <Edit2 className="w-4 h-4" />
           </button>
-
-          {/* Bouton toggle : masqué pour les admins */}
           {canToggle && (
             <button
               onClick={() => onToggle(user)}
@@ -288,7 +208,8 @@ function UserModal({ user, onClose, onSaved, showFeedback }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
         background: `rgba(0,0,0,${visible ? 0.45 : 0})`,
-        transition: 'background 0.22s ease',
+        backdropFilter: visible ? 'blur(4px)' : 'blur(0px)',
+        transition: 'background 0.22s ease, backdrop-filter 0.22s ease',
       }}
       onClick={handleClose}
     >
@@ -520,7 +441,6 @@ export default function AdminPage() {
         />
       )}
 
-      {/* Feedback modal (succès / erreur) — z-[60] pour passer au-dessus des autres modals */}
       {feedbackNode}
     </div>
   );

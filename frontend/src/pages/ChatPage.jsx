@@ -1,14 +1,11 @@
-// src/pages/ChatPage.jsx
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Send, Paperclip, Phone, Video, Search, Plus, ArrowLeft,
   Edit2, Trash2, Reply, MessageSquare, Loader2, X, Mic,
-  MicOff, StopCircle, Image, Film, FileText, Music, Check,
-  CheckCheck, Clock, AlertCircle, Settings, Smile,
+  Image, Film, FileText, Music, Settings, Smile,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import api from '../services/api';
@@ -21,6 +18,7 @@ import GroupSettings from '../components/chat/GroupSettings';
 import MentionPicker from '../components/chat/MentionPicker';
 import EmojiPickerPanel from '../components/chat/EmojiPicker';
 import { useMention } from '../hooks/useMention';
+import { useFeedback } from '../components/ui/FeedbackModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,9 +39,8 @@ function PresenceBadge({ status }) {
   return <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${colors[status] || colors.offline}`} />;
 }
 
-// ─── Bulle de message ─────────────────────────────────────────────────────────
+// ─── Rendu texte avec @mentions ───────────────────────────────────────────────
 
-// Rendre le texte avec les @mentions en surbrillance
 function renderTextWithMentions(text, isOwn) {
   if (!text) return null;
   const parts = text.split(/(@[^\s@]+)/g);
@@ -59,12 +56,13 @@ function renderTextWithMentions(text, isOwn) {
   });
 }
 
+// ─── Bulle de message ─────────────────────────────────────────────────────────
+
 function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
   const isOwn = msg.sender_id === currentUserId;
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
 
-  // Fermer menu en cliquant ailleurs
   useEffect(() => {
     const h = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); };
     document.addEventListener('mousedown', h);
@@ -97,12 +95,7 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
       case 'video':
         return (
           <div className="max-w-[280px]">
-            <video
-              src={msg.file_url}
-              controls
-              className="rounded-xl w-full"
-              preload="metadata"
-            />
+            <video src={msg.file_url} controls className="rounded-xl w-full" preload="metadata" />
             {msg.content && <p className={`text-sm mt-1.5 ${isOwn ? 'text-white' : 'text-slate-800'}`}>{msg.content}</p>}
           </div>
         );
@@ -113,7 +106,7 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
     }
   };
 
-  const canEdit = msg.canEdit && !msg.is_deleted && msg.type === 'text' && isOwn;
+  const canEdit   = msg.canEdit && !msg.is_deleted && msg.type === 'text' && isOwn;
   const canDelete = !msg.is_deleted && isOwn;
 
   return (
@@ -125,7 +118,6 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
           <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{msg.sender?.display_name}</span>
         )}
 
-        {/* Citation (réponse) */}
         {msg.replyTo && !msg.replyTo.is_deleted && (
           <div className={`text-xs px-3 py-2 rounded-xl mb-1 max-w-full border-l-2 border-primary-400 
             ${isOwn ? 'bg-primary-700/50 text-primary-100' : 'bg-primary-50 text-slate-600'}`}>
@@ -134,7 +126,6 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
           </div>
         )}
 
-        {/* Bulle principale */}
         <div className="relative">
           <div className={`rounded-2xl px-4 py-2.5 shadow-sm
             ${isOwn
@@ -145,7 +136,6 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
             {renderContent()}
           </div>
 
-          {/* Menu contextuel */}
           {(canEdit || canDelete || !msg.is_deleted) && (
             <div className={`absolute top-0 ${isOwn ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} 
               hidden group-hover:flex items-center gap-0.5`} ref={menuRef}>
@@ -171,13 +161,11 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
           )}
         </div>
 
-        {/* Heure + état + édité */}
         <div className={`flex items-center gap-1 mt-0.5 px-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
           <span className="text-[10px] text-slate-400">{format(new Date(msg.created_at), 'HH:mm')}</span>
           {msg.is_edited && !msg.is_deleted && (
             <span className="text-[10px] text-slate-400 italic">· modifié</span>
           )}
-          {/* Indicateur fenêtre d'édition */}
           {isOwn && !msg.is_deleted && msg.type === 'text' && msg.canEdit && (
             <span title="Modifiable encore" className="text-[10px] text-primary-400">✎</span>
           )}
@@ -196,11 +184,11 @@ function ConversationItem({ conv, isActive, currentUserId, onClick }) {
   const lastMsgPreview = () => {
     const m = conv.lastMessage;
     if (!m) return 'Aucun message';
-    if (m.is_deleted) return '🗑 Message retiré';
-    if (m.type === 'audio') return '🎙 Message vocal';
-    if (m.type === 'image') return '🖼 Image';
-    if (m.type === 'video') return '🎬 Vidéo';
-    if (m.type === 'file')  return `📎 ${m.file_name || 'Fichier'}`;
+    if (m.is_deleted) return 'Message retiré';
+    if (m.type === 'audio') return 'Message vocal';
+    if (m.type === 'image') return 'Image';
+    if (m.type === 'video') return 'Vidéo';
+    if (m.type === 'file')  return `${m.file_name || 'Fichier'}`;
     return m.content || '';
   };
 
@@ -264,14 +252,30 @@ function VoiceBar({ recorder, onSend, onCancel }) {
           Enregistrement : {recorder.formatDuration(recorder.duration)}
         </span>
       </div>
-      <button onClick={onCancel}
-        className="btn-icon text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Annuler">
+      <button onClick={onCancel} className="btn-icon text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Annuler">
         <X className="w-5 h-5" />
       </button>
-      <button onClick={onSend}
-        className="w-10 h-10 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center shadow" title="Envoyer">
+      <button onClick={onSend} className="w-10 h-10 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center shadow" title="Envoyer">
         <Send className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+// ─── Indicateur visuel de survol pour paste ───────────────────────────────────
+
+function PasteDropOverlay({ fileName }) {
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl pointer-events-none"
+      style={{
+        background: 'rgba(99,102,241,0.08)',
+        border: '2px dashed rgba(99,102,241,0.45)',
+      }}
+    >
+      <Paperclip className="w-8 h-8 text-primary-500 mb-2" />
+      <p className="text-sm font-semibold text-primary-700">
+        {fileName ? `Coller : ${fileName}` : 'Coller un fichier'}
+      </p>
     </div>
   );
 }
@@ -295,23 +299,29 @@ export default function ChatPage() {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const { isMentioning, mentionQuery, handleChange: handleMentionChange, insertMention, cancel: cancelMention } = useMention();
+  // Paste / drag-over indicator
+  const [pasteHover, setPasteHover] = useState(false);
+  const [pasteFileName, setPasteFileName] = useState('');
 
-  const messagesEndRef = useRef(null);
-  const typingTimer = useRef(null);
-  const fileInputRef = useRef(null);
-  const imageInputRef = useRef(null);
-  const videoInputRef = useRef(null);
-  const attachMenuRef = useRef(null);
-  const textareaRef = useRef(null);
+  const { isMentioning, mentionQuery, handleChange: handleMentionChange, insertMention, cancel: cancelMention } = useMention();
+  const { show: showFeedback, node: feedbackNode } = useFeedback();
+
+  const messagesEndRef  = useRef(null);
+  const typingTimer     = useRef(null);
+  const fileInputRef    = useRef(null);
+  const imageInputRef   = useRef(null);
+  const videoInputRef   = useRef(null);
+  const attachMenuRef   = useRef(null);
+  const textareaRef     = useRef(null);
+  const chatAreaRef     = useRef(null);   // zone de dépôt paste / drag
 
   // ── Enregistrement vocal ─────────────────────────────────────────
   const recorder = useVoiceRecorder({
     onComplete: async (blob, duration) => {
-      if (!blob || duration < 1) return; // ignorer les enreg < 1s
-      const ext = blob.type.includes('ogg') ? '.ogg' : '.webm';
+      if (!blob || duration < 1) return;
+      const ext  = blob.type.includes('ogg') ? '.ogg' : '.webm';
       const file = new File([blob], `vocal_${Date.now()}${ext}`, { type: blob.type });
-      const fd = new FormData();
+      const fd   = new FormData();
       fd.append('file', file);
       if (replyTo) fd.append('reply_to_id', replyTo.id);
       sendMutation.mutate(fd);
@@ -325,7 +335,7 @@ export default function ChatPage() {
     refetchInterval: 30000,
   });
   const conversations = convsData || [];
-  const activeConv = conversations.find((c) => c.id === conversationId);
+  const activeConv    = conversations.find((c) => c.id === conversationId);
 
   const { data: msgsData, isLoading: msgsLoading } = useQuery({
     queryKey: ['messages', conversationId],
@@ -346,7 +356,7 @@ export default function ChatPage() {
       setReplyTo(null);
       setEditingMsg(null);
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Erreur envoi'),
+    onError: (err) => showFeedback('error', err.response?.data?.message || 'Erreur lors de l\'envoi.'),
   });
 
   const editMutation = useMutation({
@@ -356,14 +366,14 @@ export default function ChatPage() {
       qc.invalidateQueries(['messages', conversationId]);
       setEditingMsg(null);
       setMessage('');
-      toast.success('Message modifié');
+      showFeedback('success', 'Message modifié avec succès.');
     },
     onError: (err) => {
       const code = err.response?.data?.code;
       if (code === 'EDIT_WINDOW_EXPIRED') {
-        toast.error('⏱ Délai de 15 minutes dépassé — modification impossible');
+        showFeedback('error', '⏱ Délai de 15 minutes dépassé — modification impossible.');
       } else {
-        toast.error(err.response?.data?.message || 'Erreur modification');
+        showFeedback('error', err.response?.data?.message || 'Erreur lors de la modification.');
       }
     },
   });
@@ -373,19 +383,30 @@ export default function ChatPage() {
     onSuccess: () => {
       qc.invalidateQueries(['messages', conversationId]);
       setDeleteTarget(null);
-      toast.success('Message retiré');
+      showFeedback('success', 'Message retiré avec succès.');
     },
-    onError: () => toast.error('Erreur lors du retrait'),
+    onError: () => showFeedback('error', 'Erreur lors du retrait du message.'),
   });
 
   // ── Socket.IO ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket || !conversationId) return;
 
-    const onNew     = (data) => { if (data.message.conversation_id === conversationId) { qc.invalidateQueries(['messages', conversationId]); api.post(`/conversations/${conversationId}/read`).catch(()=>{}); } qc.invalidateQueries(['conversations']); };
+    const onNew     = (data) => {
+      if (data.message.conversation_id === conversationId) {
+        qc.invalidateQueries(['messages', conversationId]);
+        api.post(`/conversations/${conversationId}/read`).catch(() => {});
+      }
+      qc.invalidateQueries(['conversations']);
+    };
     const onEdited  = () => qc.invalidateQueries(['messages', conversationId]);
     const onDeleted = () => qc.invalidateQueries(['messages', conversationId]);
-    const onTyping  = ({ userId: uid, isTyping: t }) => { if (uid !== user.id) { setIsTyping((p) => ({ ...p, [uid]: t })); if (t) setTimeout(() => setIsTyping((p) => ({ ...p, [uid]: false })), 4000); } };
+    const onTyping  = ({ userId: uid, isTyping: t }) => {
+      if (uid !== user.id) {
+        setIsTyping((p) => ({ ...p, [uid]: t }));
+        if (t) setTimeout(() => setIsTyping((p) => ({ ...p, [uid]: false })), 4000);
+      }
+    };
 
     socket.on('message:new',    onNew);
     socket.on('message:edited', onEdited);
@@ -401,7 +422,9 @@ export default function ChatPage() {
     };
   }, [socket, conversationId]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   // Fermer menu pièce jointe en cliquant ailleurs
   useEffect(() => {
@@ -423,20 +446,17 @@ export default function ChatPage() {
     }
   }, [message, editingMsg, replyTo]);
 
-  // Insérer un emoji dans le textarea
   const handleEmojiSelect = useCallback((emoji) => {
     const textarea = textareaRef.current;
     if (!textarea) { setMessage((m) => m + emoji); setShowEmojiPicker(false); return; }
-    const start = textarea.selectionStart;
-    const end   = textarea.selectionEnd;
+    const start  = textarea.selectionStart;
+    const end    = textarea.selectionEnd;
     const newVal = message.slice(0, start) + emoji + message.slice(end);
     setMessage(newVal);
     setShowEmojiPicker(false);
-    // Repositionner le curseur après l'emoji
     setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + emoji.length; textarea.focus(); }, 0);
   }, [message]);
 
-  // Sélectionner un membre mentionné
   const handleMentionSelect = useCallback((member) => {
     const newVal = insertMention(message, member);
     setMessage(newVal);
@@ -453,25 +473,68 @@ export default function ChatPage() {
     typingTimer.current = setTimeout(() => emit('message:typing', { conversationId, isTyping: false }), 2000);
   };
 
-  const handleFileUpload = (file) => {
+  // ─ Envoi de fichier (upload + paste) ─────────────────────────────
+  const handleFileUpload = useCallback((file) => {
     if (!file) return;
+    // Vérification taille (50 Mo max)
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      showFeedback('error', `Fichier trop volumineux (max 50 Mo). "${file.name}" fait ${(file.size / 1024 / 1024).toFixed(1)} Mo.`);
+      return;
+    }
     const fd = new FormData();
     fd.append('file', file);
     if (replyTo) fd.append('reply_to_id', replyTo.id);
     sendMutation.mutate(fd);
     setShowAttachMenu(false);
-  };
+  }, [replyTo, showFeedback]);
 
-  const handleEditStart = (msg) => {
-    setEditingMsg(msg);
-    setMessage(msg.content || '');
-    setReplyTo(null);
-  };
+  // ─ Coller depuis le presse-papiers ───────────────────────────────
+  const handlePaste = useCallback((e) => {
+    if (!conversationId) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === 'file') {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) handleFileUpload(file);
+        setPasteHover(false);
+        break;
+      }
+    }
+  }, [conversationId, handleFileUpload]);
 
-  const handleEditCancel = () => { setEditingMsg(null); setMessage(''); };
+  // ─ Drag & drop (bonus) ───────────────────────────────────────────
+  const handleDragOver = useCallback((e) => {
+    if (!conversationId) return;
+    e.preventDefault();
+    const file = e.dataTransfer?.items?.[0];
+    setPasteHover(true);
+    setPasteFileName(file?.getAsFile?.()?.name || '');
+  }, [conversationId]);
 
-  const handleVoiceSend = () => { recorder.stop(); };
-  const handleVoiceCancel = () => { recorder.cancel(); };
+  const handleDragLeave = useCallback((e) => {
+    // Éviter les faux leave sur les enfants
+    if (!chatAreaRef.current?.contains(e.relatedTarget)) {
+      setPasteHover(false);
+      setPasteFileName('');
+    }
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    setPasteHover(false);
+    setPasteFileName('');
+    if (!conversationId) return;
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFileUpload(file);
+  }, [conversationId, handleFileUpload]);
+
+  const handleEditStart  = (msg) => { setEditingMsg(msg); setMessage(msg.content || ''); setReplyTo(null); };
+  const handleEditCancel = ()    => { setEditingMsg(null); setMessage(''); };
+  const handleVoiceSend  = ()    => { recorder.stop(); };
+  const handleVoiceCancel= ()    => { recorder.cancel(); };
 
   const handleCall = (type) => {
     const other = activeConv?.members?.find((m) => m.id !== user.id);
@@ -480,9 +543,9 @@ export default function ChatPage() {
     emit('call:initiate', { calleeId: other.id, type });
   };
 
-  const typingUsers = activeConv?.members?.filter((m) => m.id !== user.id && isTyping[m.id]);
-  const otherMember = activeConv?.type === 'direct' ? activeConv.members?.find((m) => m.id !== user.id) : null;
-  const filteredConvs = conversations.filter((c) => {
+  const typingUsers    = activeConv?.members?.filter((m) => m.id !== user.id && isTyping[m.id]);
+  const otherMember    = activeConv?.type === 'direct' ? activeConv.members?.find((m) => m.id !== user.id) : null;
+  const filteredConvs  = conversations.filter((c) => {
     const other = c.members?.find((m) => m.id !== user.id);
     const name  = c.type === 'direct' ? other?.display_name : c.name;
     return name?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -490,7 +553,7 @@ export default function ChatPage() {
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" onPaste={handlePaste}>
 
       {/* ── Liste des conversations ─────────────────────────────── */}
       <div className="w-80 flex flex-col border-r border-slate-200 bg-white">
@@ -521,7 +584,15 @@ export default function ChatPage() {
 
       {/* ── Zone de chat ────────────────────────────────────────── */}
       {conversationId && activeConv ? (
-        <div className="flex-1 flex flex-col bg-white">
+        <div
+          ref={chatAreaRef}
+          className="flex-1 flex flex-col bg-white relative"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Overlay drag & drop */}
+          {pasteHover && <PasteDropOverlay fileName={pasteFileName} />}
 
           {/* Header */}
           <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 shadow-sm">
@@ -617,12 +688,14 @@ export default function ChatPage() {
                 </div>
               )}
 
+              {/* Indice paste (affiché uniquement quand une conversation est active) */}
               <div className="flex items-end gap-2 relative">
                 {/* Bouton pièces jointes */}
                 <div className="relative" ref={attachMenuRef}>
                   <button
                     onClick={() => setShowAttachMenu(!showAttachMenu)}
                     className={`btn-icon self-end mb-0.5 transition-colors ${showAttachMenu ? 'text-primary-600 bg-primary-50' : 'text-slate-500 hover:text-primary-600 hover:bg-primary-50'}`}
+                    title="Joindre un fichier (ou Ctrl+V pour coller)"
                   >
                     <Paperclip className="w-5 h-5" />
                   </button>
@@ -631,17 +704,16 @@ export default function ChatPage() {
                   {showAttachMenu && (
                     <div className="absolute bottom-12 left-0 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1 z-10 min-w-[160px]">
                       {[
-                        { label: 'Image', icon: Image, accept: 'image/*', ref: imageInputRef, color: 'text-green-600 bg-green-50' },
-                        { label: 'Vidéo', icon: Film, accept: 'video/*', ref: videoInputRef, color: 'text-purple-600 bg-purple-50' },
-                        { label: 'Document', icon: FileText, accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv', ref: fileInputRef, color: 'text-blue-600 bg-blue-50' },
-                        { label: 'Audio', icon: Music, accept: 'audio/*', ref: null, color: 'text-pink-600 bg-pink-50' },
+                        { label: 'Image',    icon: Image,    accept: 'image/*',                                                    ref: imageInputRef, color: 'text-green-600 bg-green-50' },
+                        { label: 'Vidéo',    icon: Film,     accept: 'video/*',                                                    ref: videoInputRef, color: 'text-purple-600 bg-purple-50' },
+                        { label: 'Document', icon: FileText, accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv', ref: fileInputRef,  color: 'text-blue-600 bg-blue-50' },
+                        { label: 'Audio',    icon: Music,    accept: 'audio/*',                                                    ref: null,          color: 'text-pink-600 bg-pink-50' },
                       ].map(({ label, icon: Icon, accept, ref: inputRef, color }) => (
                         <button key={label}
                           onClick={() => {
                             if (inputRef) {
                               inputRef.current.click();
                             } else {
-                              // Pour audio : déclencher input générique
                               const inp = document.createElement('input');
                               inp.type = 'file'; inp.accept = accept;
                               inp.onchange = (e) => handleFileUpload(e.target.files[0]);
@@ -661,16 +733,16 @@ export default function ChatPage() {
                   )}
 
                   {/* Inputs fichiers cachés */}
-                  <input ref={imageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0])} />
-                  <input ref={videoInputRef} type="file" className="hidden" accept="video/*" onChange={(e) => handleFileUpload(e.target.files[0])} />
-                  <input ref={fileInputRef}  type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv" onChange={(e) => handleFileUpload(e.target.files[0])} />
+                  <input ref={imageInputRef} type="file" className="hidden" accept="image/*"                                                            onChange={(e) => handleFileUpload(e.target.files[0])} />
+                  <input ref={videoInputRef} type="file" className="hidden" accept="video/*"                                                            onChange={(e) => handleFileUpload(e.target.files[0])} />
+                  <input ref={fileInputRef}  type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv"          onChange={(e) => handleFileUpload(e.target.files[0])} />
                 </div>
 
                 {/* Textarea */}
                 <textarea
                   ref={textareaRef}
                   className="flex-1 input resize-none min-h-[42px] max-h-36 py-2.5 text-sm"
-                  placeholder={editingMsg ? 'Modifier le message…' : 'Écrire un message… (Entrée pour envoyer)'}
+                  placeholder={editingMsg ? 'Modifier le message…' : 'Écrire un message… (Ctrl+V pour coller un fichier)'}
                   value={message}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -692,14 +764,11 @@ export default function ChatPage() {
                     <Smile className="w-5 h-5" />
                   </button>
                   {showEmojiPicker && (
-                    <EmojiPickerPanel
-                      onSelect={handleEmojiSelect}
-                      onClose={() => setShowEmojiPicker(false)}
-                    />
+                    <EmojiPickerPanel onSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />
                   )}
                 </div>
 
-                {/* MentionPicker — s'affiche au-dessus du textarea */}
+                {/* MentionPicker */}
                 {isMentioning && activeConv?.type === 'group' && (
                   <div className="absolute bottom-full left-16 mb-1 z-20">
                     <MentionPicker
@@ -724,7 +793,7 @@ export default function ChatPage() {
                   </button>
                 ) : (
                   <button
-                    onMouseDown={async (e) => { e.preventDefault(); try { await recorder.start(); } catch { toast.error('Accès micro refusé'); } }}
+                    onMouseDown={async (e) => { e.preventDefault(); try { await recorder.start(); } catch { showFeedback('error', 'Accès au microphone refusé.'); } }}
                     className="btn-icon text-primary-600 hover:bg-primary-50 self-end mb-0.5"
                     title="Maintenir pour enregistrer"
                   >
@@ -775,6 +844,9 @@ export default function ChatPage() {
           onCreated={(id) => { setShowNewConv(false); navigate(`/chat/${id}`); qc.invalidateQueries(['conversations']); }}
         />
       )}
+
+      {/* Feedback modal — au-dessus de tout */}
+      {feedbackNode}
     </div>
   );
 }
@@ -782,17 +854,20 @@ export default function ChatPage() {
 // ─── Modal nouvelle conversation ──────────────────────────────────────────────
 
 function NewConversationModal({ onClose, currentUserId, onCreated }) {
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState([]);
+  const [search,    setSearch]    = useState('');
+  const [selected,  setSelected]  = useState([]);
   const [groupName, setGroupName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const { show: showFeedback, node: feedbackNode } = useFeedback();
 
   const { data: users } = useQuery({
     queryKey: ['users-search', search],
     queryFn: () => api.get('/users', { params: { search, limit: 20 } }).then((r) => r.data.data.users),
   });
 
-  const toggle = (u) => setSelected((s) => s.find((x) => x.id === u.id) ? s.filter((x) => x.id !== u.id) : [...s, u]);
+  const toggle = (u) => setSelected((s) =>
+    s.find((x) => x.id === u.id) ? s.filter((x) => x.id !== u.id) : [...s, u]
+  );
 
   const handleCreate = async () => {
     if (!selected.length) return;
@@ -805,54 +880,60 @@ function NewConversationModal({ onClose, currentUserId, onCreated }) {
         member_ids: selected.map((u) => u.id),
       });
       onCreated(data.data.conversation.id);
-    } catch { toast.error('Erreur création conversation'); }
-    finally { setLoading(false); }
+    } catch {
+      showFeedback('error', 'Erreur lors de la création de la conversation.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h3 className="font-semibold">Nouvelle conversation</h3>
-          <button onClick={onClose}><X className="w-5 h-5 text-slate-500" /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <input className="input" placeholder="Rechercher un utilisateur..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
-          {selected.length > 1 && (
-            <input className="input" placeholder="Nom du groupe" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
-          )}
-          {selected.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selected.map((u) => (
-                <span key={u.id} className="flex items-center gap-1.5 bg-primary-100 text-primary-700 text-xs px-2.5 py-1 rounded-full">
-                  {u.display_name} <button onClick={() => toggle(u)}><X className="w-3 h-3" /></button>
-                </span>
+    <>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+          <div className="flex items-center justify-between p-5 border-b">
+            <h3 className="font-semibold">Nouvelle conversation</h3>
+            <button onClick={onClose}><X className="w-5 h-5 text-slate-500" /></button>
+          </div>
+          <div className="p-5 space-y-4">
+            <input className="input" placeholder="Rechercher un utilisateur..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+            {selected.length > 1 && (
+              <input className="input" placeholder="Nom du groupe" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+            )}
+            {selected.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selected.map((u) => (
+                  <span key={u.id} className="flex items-center gap-1.5 bg-primary-100 text-primary-700 text-xs px-2.5 py-1 rounded-full">
+                    {u.display_name} <button onClick={() => toggle(u)}><X className="w-3 h-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {(users || []).filter((u) => u.id !== currentUserId).map((u) => (
+                <button key={u.id} onClick={() => toggle(u)}
+                  className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors text-left
+                    ${selected.find((x) => x.id === u.id) ? 'bg-primary-50 border border-primary-200' : 'hover:bg-slate-50'}`}>
+                  <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-semibold">
+                    {u.display_name?.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{u.display_name}</p>
+                    <p className="text-xs text-slate-500">@{u.username}{u.department ? ` · ${u.department}` : ''}</p>
+                  </div>
+                </button>
               ))}
             </div>
-          )}
-          <div className="max-h-60 overflow-y-auto space-y-1">
-            {(users || []).filter((u) => u.id !== currentUserId).map((u) => (
-              <button key={u.id} onClick={() => toggle(u)}
-                className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors text-left
-                  ${selected.find((x) => x.id === u.id) ? 'bg-primary-50 border border-primary-200' : 'hover:bg-slate-50'}`}>
-                <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-semibold">
-                  {u.display_name?.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{u.display_name}</p>
-                  <p className="text-xs text-slate-500">@{u.username}{u.department ? ` · ${u.department}` : ''}</p>
-                </div>
-              </button>
-            ))}
+          </div>
+          <div className="flex gap-3 p-5 border-t">
+            <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+            <button onClick={handleCreate} disabled={!selected.length || loading} className="btn-primary flex-1">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Créer'}
+            </button>
           </div>
         </div>
-        <div className="flex gap-3 p-5 border-t">
-          <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
-          <button onClick={handleCreate} disabled={!selected.length || loading} className="btn-primary flex-1">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Créer'}
-          </button>
-        </div>
       </div>
-    </div>
+      {feedbackNode}
+    </>
   );
 }
