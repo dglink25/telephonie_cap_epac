@@ -10,17 +10,35 @@ import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import useSocketStore from '../store/socketStore';
 
+// ─── Palette centralisée ────────────────────────────────────────
+const C = {
+  primary:      '#16a34a',   // vert principal
+  primaryDark:  '#15803d',   // vert foncé
+  primaryLight: '#22c55e',   // vert clair
+  primaryPale:  '#dcfce7',   // vert très pâle (fond carte)
+  primaryGhost: '#f0fdf4',   // quasi-blanc verdâtre (fond page)
+  text:         '#14532d',   // texte principal
+  textMid:      '#166534',   // texte secondaire
+  textLight:    '#4b7c59',   // texte tertiaire
+  border:       '#86efac',   // bordure
+  borderLight:  '#bbf7d0',   // bordure légère
+  white:        '#ffffff',
+  inputBg:      '#ffffff',
+  cardBg:       'rgba(255,255,255,0.92)',
+};
+
 const PRESENCE_OPTIONS = [
-  { value: 'online',  label: 'En ligne',           color: '#10b981' },
-  { value: 'away',    label: 'Absent',               color: '#10b981' },
-  { value: 'dnd',     label: 'Ne pas déranger',      color: '#10b981' },
-  { value: 'offline', label: 'Hors ligne',            color: '#10b981' },
+  { value: 'online',  label: 'En ligne',        color: '#16a34a' },
+  { value: 'away',    label: 'Absent',            color: '#ca8a04' },
+  { value: 'dnd',     label: 'Ne pas déranger',   color: '#dc2626' },
+  { value: 'offline', label: 'Hors ligne',         color: '#9ca3af' },
 ];
 
 function generateCode() {
   return Array.from({ length: 5 }, () => Math.floor(Math.random() * 10)).join('');
 }
 
+// ─── Code brouillé ──────────────────────────────────────────────
 function ScrambledCode({ code }) {
   const [display, setDisplay] = useState(Array(5).fill('?'));
   const [revealed, setRevealed] = useState(Array(5).fill(false));
@@ -53,19 +71,18 @@ function ScrambledCode({ code }) {
           width:'3rem', height:'3.5rem', borderRadius:'0.75rem',
           display:'flex', alignItems:'center', justifyContent:'center',
           fontSize:'1.5rem', fontWeight:700, fontFamily:'monospace',
-          border: `2px solid ${revealed[i] ? '#10b981' : '#FFFFFF'}`,
-          background: revealed[i] ? '#10b981' : '#FFFFFF',
-          color: revealed[i] ? '#FFFFFF' : '#10b981',
-          boxShadow: revealed[i] ? '0 4px 16px rgba(16,185,129,0.4)' : 'none',
-          transition: 'all 0.3s', userSelect:'none',
-        }}>
-          {d}
-        </div>
+          border: `2px solid ${revealed[i] ? C.primary : C.borderLight}`,
+          background: revealed[i] ? C.primary : C.primaryGhost,
+          color: revealed[i] ? C.white : C.textLight,
+          boxShadow: revealed[i] ? '0 4px 16px rgba(22,163,74,0.35)' : 'none',
+          transition:'all 0.3s', userSelect:'none',
+        }}>{d}</div>
       ))}
     </div>
   );
 }
 
+// ─── Input chiffre sans paste ────────────────────────────────────
 function CodeInput({ value, onChange, index, inputRefs }) {
   const block = e => e.preventDefault();
   return (
@@ -82,15 +99,16 @@ function CodeInput({ value, onChange, index, inputRefs }) {
       style={{
         width:'3rem', height:'3.5rem', textAlign:'center',
         fontSize:'1.25rem', fontWeight:700, fontFamily:'monospace',
-        borderRadius:'0.75rem', border:`2px solid ${value?'#10b981':'#FFFFFF'}`,
-        outline:'none', background:'#FFFFFF', color:'#10b981',
-        boxShadow: value?'0 2px 12px rgba(16,185,129,0.3)':'none',
+        borderRadius:'0.75rem', border:`2px solid ${value ? C.primary : C.borderLight}`,
+        outline:'none', background: value ? C.primaryPale : C.white, color: C.text,
+        boxShadow: value ? '0 2px 12px rgba(22,163,74,0.25)' : 'none',
         transition:'all 0.2s',
       }}
     />
   );
 }
 
+// ─── Modal feedback ──────────────────────────────────────────────
 function FeedbackModal({ type, title, message, onClose }) {
   const ok = type === 'success';
   useEffect(() => { const t = setTimeout(onClose, 4500); return () => clearTimeout(t); }, [onClose]);
@@ -98,38 +116,40 @@ function FeedbackModal({ type, title, message, onClose }) {
     <div onClick={onClose} style={{
       position:'fixed', inset:0, zIndex:100,
       display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem',
-      background:'rgba(0,0,0,0.82)',
+      background:'rgba(0,0,0,0.45)', backdropFilter:'blur(6px)',
     }}>
       <div onClick={e=>e.stopPropagation()} style={{
         width:'100%', maxWidth:'22rem', borderRadius:'1.25rem',
-        overflow:'hidden', boxShadow:'0 25px 60px rgba(0,0,0,0.65)',
+        overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.2)',
         animation:'feedbackPop 0.45s cubic-bezier(.34,1.56,.64,1) both',
+        background: C.white,
       }}>
-        <div style={{ height:'4px', background: ok?'#10b981':'#10b981' }} />
-        <div style={{ background:'#FFFFFF', padding:'2rem 1.5rem', textAlign:'center' }}>
+        <div style={{ height:'4px', background: ok ? `linear-gradient(90deg,${C.primary},${C.primaryLight})` : 'linear-gradient(90deg,#f87171,#ef4444)' }} />
+        <div style={{ padding:'2rem 1.5rem', textAlign:'center' }}>
           <div style={{
             width:'4rem', height:'4rem', borderRadius:'50%', margin:'0 auto 1rem',
             display:'flex', alignItems:'center', justifyContent:'center',
-            background: ok?'rgba(16,185,129,0.12)':'rgba(16,185,129,0.12)',
+            background: ok ? C.primaryPale : '#fee2e2',
             animation:'iconBounce 0.5s 0.2s cubic-bezier(.34,1.56,.64,1) both',
           }}>
             {ok
-              ? <CheckCircle style={{ width:'2rem', height:'2rem', color:'#10b981' }} />
-              : <AlertTriangle style={{ width:'2rem', height:'2rem', color:'#10b981' }} />}
+              ? <CheckCircle style={{ width:'2rem', height:'2rem', color:C.primary }} />
+              : <AlertTriangle style={{ width:'2rem', height:'2rem', color:'#ef4444' }} />}
           </div>
-          <h3 style={{ fontSize:'1.05rem', fontWeight:700, color: '#10b981', marginBottom:'0.4rem' }}>{title}</h3>
-          <p style={{ fontSize:'0.83rem', color:'#000000', lineHeight:1.6 }}>{message}</p>
-          <div style={{ marginTop:'1.25rem', height:'3px', background:'#e5e7eb', borderRadius:'9999px', overflow:'hidden' }}>
+          <h3 style={{ fontSize:'1.05rem', fontWeight:700, color: ok ? C.primaryDark : '#dc2626', marginBottom:'0.4rem' }}>{title}</h3>
+          <p style={{ fontSize:'0.83rem', color:C.textLight, lineHeight:1.6 }}>{message}</p>
+          <div style={{ marginTop:'1.25rem', height:'3px', background:C.primaryPale, borderRadius:'9999px', overflow:'hidden' }}>
             <div style={{
               height:'100%', borderRadius:'9999px',
-              background:'#10b981',
+              background: ok ? C.primary : '#ef4444',
               animation:'progressShrink 4.5s linear forwards',
             }} />
           </div>
           <button onClick={onClose} style={{
             marginTop:'1rem', padding:'0.5rem 1.5rem', borderRadius:'0.65rem',
-            background:'#10b981', color:'#FFFFFF',
+            background: ok ? C.primary : '#dc2626', color: C.white,
             fontWeight:600, fontSize:'0.85rem', border:'none', cursor:'pointer',
+            fontFamily:'inherit',
           }}>Fermer</button>
         </div>
       </div>
@@ -137,6 +157,7 @@ function FeedbackModal({ type, title, message, onClose }) {
   );
 }
 
+// ─── Modal mot de passe ──────────────────────────────────────────
 function PasswordModal({ onClose, onSuccess, onError }) {
   const [step, setStep] = useState(1);
   const [secretCode] = useState(generateCode);
@@ -180,12 +201,11 @@ function PasswordModal({ onClose, onSuccess, onError }) {
   });
 
   const iStyle = hasErr => ({
-    width:'100%', background:'#FFFFFF',
-    border:`1px solid ${hasErr?'#10b981':'#10b981'}`,
+    width:'100%', background: hasErr ? '#fef2f2' : C.white,
+    border:`1px solid ${hasErr ? '#fca5a5' : C.border}`,
     borderRadius:'0.75rem', padding:'0.6rem 2.5rem 0.6rem 1rem',
-    fontSize:'0.875rem', color:'#000000', outline:'none',
+    fontSize:'0.875rem', color:C.text, outline:'none',
     boxSizing:'border-box', fontFamily:'inherit',
-    boxShadow: hasErr?'0 0 0 2px rgba(16,185,129,0.2)':'none',
     transition:'all 0.2s',
   });
 
@@ -199,59 +219,63 @@ function PasswordModal({ onClose, onSuccess, onError }) {
     <div style={{
       position:'fixed', inset:0, zIndex:50,
       display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem',
-      background:'rgba(0,0,0,0.88)',
+      background:'rgba(0,0,0,0.4)', backdropFilter:'blur(8px)',
     }}>
       <div style={{
         width:'100%', maxWidth:'26rem', borderRadius:'1.25rem',
-        overflow:'hidden', boxShadow:'0 25px 70px rgba(0,0,0,0.75)',
+        overflow:'hidden', boxShadow:'0 25px 60px rgba(0,0,0,0.2)',
         animation:'feedbackPop 0.4s cubic-bezier(.34,1.56,.64,1) both',
+        background: C.white,
       }}>
+        {/* Header */}
         <div style={{
-          background:'#FFFFFF',
+          background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
           padding:'1.25rem 1.5rem',
-          borderBottom:'1px solid #10b981',
         }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
               <div style={{
                 width:'2.25rem', height:'2.25rem', borderRadius:'0.6rem',
-                background:'rgba(16,185,129,0.18)', display:'flex', alignItems:'center', justifyContent:'center',
+                background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center',
               }}>
-                <Lock style={{ width:'1rem', height:'1rem', color:'#10b981' }} />
+                <Lock style={{ width:'1rem', height:'1rem', color:C.white }} />
               </div>
               <div>
-                <p style={{ fontWeight:700, color:'#000000', fontSize:'0.95rem', margin:0 }}>Changer le mot de passe</p>
-                <p style={{ fontSize:'0.7rem', color:'#6b7280', margin:0 }}>
+                <p style={{ fontWeight:700, color:C.white, fontSize:'0.95rem', margin:0 }}>Changer le mot de passe</p>
+                <p style={{ fontSize:'0.7rem', color:'rgba(255,255,255,0.7)', margin:0 }}>
                   {step===1 ? 'Étape 1/2 — Vérification sécurité' : 'Étape 2/2 — Nouveau mot de passe'}
                 </p>
               </div>
             </div>
             <button onClick={onClose} style={{
               width:'2rem', height:'2rem', borderRadius:'0.5rem',
-              background:'#f3f4f6', border:'none', cursor:'pointer',
+              background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'center',
             }}>
-              <X style={{ width:'1rem', height:'1rem', color:'#000000' }} />
+              <X style={{ width:'1rem', height:'1rem', color:C.white }} />
             </button>
           </div>
+          {/* Étapes */}
           <div style={{ display:'flex', gap:'0.5rem', marginTop:'1rem' }}>
             {[1,2].map(s => (
               <div key={s} style={{
                 flex:1, height:'3px', borderRadius:'9999px',
-                background: s<=step?'#10b981':'#e5e7eb', transition:'background 0.5s',
+                background: s<=step ? C.white : 'rgba(255,255,255,0.3)',
+                transition:'background 0.5s',
               }} />
             ))}
           </div>
         </div>
 
-        <div style={{ background:'#FFFFFF', padding:'1.5rem' }}>
+        {/* Body */}
+        <div style={{ padding:'1.5rem' }}>
           {step===1 ? (
             <div style={{ animation:'slideIn 0.3s ease both' }}>
-              <p style={{ textAlign:'center', fontSize:'0.85rem', color:'#000000', marginBottom:'0.2rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.4rem' }}>
-                <ShieldCheck style={{ width:'1rem', height:'1rem', color:'#10b981' }} />
+              <p style={{ textAlign:'center', fontSize:'0.85rem', color:C.textMid, marginBottom:'0.2rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.4rem' }}>
+                <ShieldCheck style={{ width:'1rem', height:'1rem', color:C.primary }} />
                 Recopiez exactement ce code
               </p>
-              <p style={{ textAlign:'center', fontSize:'0.7rem', color:'#6b7280', margin:'0 0 0.5rem' }}>Les copier/coller sont désactivés</p>
+              <p style={{ textAlign:'center', fontSize:'0.7rem', color:C.textLight, margin:'0 0 0.5rem' }}>Les copier/coller sont désactivés</p>
               <ScrambledCode code={secretCode} />
               <div style={{ display:'flex', gap:'0.5rem', justifyContent:'center', marginBottom:'0.75rem' }}>
                 {userCode.map((v,i) => (
@@ -263,7 +287,7 @@ function PasswordModal({ onClose, onSuccess, onError }) {
               </div>
               {codeError && (
                 <p style={{
-                  textAlign:'center', fontSize:'0.75rem', color:'#10b981',
+                  textAlign:'center', fontSize:'0.75rem', color:'#ef4444',
                   marginBottom:'0.75rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.3rem',
                   animation:'shake 0.4s ease',
                 }}>
@@ -272,10 +296,10 @@ function PasswordModal({ onClose, onSuccess, onError }) {
               )}
               <button onClick={validateCode} style={{
                 width:'100%', padding:'0.65rem', borderRadius:'0.75rem',
-                background:'#10b981',
-                color:'#FFFFFF', fontWeight:600, fontSize:'0.875rem',
+                background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
+                color:C.white, fontWeight:600, fontSize:'0.875rem',
                 border:'none', cursor:'pointer',
-                fontFamily:'inherit',
+                boxShadow:'0 4px 15px rgba(22,163,74,0.35)', fontFamily:'inherit',
               }}>
                 Valider le code →
               </button>
@@ -284,7 +308,7 @@ function PasswordModal({ onClose, onSuccess, onError }) {
             <div style={{ animation:'slideIn 0.3s ease both', display:'flex', flexDirection:'column', gap:'1rem' }}>
               {fields.map(({ key, label }) => (
                 <div key={key}>
-                  <label style={{ display:'block', fontSize:'0.7rem', fontWeight:600, color:'#000000', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'0.4rem' }}>
+                  <label style={{ display:'block', fontSize:'0.72rem', fontWeight:600, color:C.textLight, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'0.4rem' }}>
                     {label}
                   </label>
                   <div style={{ position:'relative' }}>
@@ -299,18 +323,15 @@ function PasswordModal({ onClose, onSuccess, onError }) {
                       placeholder="••••••••"
                       style={iStyle(!!pwErrors[key])}
                     />
-                    <button type="button" onClick={() => setShow(s=>({...s,[key]:!s[key]}))} style={{
+                    <button type="button" onClick={()=>setShow(s=>({...s,[key]:!s[key]}))} style={{
                       position:'absolute', right:'0.75rem', top:'50%', transform:'translateY(-50%)',
-                      background:'none', border:'none', cursor:'pointer', color:'#6b7280',
-                      display:'flex', padding:0,
+                      background:'none', border:'none', cursor:'pointer', color:C.textLight, display:'flex', padding:0,
                     }}>
-                      {show[key]
-                        ? <EyeOff style={{ width:'1rem', height:'1rem' }} />
-                        : <Eye style={{ width:'1rem', height:'1rem' }} />}
+                      {show[key] ? <EyeOff style={{ width:'1rem', height:'1rem' }} /> : <Eye style={{ width:'1rem', height:'1rem' }} />}
                     </button>
                   </div>
                   {pwErrors[key] && (
-                    <p style={{ fontSize:'0.7rem', color:'#10b981', marginTop:'0.25rem', display:'flex', alignItems:'center', gap:'0.25rem' }}>
+                    <p style={{ fontSize:'0.7rem', color:'#ef4444', marginTop:'0.25rem', display:'flex', alignItems:'center', gap:'0.25rem' }}>
                       <AlertTriangle style={{ width:'0.75rem', height:'0.75rem' }} /> {pwErrors[key]}
                     </p>
                   )}
@@ -319,17 +340,18 @@ function PasswordModal({ onClose, onSuccess, onError }) {
               <div style={{ display:'flex', gap:'0.75rem', paddingTop:'0.25rem' }}>
                 <button onClick={()=>setStep(1)} style={{
                   flex:1, padding:'0.6rem', borderRadius:'0.75rem',
-                  background:'transparent', border:'1px solid #10b981',
-                  color:'#10b981', fontWeight:600, fontSize:'0.85rem', cursor:'pointer', fontFamily:'inherit',
+                  background:'transparent', border:`1px solid ${C.border}`,
+                  color:C.textMid, fontWeight:600, fontSize:'0.85rem', cursor:'pointer', fontFamily:'inherit',
                 }}>
                   ← Retour
                 </button>
-                <button onClick={()=>{if(!validatePasswords())return; pwMutation.mutate({current_password:passwords.current,new_password:passwords.newPass});}}
+                <button
+                  onClick={()=>{ if(!validatePasswords()) return; pwMutation.mutate({current_password:passwords.current,new_password:passwords.newPass}); }}
                   disabled={pwMutation.isPending}
                   style={{
                     flex:1, padding:'0.6rem', borderRadius:'0.75rem',
-                    background:'#10b981',
-                    color:'#FFFFFF', fontWeight:600, fontSize:'0.85rem',
+                    background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
+                    color:C.white, fontWeight:600, fontSize:'0.85rem',
                     border:'none', cursor:pwMutation.isPending?'not-allowed':'pointer',
                     opacity:pwMutation.isPending?0.6:1,
                     display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem', fontFamily:'inherit',
@@ -347,6 +369,7 @@ function PasswordModal({ onClose, onSuccess, onError }) {
   );
 }
 
+// ─── Page principale ─────────────────────────────────────────────
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
   const { emit } = useSocketStore();
@@ -383,66 +406,70 @@ export default function ProfilePage() {
   const currentPresence = PRESENCE_OPTIONS.find(o=>o.value===presence);
 
   const cardStyle = {
-    background:'#FFFFFF',
-    border:'1px solid #10b981',
+    background: C.cardBg,
+    border: `1px solid ${C.borderLight}`,
+    backdropFilter:'blur(8px)',
     borderRadius:'1.25rem',
     padding:'1.5rem',
+    boxShadow:'0 2px 16px rgba(22,163,74,0.08)',
     animation:'cardReveal 0.5s ease both',
   };
 
   const labelSt = {
     display:'flex', alignItems:'center', gap:'0.4rem',
     fontSize:'0.7rem', fontWeight:600, letterSpacing:'0.06em',
-    color:'#000000', textTransform:'uppercase', marginBottom:'0.4rem',
+    color:C.textLight, textTransform:'uppercase', marginBottom:'0.4rem',
   };
 
   const inputSt = {
-    width:'100%', background:'#FFFFFF',
-    border:'1px solid #10b981', borderRadius:'0.75rem',
-    padding:'0.6rem 1rem', fontSize:'0.875rem', color:'#000000',
+    width:'100%', background:C.white,
+    border:`1px solid ${C.borderLight}`, borderRadius:'0.75rem',
+    padding:'0.6rem 1rem', fontSize:'0.875rem', color:C.text,
     outline:'none', boxSizing:'border-box', fontFamily:'inherit',
     transition:'border-color 0.2s, box-shadow 0.2s',
   };
 
   const readonlySt = {
     ...inputSt,
-    background:'#f9fafb', color:'#6b7280',
-    cursor:'not-allowed', borderColor:'#10b981',
+    background: C.primaryGhost, color:C.textLight,
+    cursor:'not-allowed', borderColor:C.borderLight,
   };
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
-        @keyframes feedbackPop { from{opacity:0;transform:scale(0.82) translateY(24px)} to{opacity:1;transform:scale(1) translateY(0)} }
-        @keyframes iconBounce  { from{opacity:0;transform:scale(0.2)} to{opacity:1;transform:scale(1)} }
+        @keyframes feedbackPop  { from{opacity:0;transform:scale(0.82) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        @keyframes iconBounce   { from{opacity:0;transform:scale(0.2)} to{opacity:1;transform:scale(1)} }
         @keyframes progressShrink { from{width:100%} to{width:0%} }
-        @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
-        @keyframes slideIn { from{opacity:0;transform:translateX(18px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes cardReveal { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        @keyframes avatarGlow { 0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,0.35)} 50%{box-shadow:0 0 0 8px rgba(16,185,129,0.08)} }
-        .profile-page { font-family:'DM Sans',sans-serif; }
+        @keyframes shake        { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+        @keyframes slideIn      { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes cardReveal   { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin         { to{transform:rotate(360deg)} }
+        @keyframes avatarGlow   { 0%,100%{box-shadow:0 0 0 3px rgba(22,163,74,0.35)} 50%{box-shadow:0 0 0 8px rgba(22,163,74,0.08)} }
+        .profile-page           { font-family:'DM Sans',sans-serif; }
         .profile-card:nth-child(1){animation-delay:0.05s}
         .profile-card:nth-child(2){animation-delay:0.13s}
         .profile-card:nth-child(3){animation-delay:0.21s}
-        .edit-input:focus { border-color:#10b981 !important; box-shadow:0 0 0 3px rgba(16,185,129,0.2) !important; }
-        .presence-btn { transition:all 0.2s; }
-        .presence-btn:hover { transform:scale(1.02); }
-        .btn-save:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 22px rgba(16,185,129,0.5) !important; }
-        .btn-save:disabled { opacity:0.6; cursor:not-allowed; }
-        .btn-pw:hover { background:rgba(16,185,129,0.15) !important; border-color:#10b981 !important; color:#10b981 !important; }
+        .edit-input:focus       { border-color:#16a34a !important; box-shadow:0 0 0 3px rgba(22,163,74,0.18) !important; }
+        .presence-btn           { transition:all 0.2s; border:none; cursor:pointer; }
+        .presence-btn:hover     { transform:scale(1.02); }
+        .btn-save:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 20px rgba(22,163,74,0.4) !important; }
+        .btn-save:disabled      { opacity:0.6; cursor:not-allowed; }
+        .btn-pw:hover           { background:#f0fdf4 !important; border-color:#16a34a !important; color:#15803d !important; }
       `}</style>
 
       <div className="profile-page" style={{
         flex:1, overflowY:'auto', padding:'1.5rem 1rem',
-        background:'#000000',
+        background:`linear-gradient(140deg,${C.primaryGhost} 0%,${C.white} 60%,${C.primaryPale} 100%)`,
         minHeight:'100vh',
       }}>
         <div style={{ maxWidth:'38rem', margin:'0 auto', display:'flex', flexDirection:'column', gap:'1rem' }}>
 
-          <div className="profile-card" style={{...cardStyle, animationDelay:'0.05s'}}>
+          {/* ── Hero ──────────────────────────────────────────── */}
+          <div className="profile-card" style={cardStyle}>
             <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:'1.25rem' }}>
+              {/* Avatar */}
               <div style={{ position:'relative', flexShrink:0 }}>
                 <input ref={fileInputRef} type="file" style={{ display:'none' }} accept="image/*"
                   onChange={e => { const f=e.target.files[0]; if(!f)return; const fd=new FormData(); fd.append('avatar',f); avatarMutation.mutate(fd); }} />
@@ -451,9 +478,9 @@ export default function ProfilePage() {
                     ? <img src={user.avatar_url} alt={user.display_name} style={{ width:'5.5rem', height:'5.5rem', borderRadius:'50%', objectFit:'cover', display:'block' }} />
                     : <div style={{
                         width:'5.5rem', height:'5.5rem', borderRadius:'50%',
-                        background:'#10b981',
+                        background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
                         display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:'2.25rem', fontWeight:700, color:'#FFFFFF',
+                        fontSize:'2.25rem', fontWeight:700, color:C.white,
                         fontFamily:'Playfair Display,serif',
                       }}>{letter}</div>}
                 </div>
@@ -461,31 +488,33 @@ export default function ProfilePage() {
                   style={{
                     position:'absolute', bottom:'-2px', right:'-2px',
                     width:'2.25rem', height:'2.25rem', borderRadius:'50%',
-                    background:'#10b981',
-                    border:'2px solid #FFFFFF', cursor:'pointer',
+                    background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
+                    border:`2px solid ${C.white}`, cursor:'pointer',
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    boxShadow:'0 4px 12px rgba(16,185,129,0.4)',
+                    boxShadow:'0 4px 12px rgba(22,163,74,0.4)',
                   }}>
                   {avatarMutation.isPending
-                    ? <Loader2 style={{ width:'0.9rem', height:'0.9rem', color:'#FFFFFF', animation:'spin 1s linear infinite' }} />
-                    : <Camera style={{ width:'0.9rem', height:'0.9rem', color:'#FFFFFF' }} />}
+                    ? <Loader2 style={{ width:'0.9rem', height:'0.9rem', color:C.white, animation:'spin 1s linear infinite' }} />
+                    : <Camera style={{ width:'0.9rem', height:'0.9rem', color:C.white }} />}
                 </button>
               </div>
+
+              {/* Infos identité */}
               <div style={{ flex:1, minWidth:'10rem' }}>
-                <h2 style={{ fontSize:'1.35rem', fontWeight:700, color:'#000000', fontFamily:'Playfair Display,serif', margin:'0 0 0.1rem' }}>
+                <h2 style={{ fontSize:'1.35rem', fontWeight:700, color:C.text, fontFamily:'Playfair Display,serif', margin:'0 0 0.15rem' }}>
                   {user?.display_name}
                 </h2>
-                <p style={{ fontSize:'0.8rem', color:'#6b7280', margin:'0 0 0.6rem' }}>@{user?.username}</p>
+                <p style={{ fontSize:'0.8rem', color:C.textLight, margin:'0 0 0.6rem' }}>@{user?.username}</p>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem' }}>
-                  <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:'rgba(16,185,129,0.15)', color:'#10b981', border:'1px solid #10b981' }}>
+                  <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:C.primaryPale, color:C.primaryDark, border:`1px solid ${C.border}` }}>
                     {user?.role==='admin' ? '⚡ Admin' : '👤 Utilisateur'}
                   </span>
                   {user?.department && (
-                    <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:'#f9fafb', color:'#000000', border:'1px solid #10b981', display:'flex', alignItems:'center', gap:'0.3rem' }}>
+                    <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:C.primaryGhost, color:C.textLight, border:`1px solid ${C.borderLight}`, display:'flex', alignItems:'center', gap:'0.3rem' }}>
                       <Briefcase style={{ width:'0.7rem', height:'0.7rem' }} /> {user.department}
                     </span>
                   )}
-                  <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:'#f9fafb', color:'#000000', border:'1px solid #10b981', display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                  <span style={{ padding:'0.25rem 0.75rem', borderRadius:'9999px', fontSize:'0.72rem', fontWeight:600, background:C.primaryGhost, color:C.textLight, border:`1px solid ${C.borderLight}`, display:'flex', alignItems:'center', gap:'0.4rem' }}>
                     <span style={{ width:'0.5rem', height:'0.5rem', borderRadius:'50%', background:currentPresence?.color, display:'inline-block' }} />
                     {currentPresence?.label}
                   </span>
@@ -494,66 +523,73 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* ── Présence ──────────────────────────────────────── */}
           <div className="profile-card" style={{...cardStyle, animationDelay:'0.13s'}}>
-            <p style={{ fontSize:'0.9rem', fontWeight:700, color:'#000000', margin:'0 0 1rem', fontFamily:'Playfair Display,serif', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-              <span style={{ width:'3px', height:'1.1rem', borderRadius:'9999px', background:'#10b981', display:'inline-block' }} />
+            <p style={{ fontSize:'0.9rem', fontWeight:700, color:C.text, margin:'0 0 1rem', fontFamily:'Playfair Display,serif', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+              <span style={{ width:'3px', height:'1.1rem', borderRadius:'9999px', background:`linear-gradient(to bottom,${C.primary},${C.primaryDark})`, display:'inline-block' }} />
               Statut de présence
             </p>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem' }}>
               {PRESENCE_OPTIONS.map(opt => {
                 const active = presence===opt.value;
                 return (
-                  <button key={opt.value} onClick={()=>{ setPresence(opt.value); presenceMutation.mutate(opt.value); }}
+                  <button key={opt.value}
+                    onClick={()=>{ setPresence(opt.value); presenceMutation.mutate(opt.value); }}
                     className="presence-btn"
                     style={{
                       display:'flex', alignItems:'center', gap:'0.6rem',
                       padding:'0.75rem 1rem', borderRadius:'0.85rem', textAlign:'left',
-                      background: active?'rgba(16,185,129,0.14)':'#f9fafb',
-                      border:`1px solid ${active?'#10b981':'#10b981'}`,
-                      cursor:'pointer', transform:active?'scale(1.02)':'scale(1)',
+                      background: active ? C.primaryPale : C.primaryGhost,
+                      border:`1px solid ${active ? C.primary : C.borderLight}`,
+                      transform:active?'scale(1.02)':'scale(1)',
                     }}>
                     <span style={{ width:'0.7rem', height:'0.7rem', borderRadius:'50%', flexShrink:0, background:opt.color, boxShadow:active?`0 0 8px ${opt.color}`:'none' }} />
-                    <span style={{ fontSize:'0.8rem', fontWeight:500, color:active?'#000000':'#000000', flex:1 }}>{opt.label}</span>
-                    {active && <Check style={{ width:'0.85rem', height:'0.85rem', color:'#10b981', flexShrink:0 }} />}
+                    <span style={{ fontSize:'0.8rem', fontWeight:500, color: active ? C.primaryDark : C.textLight, flex:1 }}>{opt.label}</span>
+                    {active && <Check style={{ width:'0.85rem', height:'0.85rem', color:C.primary, flexShrink:0 }} />}
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {/* ── Infos personnelles ─────────────────────────────── */}
           <div className="profile-card" style={{...cardStyle, animationDelay:'0.21s'}}>
-            <p style={{ fontSize:'0.9rem', fontWeight:700, color:'#000000', margin:'0 0 1.25rem', fontFamily:'Playfair Display,serif', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-              <span style={{ width:'3px', height:'1.1rem', borderRadius:'9999px', background:'#10b981', display:'inline-block' }} />
+            <p style={{ fontSize:'0.9rem', fontWeight:700, color:C.text, margin:'0 0 1.25rem', fontFamily:'Playfair Display,serif', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+              <span style={{ width:'3px', height:'1.1rem', borderRadius:'9999px', background:`linear-gradient(to bottom,${C.primary},${C.primaryDark})`, display:'inline-block' }} />
               Informations personnelles
             </p>
             <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
 
+              {/* Identifiant readonly */}
               <div>
                 <label style={labelSt}>
                   <User style={{ width:'0.8rem', height:'0.8rem' }} /> Identifiant
-                  <span style={{ marginLeft:'auto', color:'#6b7280', display:'flex', alignItems:'center', gap:'0.25rem', textTransform:'none', letterSpacing:0, fontSize:'0.7rem', fontWeight:400 }}>
+                  <span style={{ marginLeft:'auto', color:C.borderLight, display:'flex', alignItems:'center', gap:'0.25rem', textTransform:'none', letterSpacing:0, fontSize:'0.7rem', fontWeight:400 }}>
                     <Lock style={{ width:'0.65rem', height:'0.65rem' }} /> Non modifiable
                   </span>
                 </label>
                 <input style={readonlySt} value={user?.username||''} readOnly />
               </div>
 
+              {/* Email readonly */}
               <div>
                 <label style={labelSt}>
                   <Mail style={{ width:'0.8rem', height:'0.8rem' }} /> Email
-                  <span style={{ marginLeft:'auto', color:'#6b7280', display:'flex', alignItems:'center', gap:'0.25rem', textTransform:'none', letterSpacing:0, fontSize:'0.7rem', fontWeight:400 }}>
+                  <span style={{ marginLeft:'auto', color:C.borderLight, display:'flex', alignItems:'center', gap:'0.25rem', textTransform:'none', letterSpacing:0, fontSize:'0.7rem', fontWeight:400 }}>
                     <Lock style={{ width:'0.65rem', height:'0.65rem' }} /> Non modifiable
                   </span>
                 </label>
                 <input style={readonlySt} value={user?.email||''} readOnly />
               </div>
 
+              {/* Nom affiché */}
               <div>
                 <label style={labelSt}><User style={{ width:'0.8rem', height:'0.8rem' }} /> Nom affiché</label>
                 <input className="edit-input" style={inputSt} value={profile.display_name}
                   onChange={e=>setProfile({...profile,display_name:e.target.value})} placeholder="Votre nom complet" />
               </div>
 
+              {/* Service + Poste */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
                 <div>
                   <label style={labelSt}><Briefcase style={{ width:'0.8rem', height:'0.8rem' }} /> Service</label>
@@ -567,13 +603,15 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Actions */}
               <div style={{ display:'flex', gap:'0.75rem', paddingTop:'0.25rem', flexWrap:'wrap' }}>
                 <button className="btn-save" onClick={()=>profileMutation.mutate(profile)} disabled={profileMutation.isPending}
                   style={{
                     display:'inline-flex', alignItems:'center', gap:'0.5rem',
-                    padding:'0.6rem 1.4rem', background:'#10b981',
-                    borderRadius:'0.75rem', color:'#FFFFFF', fontWeight:600, fontSize:'0.875rem',
-                    border:'none', cursor:'pointer',
+                    padding:'0.6rem 1.4rem',
+                    background:`linear-gradient(135deg,${C.primary},${C.primaryDark})`,
+                    borderRadius:'0.75rem', color:C.white, fontWeight:600, fontSize:'0.875rem',
+                    border:'none', cursor:'pointer', boxShadow:'0 4px 15px rgba(22,163,74,0.3)',
                     transition:'all 0.2s', fontFamily:'inherit',
                   }}>
                   {profileMutation.isPending
@@ -583,9 +621,9 @@ export default function ProfilePage() {
                 <button className="btn-pw" onClick={()=>setShowPasswordModal(true)}
                   style={{
                     display:'inline-flex', alignItems:'center', gap:'0.5rem',
-                    padding:'0.6rem 1.4rem', background:'#FFFFFF',
-                    border:'1px solid #10b981', borderRadius:'0.75rem',
-                    color:'#10b981', fontWeight:600, fontSize:'0.875rem',
+                    padding:'0.6rem 1.4rem', background:C.white,
+                    border:`1px solid ${C.border}`, borderRadius:'0.75rem',
+                    color:C.primaryDark, fontWeight:600, fontSize:'0.875rem',
                     cursor:'pointer', transition:'all 0.2s', fontFamily:'inherit',
                   }}>
                   <Lock style={{ width:'1rem', height:'1rem' }}/> Mot de passe
