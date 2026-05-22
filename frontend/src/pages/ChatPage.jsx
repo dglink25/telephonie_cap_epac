@@ -537,10 +537,34 @@ export default function ChatPage() {
   const handleVoiceCancel= ()    => { recorder.cancel(); };
 
   const handleCall = (type) => {
-    const other = activeConv?.members?.find((m) => m.id !== user.id);
-    if (!other) return;
-    window.__capEpacInitiateCall?.(other.id, other.display_name, type);
-    emit('call:initiate', { calleeId: other.id, type });
+    if (!activeConv) return;
+  
+    if (activeConv.type === 'direct') {
+      // ── Appel direct 1-1 ────────────────────────────────────────────
+      const other = activeConv.members?.find((m) => m.id !== user.id);
+      if (!other) return;
+      window.__capEpacInitiateCall?.(other.id, other.display_name, type);
+      emit('call:initiate', { calleeId: other.id, type });
+  
+    } 
+    else {
+     
+      const firstOther = activeConv.members?.find((m) => m.id !== user.id);
+      const groupName  = activeConv.name || 'Groupe';
+  
+      // Afficher le modal sortant côté appelant
+      window.__capEpacInitiateCall?.(
+        firstOther?.id || 'group',
+        groupName,
+        type
+      );
+  
+      emit('call:initiate', {
+        calleeId:       firstOther?.id || '', // callee principal (pour compat DB)
+        type,
+        conversationId: activeConv.id,        
+      });
+    }
   };
 
   const typingUsers    = activeConv?.members?.filter((m) => m.id !== user.id && isTyping[m.id]);

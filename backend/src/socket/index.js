@@ -1,11 +1,14 @@
 // src/socket/index.js
 const jwt      = require('jsonwebtoken');
-const { User, ConversationMember, CallLog } = require('../models');
+const { User, ConversationMember, CallLog, Conversation } = require('../models');
 const { setUserPresence, removeUserPresence } = require('../config/redis');
 const logger   = require('../utils/logger');
 
 // Map des sockets actifs : userId → Set<socketId>
 const userSockets = new Map();
+
+// Map des appels de groupe en cours : callId → { callerId, memberIds: Set, acceptedBy: Set }
+const groupCallSessions = new Map();
 
 const initSocket = (io) => {
 
@@ -78,42 +81,89 @@ const initSocket = (io) => {
 
     /**
      * Initier un appel
+     * ✅ FIX: Support appel de groupe — notify tous les membres sauf l'appelant
      */
-    socket.on('call:initiate', async ({ calleeId, type = 'audio', callId }) => {
+    socket.on('call:initiate', async ({ calleeId, type = 'audio', callId, conversationId }) => {
       try {
-        const callee = await User.findByPk(calleeId);
-        if (!callee) {
-          socket.emit('call:error', { message: 'Utilisateur introuvable' });
-          return;
-        }
-
-        // Créer ou récupérer le journal d'appel
+        // ── Créer ou récupérer le journal d'appel ─────────────────
         let call;
         if (callId) {
           call = await CallLog.findByPk(callId);
         }
         if (!call) {
           call = await CallLog.create({
-            caller_id: userId,
-            callee_id: calleeId,
+            caller_id:       userId,
+            callee_id:       calleeId, // gardé pour compat DB (premier membre cible)
+            conversation_id: conversationId || null,
             type,
             status: 'ongoing',
           });
         }
 
-        // Notifier l'appelé
-        io.to(`user:${calleeId}`).emit('call:incoming', {
-          callId:      call.id,
-          callerId:    userId,
-          callerName:  socket.user.display_name,
-          callerAvatar: socket.user.avatar_url,
-          type,
+        // ── Appel direct (1-1) ────────────────────────────────────
+        if (!conversationId) {
+          const callee = await User.findByPk(calleeId);
+          if (!callee) {
+            socket.emit('call:error', { message: 'Utilisateur introuvable' });
+            return;
+          }
+
+          io.to(`user:${calleeId}`).emit('call:incoming', {
+            callId:      call.id,
+            callerId:    userId,
+            callerName:  socket.user.display_name,
+            callerAvatar: socket.user.avatar_url,
+            type,
+          });
+
+          socket.emit('call:initiated', { callId: call.id });
+          logger.info(`Appel ${type} initié: ${userId} -> ${calleeId} (${call.id})`);
+          return;
+        }
+
+        // ── Appel de groupe ───────────────────────────────────────
+        // Récupérer tous les membres actifs de la conversation sauf l'appelant
+        const conversation = await Conversation.findByPk(conversationId);
+        const memberRows   = await ConversationMember.findAll({
+          where: { conversation_id: conversationId },
+          attributes: ['user_id'],
         });
 
-        // Confirmer à l'appelant avec le vrai callId
-        socket.emit('call:initiated', { callId: call.id });
+        const memberIds = memberRows
+          .map((m) => m.user_id)
+          .filter((id) => id !== userId);
 
-        logger.info(`Appel ${type} initié: ${userId} -> ${calleeId} (${call.id})`);
+        if (!memberIds.length) {
+          socket.emit('call:error', { message: 'Aucun autre membre dans ce groupe' });
+          return;
+        }
+
+        // ✅ Enregistrer la session de groupe dans la map en mémoire
+        groupCallSessions.set(call.id, {
+          callerId:   userId,
+          memberIds:  new Set(memberIds),
+          acceptedBy: new Set(),
+          type,
+          conversationId,
+        });
+
+        // ✅ Notifier TOUS les membres du groupe
+        const groupName = conversation?.name || 'Groupe';
+        for (const memberId of memberIds) {
+          io.to(`user:${memberId}`).emit('call:incoming', {
+            callId:      call.id,
+            callerId:    userId,
+            callerName:  socket.user.display_name,
+            callerAvatar: socket.user.avatar_url,
+            type,
+            isGroupCall: true,
+            groupName,
+          });
+        }
+
+        socket.emit('call:initiated', { callId: call.id });
+        logger.info(`Appel de groupe ${type} initié: ${userId} -> ${memberIds.length} membres (${call.id})`);
+
       } catch (err) {
         logger.error('Erreur call:initiate:', err.message);
         socket.emit('call:error', { message: 'Impossible d\'initier l\'appel' });
@@ -122,6 +172,7 @@ const initSocket = (io) => {
 
     /**
      * Accepter un appel — l'appelé décroche
+     * ✅ FIX: Pour les appels de groupe, les autres membres continuent à sonner
      */
     socket.on('call:accept', async ({ callId }) => {
       try {
@@ -144,6 +195,20 @@ const initSocket = (io) => {
         // Confirmer à l'appelé aussi
         socket.emit('call:accepted', { callId });
 
+        // ── Gestion appel de groupe ──────────────────────────────
+        const session = groupCallSessions.get(callId);
+        if (session) {
+          session.acceptedBy.add(userId);
+
+          // ✅ Les autres membres qui n'ont pas encore décroché continuent à sonner
+          // (on ne fait rien — leur modal est toujours affiché)
+          // On log juste pour le suivi
+          const stillRinging = [...session.memberIds].filter(
+            (id) => !session.acceptedBy.has(id) && id !== userId
+          );
+          logger.info(`[GroupCall] ${callId}: ${userId} a décroché. Sonnent encore: ${stillRinging.length} membres`);
+        }
+
         logger.info(`Appel accepté: ${callId} par ${userId}`);
       } catch (err) {
         logger.error('Erreur call:accept:', err.message);
@@ -153,17 +218,49 @@ const initSocket = (io) => {
 
     /**
      * Rejeter un appel
+     * ✅ FIX: Pour les appels de groupe, notifier seulement l'appelant
+     *         (les autres membres continuent à sonner)
      */
     socket.on('call:reject', async ({ callId }) => {
       try {
         const call = await CallLog.findByPk(callId);
         if (!call) return;
 
-        call.status   = 'rejected';
-        call.ended_at = new Date();
-        await call.save();
+        const session = groupCallSessions.get(callId);
 
-        io.to(`user:${call.caller_id}`).emit('call:rejected', { callId });
+        if (session) {
+          // ── Appel de groupe : un membre refuse ──────────────────
+          session.memberIds.delete(userId);
+
+          // Notifier l'appelant que ce membre a refusé (optionnel, pour UI)
+          io.to(`user:${call.caller_id}`).emit('call:member_rejected', {
+            callId,
+            rejectedBy: userId,
+          });
+
+          // ✅ Si TOUS les membres ont refusé → appel vraiment rejeté
+          const remaining = [...session.memberIds].filter(
+            (id) => !session.acceptedBy.has(id)
+          );
+          if (remaining.length === 0 && session.acceptedBy.size === 0) {
+            call.status   = 'rejected';
+            call.ended_at = new Date();
+            await call.save();
+            io.to(`user:${call.caller_id}`).emit('call:rejected', { callId });
+            groupCallSessions.delete(callId);
+            logger.info(`[GroupCall] ${callId}: tous les membres ont refusé`);
+          } else {
+            logger.info(`[GroupCall] ${callId}: ${userId} a refusé, ${remaining.length} membre(s) sonnent encore`);
+          }
+
+        } else {
+          // ── Appel direct ──────────────────────────────────────
+          call.status   = 'rejected';
+          call.ended_at = new Date();
+          await call.save();
+          io.to(`user:${call.caller_id}`).emit('call:rejected', { callId });
+        }
+
         logger.info(`Appel rejeté: ${callId} par ${userId}`);
       } catch (err) {
         logger.error('Erreur call:reject:', err.message);
@@ -188,8 +285,21 @@ const initSocket = (io) => {
         }
         await call.save();
 
-        io.to(`user:${call.caller_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
-        io.to(`user:${call.callee_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
+        // ✅ FIX: Notifier tous les participants (direct + groupe)
+        const session = groupCallSessions.get(callId);
+        if (session) {
+          // Notifier tous les membres du groupe (ceux qui sonnent encore inclus)
+          for (const memberId of session.memberIds) {
+            io.to(`user:${memberId}`).emit('call:ended', {
+              callId,
+              duration: call.duration_seconds,
+            });
+          }
+          groupCallSessions.delete(callId);
+        } else {
+          io.to(`user:${call.caller_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
+          io.to(`user:${call.callee_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
+        }
 
         logger.info(`Appel terminé: ${callId} — durée: ${call.duration_seconds}s`);
       } catch (err) {

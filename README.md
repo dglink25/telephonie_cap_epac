@@ -229,7 +229,12 @@ allowed-peer-ip=192.168.1.0-192.168.1.255   # ← Adapter à votre plage LAN
 
 ---
 
-## ▶️ Démarrage du projet <a name="démarrage"></a>
+
+# Installer mkcert (certificat de confiance)
+bash scripts/install-mkcert.sh
+
+# 3. Regénérer les certificats SSL avec mkcert
+bash scripts/gen-ssl.sh 192.168.100.195
 
 ### Démarrage automatique (recommandé)
 
