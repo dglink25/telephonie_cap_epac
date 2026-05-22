@@ -15,11 +15,11 @@ import {
 import toast from 'react-hot-toast';
 
 export default function MainLayout() {
-  const { socket } = useSocketStore();
+ 
+  const { socket, isConnected } = useSocketStore();
   const { setIncomingCall, setOutgoingCall, clearOutgoingCall, endCall } = useCallStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // { calleeId, calleeName, calleeInitial, type, callId }
   const pendingRef = useRef(null);
 
   // ── Exposer l'initiateur d'appel aux pages ──────────────────
@@ -37,9 +37,9 @@ export default function MainLayout() {
     return () => { delete window.__capEpacInitiateCall; };
   }, []);
 
-  // ── Handlers Socket.IO ──────────────────────────────────────
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isConnected) return;
+
     console.log('[MainLayout] 🔌 handlers enregistrés socket.id=', socket.id);
 
     // ── Appel entrant ─────────────────────────────────────────
@@ -50,31 +50,32 @@ export default function MainLayout() {
 
     // ── Serveur confirme + donne le vrai callId ───────────────
     const onInitiated = ({ callId }) => {
-      console.log('[Call] ✅ call:initiated callId=', callId);
+      console.log('[Call] call:initiated callId=', callId);
       if (pendingRef.current) {
         pendingRef.current.callId = callId;
-        // Afficher le modal appel sortant
         setOutgoingCall({ ...pendingRef.current, callId });
       }
     };
 
     // ── L'appelé a décroché → créer l'offre SDP ───────────────
-    const onAccepted = async ({ callId }) => {
-      console.log('[Call] 📞 call:accepted callId=', callId);
+    const onAccepted = async ({ callId, acceptedBy }) => {
+      console.log('[Call] 📞 call:accepted callId=', callId, 'acceptedBy=', acceptedBy);
       const p = pendingRef.current;
       if (!p) {
         console.warn('[Call] call:accepted sans pending, ignoré');
         return;
       }
-      // Fermer le modal sortant (l'appel est établi)
       clearOutgoingCall();
       const realCallId = callId || p.callId;
+
+      const targetId = acceptedBy || p.calleeId;
+
       try {
-        console.log('[WebRTC] 🎙 création offre SDP calleeId=', p.calleeId, 'callId=', realCallId);
-        await createAndSendOffer(p.calleeId, realCallId, p.type);
-        console.log('[WebRTC] ✅ offre SDP envoyée');
+        console.log('[WebRTC] création offre SDP targetId=', targetId, 'callId=', realCallId);
+        await createAndSendOffer(targetId, realCallId, p.type);
+        console.log('[WebRTC] offre SDP envoyée');
       } catch (err) {
-        console.error('[WebRTC] ❌ createAndSendOffer:', err.message);
+        console.error('[WebRTC] createAndSendOffer:', err.message);
         toast.error('Micro inaccessible : ' + err.message);
         terminateCall(realCallId);
         pendingRef.current = null;
@@ -83,16 +84,22 @@ export default function MainLayout() {
 
     // ── L'appelé a refusé ─────────────────────────────────────
     const onRejected = () => {
-      console.log('[Call] ❌ call:rejected');
+      console.log('[Call] call:rejected');
       pendingRef.current = null;
       clearOutgoingCall();
-      toast('📵 Appel refusé');
+      toast.info(' Appel refusé');
       endCall();
+    };
+
+    // ── Un membre du groupe a refusé (pas tous) ───────────────
+    const onMemberRejected = ({ rejectedBy }) => {
+      console.log('[Call] membre a refusé:', rejectedBy);
+      // On ne ferme pas l'appel, juste une info optionnelle
     };
 
     // ── Appel terminé ─────────────────────────────────────────
     const onEnded = ({ callId }) => {
-      console.log('[Call] 🔴 call:ended callId=', callId);
+      console.log('[Call] call:ended callId=', callId);
       pendingRef.current = null;
       clearOutgoingCall();
       endCall();
@@ -100,7 +107,7 @@ export default function MainLayout() {
 
     // ── Réponse SDP de l'appelé ───────────────────────────────
     const onAnswer = async ({ sdp, callId }) => {
-      console.log('[WebRTC] 📩 webrtc:answer reçu callId=', callId);
+      console.log('[WebRTC] webrtc:answer reçu callId=', callId);
       await handleAnswer(sdp);
     };
 
@@ -113,6 +120,7 @@ export default function MainLayout() {
     socket.on('call:initiated',       onInitiated);
     socket.on('call:accepted',        onAccepted);
     socket.on('call:rejected',        onRejected);
+    socket.on('call:member_rejected', onMemberRejected);
     socket.on('call:ended',           onEnded);
     socket.on('webrtc:answer',        onAnswer);
     socket.on('webrtc:ice-candidate', onIce);
@@ -122,34 +130,31 @@ export default function MainLayout() {
       socket.off('call:initiated',       onInitiated);
       socket.off('call:accepted',        onAccepted);
       socket.off('call:rejected',        onRejected);
+      socket.off('call:member_rejected', onMemberRejected);
       socket.off('call:ended',           onEnded);
       socket.off('webrtc:answer',        onAnswer);
       socket.off('webrtc:ice-candidate', onIce);
       console.log('[MainLayout] 🔌 handlers retirés');
     };
-  }, [socket]);
+  }, [socket, isConnected]); 
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Sidebar Desktop */}
       <Sidebar />
-      
-      {/* Mobile Menu Overlay */}
+
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
-      
-      {/* Mobile Sidebar */}
+
       <aside className={`
-        fixed top-0 left-0 bottom-0 w-64 bg-primary-700 text-white z-50 
+        fixed top-0 left-0 bottom-0 w-64 bg-primary-700 text-white z-50
         transform transition-transform duration-300 ease-in-out md:hidden
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Header avec bouton fermer */}
           <div className="px-4 py-5 border-b border-primary-600 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-primary-500 rounded-lg flex items-center justify-center">
@@ -160,32 +165,29 @@ export default function MainLayout() {
                 <p className="text-primary-200 text-xs">Téléphonie LAN</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(false)}
               className="p-2 hover:bg-primary-600 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
-          
-          {/* Contenu de la sidebar mobile (réutiliser le contenu de Sidebar) */}
           <Sidebar isMobile onNavigate={() => setIsMobileMenuOpen(false)} />
         </div>
       </aside>
-      
+
       <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Mobile Header */}
         <div className="md:hidden bg-primary-700 text-white px-4 py-3 flex items-center justify-between shadow-md">
-          <button 
+          <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 hover:bg-primary-600 rounded-lg transition-colors"
           >
             <Menu className="w-6 h-6" />
           </button>
           <h1 className="font-bold text-lg">CAP-EPAC</h1>
-          <div className="w-10" /> {/* Spacer pour centrer le titre */}
+          <div className="w-10" />
         </div>
-        
+
         <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>

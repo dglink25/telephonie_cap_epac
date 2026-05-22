@@ -35,6 +35,7 @@ const useCallStore = create((set, get) => ({
       incomingCall: null,
       localStream,
       isMuted: false,
+      // ✅ isVideoOn basé sur le type d'appel
       isVideoOn: callData.type === 'video',
       callDuration: 0,
     }),
@@ -43,28 +44,51 @@ const useCallStore = create((set, get) => ({
   setPeerConnection: (pc) => set({ peerConnection: pc }),
 
   // ── Contrôles ──────────────────────────────────────────────
+
+  // ✅ FIX: était `t.enabled = isMuted` (inversé) → corrigé en `t.enabled = !isMuted`
   toggleMute: () => {
     const { localStream, isMuted } = get();
+    const newMuted = !isMuted;
     if (localStream) {
-      localStream.getAudioTracks().forEach((t) => (t.enabled = isMuted));
+      localStream.getAudioTracks().forEach((t) => {
+        t.enabled = !newMuted; // enabled=false quand muet
+      });
     }
-    set({ isMuted: !isMuted });
-    return !isMuted;
+    set({ isMuted: newMuted });
+    return newMuted; // retourne le NOUVEL état
   },
 
   toggleVideo: () => {
     const { localStream, isVideoOn } = get();
+    const newVideoOn = !isVideoOn;
     if (localStream) {
-      localStream.getVideoTracks().forEach((t) => (t.enabled = !isVideoOn));
+      localStream.getVideoTracks().forEach((t) => {
+        t.enabled = newVideoOn;
+      });
     }
-    set({ isVideoOn: !isVideoOn });
-    return !isVideoOn;
+    set({ isVideoOn: newVideoOn });
+    return newVideoOn;
   },
 
-  toggleHold: () => set((s) => ({ isOnHold: !s.isOnHold })),
+  // ✅ FIX: Hold coupe/remet l'audio sur le stream local
+  toggleHold: () => {
+    const { localStream, isOnHold } = get();
+    const newHold = !isOnHold;
+    if (localStream) {
+      localStream.getAudioTracks().forEach((t) => {
+        t.enabled = !newHold; // couper le son en attente
+      });
+    }
+    set({ isOnHold: newHold });
+    return newHold;
+  },
 
   // ── Timer ──────────────────────────────────────────────────
   startTimer: () => {
+    // Éviter plusieurs intervals en parallèle
+    const { durationInterval } = get();
+    if (durationInterval) clearInterval(durationInterval);
+
     const interval = setInterval(() => {
       set((s) => ({ callDuration: s.callDuration + 1 }));
     }, 1000);
@@ -82,7 +106,9 @@ const useCallStore = create((set, get) => ({
     const { localStream, peerConnection, durationInterval } = get();
     if (durationInterval) clearInterval(durationInterval);
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
-    if (peerConnection) peerConnection.close();
+    if (peerConnection) {
+      try { peerConnection.close(); } catch (_) {}
+    }
     set({
       activeCall: null,
       incomingCall: null,
@@ -99,4 +125,4 @@ const useCallStore = create((set, get) => ({
   },
 }));
 
-export default useCallStore;
+export default useCallStore;  

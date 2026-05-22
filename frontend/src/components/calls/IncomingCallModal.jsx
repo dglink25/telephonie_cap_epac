@@ -1,5 +1,5 @@
 // src/components/calls/IncomingCallModal.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Phone, PhoneOff, Video, Loader2 } from 'lucide-react';
 import useCallStore from '../../store/callStore';
 import useSocketStore from '../../store/socketStore';
@@ -10,24 +10,26 @@ export default function IncomingCallModal() {
   const { incomingCall, clearIncomingCall } = useCallStore();
   const { socket } = useSocketStore();
   const [accepting, setAccepting] = useState(false);
-  // Stocker l'offre SDP dès qu'elle arrive, même avant que l'utilisateur clique
   const pendingOfferRef = useRef(null);
   const audioRef = useRef(null);
 
-  // Sonnerie côté appelé
+  // ── Sonnerie ──────────────────────────────────────────────────
+  // ✅ FIX: stopRingtone extrait en fonction réutilisable
+  const stopRingtone = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, []);
+
   useEffect(() => {
     if (incomingCall) {
       audioRef.current?.play().catch(() => {});
     } else {
-      audioRef.current?.pause();
-      if (audioRef.current) audioRef.current.currentTime = 0;
+      // ✅ FIX: quand incomingCall passe à null (depuis n'importe où), stopper la sonnerie
+      stopRingtone();
     }
-  }, [incomingCall]);
-
-  const stopRingtone = () => {
-    audioRef.current?.pause();
-    if (audioRef.current) audioRef.current.currentTime = 0;
-  };
+  }, [incomingCall, stopRingtone]);
 
   useEffect(() => {
     if (!incomingCall) {
@@ -36,12 +38,12 @@ export default function IncomingCallModal() {
     }
   }, [incomingCall]);
 
+  // ── Écouter les événements Socket ─────────────────────────────
   useEffect(() => {
     if (!socket || !incomingCall) return;
 
     const onOffer = ({ sdp, callId, fromUserId }) => {
       console.log('[IncomingModal] 📨 webrtc:offer reçu callId=', callId);
-      // Stocker immédiatement, peu importe si l'utilisateur a cliqué ou pas
       pendingOfferRef.current = { sdp, callId, fromUserId };
     };
 
@@ -49,38 +51,47 @@ export default function IncomingCallModal() {
       await addIceCandidate(candidate);
     };
 
+    // ✅ FIX: call:ended doit stopper la sonnerie côté appelé
     const onEnded = ({ callId }) => {
+      if (incomingCall?.callId === callId) {
+        console.log('[IncomingModal] appel annulé par l\'appelant callId=', callId);
+        stopRingtone();
+        clearIncomingCall();
+        toast('📵 Appel annulé');
+      }
+    };
+
+    // ✅ FIX: call:rejected (un autre membre du groupe a rejeté) → ne pas fermer si ce n'est pas nous
+    const onRejected = ({ callId }) => {
       if (incomingCall?.callId === callId) {
         stopRingtone();
         clearIncomingCall();
-        toast('Appel annulé');
       }
     };
 
     socket.on('webrtc:offer',         onOffer);
     socket.on('webrtc:ice-candidate', onIce);
     socket.on('call:ended',           onEnded);
+    socket.on('call:rejected',        onRejected);
 
     return () => {
       socket.off('webrtc:offer',         onOffer);
       socket.off('webrtc:ice-candidate', onIce);
       socket.off('call:ended',           onEnded);
+      socket.off('call:rejected',        onRejected);
     };
-  }, [socket, incomingCall]);
+  }, [socket, incomingCall, stopRingtone, clearIncomingCall]);
 
   const handleAccept = async () => {
     if (!incomingCall || accepting) return;
     setAccepting(true);
-    stopRingtone();
+    stopRingtone(); // ✅ FIX: stopper la sonnerie immédiatement au clic
     console.log('[IncomingModal] ✅ accepter callId=', incomingCall.callId);
 
     try {
-      // 1. Notifier le serveur → l'appelant reçoit call:accepted → envoie l'offre SDP
       socket.emit('call:accept', { callId: incomingCall.callId });
       console.log('[IncomingModal] call:accept émis, attente offre SDP...');
 
-      // 2. Attendre l'offre SDP (max 15s)
-      // Elle peut déjà être là si l'appelant était rapide
       const offer = await waitForOffer(15000);
 
       if (!offer) {
@@ -114,15 +125,13 @@ export default function IncomingCallModal() {
   const handleReject = () => {
     if (!incomingCall) return;
     console.log('[IncomingModal] ❌ refuser callId=', incomingCall.callId);
-    stopRingtone();
+    stopRingtone(); // ✅ FIX: stopper la sonnerie au refus
     socket.emit('call:reject', { callId: incomingCall.callId });
     clearIncomingCall();
   };
 
-  // Attendre que l'offre arrive dans pendingOfferRef
   const waitForOffer = (timeoutMs) =>
     new Promise((resolve) => {
-      // Déjà là ?
       if (pendingOfferRef.current) {
         console.log('[IncomingModal] offre déjà disponible immédiatement');
         resolve(pendingOfferRef.current);
@@ -146,7 +155,7 @@ export default function IncomingCallModal() {
 
   return (
     <>
-      {/* Sonnerie appel entrant */}
+      {/* ✅ FIX: ref sur l'audio pour pouvoir le stopper partout */}
       <audio ref={audioRef} loop preload="auto">
         <source src="/sounds/preview.wav" type="audio/wav" />
       </audio>
@@ -170,6 +179,10 @@ export default function IncomingCallModal() {
               Appel {incomingCall.type === 'video' ? 'vidéo' : 'audio'} entrant
             </p>
             <h3 className="text-2xl font-bold text-white">{incomingCall.callerName}</h3>
+            {/* ✅ Afficher si c'est un appel de groupe */}
+            {incomingCall.groupName && (
+              <p className="text-primary-300 text-xs mt-1">Groupe : {incomingCall.groupName}</p>
+            )}
             {accepting && (
               <p className="text-primary-200 text-xs mt-2 animate-pulse">Connexion en cours…</p>
             )}

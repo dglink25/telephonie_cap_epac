@@ -1,3 +1,4 @@
+// src/store/socketStore.js
 import { create } from 'zustand';
 import { io } from 'socket.io-client';
 
@@ -7,7 +8,6 @@ const useSocketStore = create((set, get) => ({
   onlineUsers: new Map(),
 
   connect: (accessToken) => {
-    // Utiliser le token passé en argument ou le récupérer depuis le localStorage
     const token = accessToken || (() => {
       try {
         const stored = JSON.parse(localStorage.getItem('cap-epac-auth') || '{}');
@@ -17,7 +17,7 @@ const useSocketStore = create((set, get) => ({
 
     if (!token) return;
 
-    // Déconnecter l'ancienne socket si elle existe
+    // Déconnecter proprement l'ancienne socket
     const existing = get().socket;
     if (existing) {
       existing.removeAllListeners();
@@ -37,18 +37,16 @@ const useSocketStore = create((set, get) => ({
     });
 
     socket.on('connect', () => {
-      console.log('[Socket] ✅ Connecté id=', socket.id);
+      console.log('[Socket] Connecté id=', socket.id);
       set({ isConnected: true });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('[Socket] ❌ Déconnecté raison=', reason);
+      console.log('[Socket] Déconnecté raison=', reason);
       set({ isConnected: false });
 
-      // Si déconnecté à cause d'une erreur d'auth (token expiré)
-      // → attendre que le refresh soit fait, puis se reconnecter
-      if (reason === 'io server disconnect' || reason === 'transport error') {
-        console.log('[Socket] Tentative de reconnexion avec token rafraîchi...');
+      if (reason === 'io server disconnect') {
+        console.log('[Socket] Déconnexion serveur — tentative avec token rafraîchi...');
         setTimeout(() => {
           const newToken = (() => {
             try {
@@ -56,12 +54,15 @@ const useSocketStore = create((set, get) => ({
               return stored?.state?.accessToken;
             } catch { return null; }
           })();
+          // Ne reconnecter que si le token a changé (refresh effectué entre temps)
           if (newToken && newToken !== token) {
             console.log('[Socket] Reconnexion avec nouveau token');
             get().connect(newToken);
           }
+          // Sinon, laisser socket.io gérer la reconnexion automatique
         }, 1500);
       }
+      // Pour 'transport error' et autres : socket.io gère tout seul
     });
 
     socket.on('connect_error', (err) => {
@@ -69,7 +70,6 @@ const useSocketStore = create((set, get) => ({
       set({ isConnected: false });
     });
 
-    // Présence utilisateurs
     socket.on('user:presence', ({ userId, status }) => {
       set((state) => {
         const map = new Map(state.onlineUsers);
@@ -78,10 +78,11 @@ const useSocketStore = create((set, get) => ({
       });
     });
 
-    set({ socket });
+    // ✅ Stocker le socket immédiatement (avant connect)
+    // isConnected reste false jusqu'au event 'connect'
+    set({ socket, isConnected: false });
   },
 
-  // Reconnecter avec un nouveau token (appelé après refresh JWT)
   reconnectWithToken: (newToken) => {
     console.log('[Socket] Reconnexion forcée avec nouveau token');
     get().connect(newToken);
