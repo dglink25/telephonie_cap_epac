@@ -1,4 +1,3 @@
-// src/components/layout/MainLayout.jsx
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -15,16 +14,19 @@ import {
 import toast from 'react-hot-toast';
 
 export default function MainLayout() {
- 
   const { socket, isConnected } = useSocketStore();
   const { setIncomingCall, setOutgoingCall, clearOutgoingCall, endCall } = useCallStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pendingRef = useRef(null);
+  // Verrou par callId pour éviter de traiter deux call:accepted pour le même appel en parallèle
+  const handlingCallIds = useRef(new Set());
 
   // ── Exposer l'initiateur d'appel aux pages ──────────────────
   useEffect(() => {
     window.__capEpacInitiateCall = (calleeId, calleeName, type) => {
+      // Réinitialiser proprement avant chaque nouvel appel
+      handlingCallIds.current.clear();
       pendingRef.current = {
         calleeId,
         calleeName,
@@ -65,42 +67,66 @@ export default function MainLayout() {
         console.warn('[Call] call:accepted sans pending, ignoré');
         return;
       }
-      clearOutgoingCall();
+
       const realCallId = callId || p.callId;
 
+      // Éviter de traiter deux fois le même callId+acceptedBy
+      // (peut arriver si call:accepted est émis deux fois ou pour plusieurs membres groupe)
+      const lockKey = `${realCallId}:${acceptedBy}`;
+      if (handlingCallIds.current.has(lockKey)) {
+        console.log('[Call] call:accepted déjà traité pour', lockKey, '— ignoré');
+        return;
+      }
+      handlingCallIds.current.add(lockKey);
+
+      clearOutgoingCall();
+
+      // Pour appel direct : acceptedBy = l'appelé
+      // Pour appel de groupe : acceptedBy = le membre qui a décroché en premier
       const targetId = acceptedBy || p.calleeId;
 
+      if (!targetId) {
+        console.error('[Call] targetId inconnu — annulation');
+        handlingCallIds.current.delete(lockKey);
+        return;
+      }
+
+      console.log('[WebRTC] → offre SDP vers targetId=', targetId, 'callId=', realCallId, 'type=', p.type);
+
       try {
-        console.log('[WebRTC] création offre SDP targetId=', targetId, 'callId=', realCallId);
         await createAndSendOffer(targetId, realCallId, p.type);
-        console.log('[WebRTC] offre SDP envoyée');
+        console.log('[WebRTC] offre SDP envoyée ✅');
       } catch (err) {
         console.error('[WebRTC] createAndSendOffer:', err.message);
         toast.error('Micro inaccessible : ' + err.message);
         terminateCall(realCallId);
         pendingRef.current = null;
+        handlingCallIds.current.clear();
       }
+      // Ne pas supprimer lockKey — empeche re-traitement du même accept
     };
 
     // ── L'appelé a refusé ─────────────────────────────────────
     const onRejected = () => {
       console.log('[Call] call:rejected');
       pendingRef.current = null;
+      handlingCallIds.current.clear();
       clearOutgoingCall();
-      toast.info(' Appel refusé');
+      toast.info('📵 Appel refusé');
       endCall();
     };
 
     // ── Un membre du groupe a refusé (pas tous) ───────────────
     const onMemberRejected = ({ rejectedBy }) => {
       console.log('[Call] membre a refusé:', rejectedBy);
-      // On ne ferme pas l'appel, juste une info optionnelle
+      // Ne rien faire — les autres membres sonnent encore
     };
 
     // ── Appel terminé ─────────────────────────────────────────
     const onEnded = ({ callId }) => {
       console.log('[Call] call:ended callId=', callId);
       pendingRef.current = null;
+      handlingCallIds.current.clear();
       clearOutgoingCall();
       endCall();
     };
@@ -136,7 +162,7 @@ export default function MainLayout() {
       socket.off('webrtc:ice-candidate', onIce);
       console.log('[MainLayout] 🔌 handlers retirés');
     };
-  }, [socket, isConnected]); 
+  }, [socket, isConnected]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
