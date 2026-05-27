@@ -1,0 +1,15 @@
+node_modules/
+.gradle/
+.idea/
+*.iml
+*.hprof
+local.properties
+android/app/build/
+android/build/
+android/app/debug.keystore
+android/app/*.keystore
+ios/build/
+ios/Pods/
+.DS_Store
+*.log
+.env

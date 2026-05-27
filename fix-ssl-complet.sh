@@ -1,9 +1,5 @@
 #!/bin/bash
-# =================================================================
-#  Téléphonie CAP-EPAC — Correction SSL + Microphone (All Devices)
-#  Usage : bash fix-ssl-complet.sh
-#  Auteur: script de correction automatique
-# =================================================================
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
