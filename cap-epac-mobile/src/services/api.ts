@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'https://192.168.100.195/api'; // ← Mettre l'IP du serveur LAN
+const BASE_URL = 'https://10.139.247.115/api'; // ← Mettre l'IP du serveur LAN
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,

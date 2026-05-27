@@ -442,6 +442,7 @@ npx react-native run-android
 3. Vérifier que le port 443/80 est accessible depuis l'appareil
 4. Tester depuis le navigateur de l'appareil : `https://192.168.100.195/health`
 
+
 ---
 
 ### ❌ Appels WebRTC sans audio/vidéo

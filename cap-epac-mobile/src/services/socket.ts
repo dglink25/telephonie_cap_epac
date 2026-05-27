@@ -2,7 +2,7 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SOCKET_URL = 'https://192.168.100.195'; // ← IP du serveur LAN
+const SOCKET_URL = 'https://10.139.247.115'; // ← IP du serveur LAN
 
 class SocketService {
   private socket: Socket | null = null;
