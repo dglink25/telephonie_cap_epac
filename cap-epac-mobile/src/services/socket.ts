@@ -1,106 +1,174 @@
-// src/services/socket.ts
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SOCKET_URL = 'https://10.139.247.115'; // ← IP du serveur LAN
+
+const SOCKET_URL = 'https://192.168.100.195';
 
 class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<(...args: unknown[]) => void>> = new Map();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private readonly maxReconnectAttempts = 10;
+  private connectionPromise: Promise<void> | null = null;
 
   async connect(): Promise<void> {
+    // Éviter les connexions multiples simultanées
     if (this.socket?.connected) return;
+    if (this.connectionPromise) return this.connectionPromise;
 
+    this.connectionPromise = this._doConnect();
+    try {
+      await this.connectionPromise;
+    } finally {
+      this.connectionPromise = null;
+    }
+  }
+
+  private async _doConnect(): Promise<void> {
     const token = await AsyncStorage.getItem('accessToken');
-    if (!token) throw new Error('Token manquant');
+    if (!token) throw new Error('Token manquant — connexion socket impossible');
 
-    this.socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: this.maxReconnectAttempts,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 10000,
-      // Désactiver vérif SSL en dev
-      rejectUnauthorized: false,
-    });
+    // Fermer proprement une ancienne connexion
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
 
-    this.socket.on('connect', () => {
-      console.log('[Socket] Connecté:', this.socket?.id);
-      this.reconnectAttempts = 0;
-      this.emit('socket:connected', {});
-    });
+    return new Promise<void>((resolve, reject) => {
+      // ── IMPORTANT pour Android ──────────────────────────────────
+      // Sur React Native/Android, la vérification SSL est gérée par
+      // OkHttp via network_security_config.xml.
+      // L'option rejectUnauthorized est une option Node.js qui N'A
+      // AUCUN EFFET sur la couche réseau Android.
+      // Il ne faut PAS passer d'options SSL ici.
+      // ────────────────────────────────────────────────────────────
+      this.socket = io(SOCKET_URL, {
+        auth: { token },
+        // Essayer websocket en premier, polling en fallback
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: this.maxReconnectAttempts,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 8000,
+        randomizationFactor: 0.5,
+        timeout: 15000,
+        // Forcer la connexion sécurisée (wss:// et https://)
+        secure: true,
+        // Pas d'option rejectUnauthorized ici — géré par Android
+      });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('[Socket] Déconnecté:', reason);
-      this.emit('socket:disconnected', { reason });
-    });
+      const onConnect = () => {
+        console.log('[Socket] ✅ Connecté:', this.socket?.id);
+        this.reconnectAttempts = 0;
+        this._emit('socket:connected', {});
+        resolve();
+        cleanup();
+      };
 
-    this.socket.on('connect_error', (error) => {
-      console.error('[Socket] Erreur connexion:', error.message);
-      this.reconnectAttempts++;
-      this.emit('socket:error', { error: error.message });
-    });
+      const onConnectError = (error: Error) => {
+        console.error('[Socket] ❌ Erreur connexion:', error.message);
+        this.reconnectAttempts++;
+        this._emit('socket:error', { error: error.message });
+        // Ne rejeter que si c'est la première tentative
+        if (this.reconnectAttempts === 1) {
+          reject(error);
+          cleanup();
+        }
+      };
 
-    // Rediriger tous les événements du serveur vers les listeners internes
-    const serverEvents = [
-      'message:new',
-      'message:edited',
-      'message:deleted',
-      'message:reaction_added',
-      'message:reaction_removed',
-      'message:typing',
-      'conversation:new',
-      'conversation:read',
-      'user:presence',
-      'call:incoming',
-      'call:initiated',
-      'call:accepted',
-      'call:rejected',
-      'call:ended',
-      'call:error',
-      'call:member_rejected',
-      'call:mute-changed',
-      'call:video-changed',
-      'webrtc:offer',
-      'webrtc:answer',
-      'webrtc:ice-candidate',
-      'group:updated',
-      'group:joined',
-      'group:left',
-      'group:removed',
-      'group:members_updated',
-    ];
+      const cleanup = () => {
+        this.socket?.off('connect', onConnect);
+        this.socket?.off('connect_error', onConnectError);
+      };
 
-    serverEvents.forEach((event) => {
-      this.socket?.on(event, (data: unknown) => {
-        this.emit(event, data);
+      this.socket.once('connect', onConnect);
+      this.socket.once('connect_error', onConnectError);
+
+      // Événements permanents (pas once)
+      this.socket.on('disconnect', (reason) => {
+        console.log('[Socket] Déconnecté:', reason);
+        this._emit('socket:disconnected', { reason });
+      });
+
+      this.socket.on('reconnect', (attempt: number) => {
+        console.log('[Socket] Reconnecté après', attempt, 'tentatives');
+        this._emit('socket:connected', {});
+      });
+
+      this.socket.on('reconnect_error', (error: Error) => {
+        console.error('[Socket] Échec reconnexion:', error.message);
+      });
+
+      this.socket.on('reconnect_failed', () => {
+        console.error('[Socket] Reconnexion abandonnée');
+        this._emit('socket:error', { error: 'Reconnexion abandonnée' });
+      });
+
+      // ── Rediriger tous les événements serveur ─────────────────
+      const serverEvents = [
+        'message:new',
+        'message:edited',
+        'message:deleted',
+        'message:reaction_added',
+        'message:reaction_removed',
+        'message:typing',
+        'conversation:new',
+        'conversation:read',
+        'user:presence',
+        'call:incoming',
+        'call:initiated',
+        'call:accepted',
+        'call:rejected',
+        'call:ended',
+        'call:error',
+        'call:member_rejected',
+        'call:mute-changed',
+        'call:video-changed',
+        'webrtc:offer',
+        'webrtc:answer',
+        'webrtc:ice-candidate',
+        'group:updated',
+        'group:joined',
+        'group:left',
+        'group:removed',
+        'group:members_updated',
+      ];
+
+      serverEvents.forEach((event) => {
+        this.socket?.on(event, (data: unknown) => {
+          this._emit(event, data);
+        });
       });
     });
   }
 
   disconnect(): void {
-    this.socket?.disconnect();
-    this.socket = null;
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.reconnectAttempts = 0;
+    this.connectionPromise = null;
   }
 
-  // Émettre un événement vers le serveur
+  // ── Émettre un événement vers le serveur ──────────────────────
   sendEvent(event: string, data: unknown): void {
     if (!this.socket?.connected) {
-      console.warn('[Socket] Tentative d\'émission sans connexion:', event);
+      console.warn('[Socket] Pas connecté — événement ignoré:', event);
       return;
     }
     this.socket.emit(event, data);
   }
 
-  // S'abonner à un événement
+  // ── S'abonner à un événement ──────────────────────────────────
   on(event: string, callback: (...args: unknown[]) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event)!.add(callback);
+    // Retourner une fonction de désabonnement
     return () => this.off(event, callback);
   }
 
@@ -108,7 +176,7 @@ class SocketService {
     this.listeners.get(event)?.delete(callback);
   }
 
-  private emit(event: string, data: unknown): void {
+  private _emit(event: string, data: unknown): void {
     this.listeners.get(event)?.forEach((cb) => {
       try {
         cb(data);
@@ -122,7 +190,8 @@ class SocketService {
     return this.socket?.connected ?? false;
   }
 
-  // Raccourcis pour événements courants
+  // ── Raccourcis ────────────────────────────────────────────────
+
   sendTyping(conversationId: string, isTyping: boolean): void {
     this.sendEvent('message:typing', { conversationId, isTyping });
   }
@@ -139,7 +208,6 @@ class SocketService {
     this.sendEvent('user:set-status', { status });
   }
 
-  // Appels
   initiateCall(data: {
     calleeId?: string;
     type: string;
@@ -169,7 +237,11 @@ class SocketService {
     this.sendEvent('webrtc:answer', { targetUserId, sdp, callId });
   }
 
-  sendIceCandidate(targetUserId: string, candidate: unknown, callId: string): void {
+  sendIceCandidate(
+    targetUserId: string,
+    candidate: unknown,
+    callId: string
+  ): void {
     this.sendEvent('webrtc:ice-candidate', { targetUserId, candidate, callId });
   }
 

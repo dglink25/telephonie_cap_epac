@@ -1,5 +1,6 @@
-// src/screens/auth/LoginScreen.tsx
+
 import React, { useState } from 'react';
+import { Image } from 'react-native';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
@@ -47,8 +48,13 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         {/* Header vert */}
         <View style={styles.header}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>📞</Text>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
+
           <Text style={styles.appName}>CAP-EPAC</Text>
           <Text style={styles.appSubtitle}>Téléphonie Interne</Text>
         </View>
@@ -108,7 +114,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>CAP-EPAC © 2025 — Réseau LAN interne</Text>
+        <Text style={styles.footer}>CAP-EPAC © 2026 — Réseau LAN interne</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -122,15 +128,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
     backgroundColor: COLORS.primary,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
   },
   logoText: { fontSize: 36 },
   appName: {
@@ -199,7 +196,20 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontSize: SIZES.xs,
     paddingVertical: 16,
-    textAlignLast: 'center',
+
+  },
+  logoCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    overflow: 'hidden',   // important pour le borderRadius
+  },
+  logoImage: {
+    width: 70,
+    height: 70,
   },
 });
 
