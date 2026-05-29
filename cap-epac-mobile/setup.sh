@@ -45,15 +45,15 @@ fi
 # ── 3. Configurer l'IP du serveur ─────────────────────────────
 echo ""
 info "Configuration du serveur CAP-EPAC"
-echo -n "   Entrez l'IP LAN du serveur [192.168.100.195] : "
+echo -n "   Entrez l'IP LAN du serveur [192.168.10.150] : "
 read -r SERVER_IP
-SERVER_IP="${SERVER_IP:-192.168.100.195}"
+SERVER_IP="${SERVER_IP:-192.168.10.150}"
 info "IP serveur : $SERVER_IP"
 
 # Remplacer l'IP dans api.ts et socket.ts
-sed -i "s|https://192.168.100.195/api|https://${SERVER_IP}/api|g" src/services/api.ts
-sed -i "s|https://192.168.100.195|https://${SERVER_IP}|g" src/services/socket.ts
-sed -i "s|192.168.100.195|${SERVER_IP}|g" android/app/src/main/res/xml/network_security_config.xml
+sed -i "s|https://192.168.10.150/api|https://${SERVER_IP}/api|g" src/services/api.ts
+sed -i "s|https://192.168.10.150|https://${SERVER_IP}|g" src/services/socket.ts
+sed -i "s|192.168.10.150|${SERVER_IP}|g" android/app/src/main/res/xml/network_security_config.xml
 
 info "Fichiers de config mis à jour ✅"
 

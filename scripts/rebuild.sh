@@ -96,7 +96,7 @@ info "État des conteneurs :"
 docker compose ps
 
 SERVER_IP=$(grep SERVER_LAN_IP .env 2>/dev/null | cut -d= -f2 | tr -d ' ')
-SERVER_IP="${SERVER_IP:-192.168.100.195}"
+SERVER_IP="${SERVER_IP:-192.168.10.150}"
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"

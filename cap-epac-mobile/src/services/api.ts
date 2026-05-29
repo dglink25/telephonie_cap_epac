@@ -5,21 +5,22 @@ import axios, {
 } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
-export const SERVER_BASE = 'https://192.168.100.195'; // Doit correspondre à SERVER_LAN_IP dans le .env
+// ── Configuration ─────────────────────────────────────────────
+// Modifier cette IP selon votre serveur
+export const SERVER_BASE = 'https://192.168.10.150';
 const BASE_URL = `${SERVER_BASE}/api`;
-
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 20000, // 20s — mobile LAN peut être plus lent
+  timeout: 30000,
+  withCredentials: true,          // FIX: cookies httpOnly (refresh_token) envoyés sur TOUS les appels
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
 });
 
-// ── Flag anti-boucle pour le refresh ─────────────────────────────
+// ── Flag anti-boucle pour le refresh ─────────────────────────
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: string) => void;
@@ -34,7 +35,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// ── Intercepteur requête : injecter le JWT ────────────────────────
+// ── Intercepteur requête : injecter le JWT ────────────────────
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const token = await AsyncStorage.getItem('accessToken');
@@ -46,7 +47,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ── Intercepteur réponse : refresh automatique si 401 ─────────────
+// ── Intercepteur réponse : refresh automatique si 401 ────────
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -54,7 +55,12 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Ne pas tenter le refresh sur les routes auth elles-mêmes
+    // Pas de réseau / timeout
+    if (!error.response) {
+      console.warn('[API] Erreur réseau — serveur injoignable:', error.message);
+      return Promise.reject(error);
+    }
+
     const isAuthRoute =
       originalRequest.url?.includes('/auth/login') ||
       originalRequest.url?.includes('/auth/refresh') ||
@@ -66,7 +72,6 @@ api.interceptors.response.use(
       !isAuthRoute
     ) {
       if (isRefreshing) {
-        // Mettre en file d'attente les requêtes pendant le refresh
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -87,13 +92,13 @@ api.interceptors.response.use(
         const userId = await AsyncStorage.getItem('userId');
         if (!userId) throw new Error('userId manquant');
 
-        // Appel refresh avec les cookies httpOnly (withCredentials)
+        // FIX: withCredentials pour envoyer le cookie refresh_token httpOnly
         const refreshResp = await axios.post(
           `${BASE_URL}/auth/refresh`,
           { user_id: userId },
           {
             withCredentials: true,
-            timeout: 10000,
+            timeout: 15000,
             headers: { 'Content-Type': 'application/json' },
           }
         );
@@ -110,7 +115,6 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Nettoyer le storage et forcer la déconnexion
         await AsyncStorage.multiRemove(['accessToken', 'userId', 'user']);
         return Promise.reject(refreshError);
       } finally {
@@ -122,7 +126,7 @@ api.interceptors.response.use(
   }
 );
 
-// ══ Auth ════════════════════════════════════════════════════════════
+// ══ Auth ══════════════════════════════════════════════════════
 export const authAPI = {
   login: (username: string, password: string) =>
     api.post('/auth/login', { username, password }),
@@ -142,7 +146,7 @@ export const authAPI = {
     api.post('/auth/change-password', { current_password, new_password }),
 };
 
-// ══ Users ═══════════════════════════════════════════════════════════
+// ══ Users ══════════════════════════════════════════════════════
 export const usersAPI = {
   getAll: (params?: {
     page?: number;
@@ -169,7 +173,6 @@ export const usersAPI = {
 
   getPresence: () => api.get('/users/me/presence'),
 
-  // Admin
   adminGetAll: (params?: object) => api.get('/users/admin-list', { params }),
   adminCreate: (data: object) => api.post('/users/admin', data),
   adminUpdate: (id: string, data: object) =>
@@ -177,7 +180,7 @@ export const usersAPI = {
   adminDelete: (id: string) => api.delete(`/users/admin/${id}`),
 };
 
-// ══ Conversations ════════════════════════════════════════════════════
+// ══ Conversations ══════════════════════════════════════════════
 export const conversationsAPI = {
   getAll: () => api.get('/conversations'),
 
@@ -193,7 +196,6 @@ export const conversationsAPI = {
   sendMessage: (id: string, data: FormData | object, isFormData = false) =>
     api.post(`/conversations/${id}/messages`, data, {
       headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
-      // Timeout plus long pour l'envoi de fichiers
       timeout: isFormData ? 60000 : 20000,
     }),
 
@@ -212,7 +214,7 @@ export const conversationsAPI = {
     api.get(`/conversations/${convId}/messages/${msgId}/edit-status`),
 };
 
-// ══ Groupes ══════════════════════════════════════════════════════════
+// ══ Groupes ════════════════════════════════════════════════════
 export const groupsAPI = {
   getInfo: (id: string) => api.get(`/groups/${id}`),
 
@@ -236,7 +238,7 @@ export const groupsAPI = {
     api.put(`/groups/${id}/members/${memberId}/role`, { role }),
 };
 
-
+// ══ Appels ═════════════════════════════════════════════════════
 export const callsAPI = {
   getLogs: (params?: {
     page?: number;
@@ -255,7 +257,7 @@ export const callsAPI = {
   getStats: (params?: object) => api.get('/calls/stats', { params }),
 };
 
-// ── Utilitaire URL média ──────────────────────────────────────────
+// ── Utilitaire URL média ──────────────────────────────────────
 export const getMediaUrl = (path: string): string => {
   if (!path) return '';
   if (path.startsWith('http')) return path;

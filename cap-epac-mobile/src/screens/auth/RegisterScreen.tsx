@@ -1,6 +1,5 @@
 // src/screens/auth/RegisterScreen.tsx
 import React, { useState } from 'react';
-
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   KeyboardAvoidingView, Platform, Alert,
@@ -30,22 +29,26 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.username.trim() || form.username.length < 3)
+
+    if (!form.username.trim() || form.username.trim().length < 3)
       e.username = 'Min. 3 caractères';
-    if (!/^[a-zA-Z0-9._-]+$/.test(form.username))
-      e.username = 'Caractères alphanumériques uniquement';
-    if (!form.display_name.trim() || form.display_name.length < 2)
+    if (!/^[a-zA-Z0-9._-]+$/.test(form.username.trim()))
+      e.username = 'Lettres, chiffres, points et tirets uniquement';
+    if (!form.display_name.trim() || form.display_name.trim().length < 2)
       e.display_name = 'Min. 2 caractères';
     if (form.password.length < 8)
       e.password = 'Min. 8 caractères';
     if (!/[A-Z]/.test(form.password))
-      e.password = 'Au moins une majuscule';
+      e.password = 'Au moins une majuscule requise';
     if (!/[0-9]/.test(form.password))
-      e.password = 'Au moins un chiffre';
+      e.password = 'Au moins un chiffre requis';
     if (form.password !== form.confirmPassword)
       e.confirmPassword = 'Les mots de passe ne correspondent pas';
-    if (!form.department)
+
+    // FIX: validation du département avec les valeurs EXACTES du backend
+    if (!form.department || !DEPARTMENTS.includes(form.department as any))
       e.department = 'Sélectionnez un service';
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -66,8 +69,27 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         [{ text: 'Connexion', onPress: () => navigation.replace('Login') }]
       );
     } catch (error: any) {
-      const msg = error?.response?.data?.message || 'Erreur lors de la création';
-      Alert.alert('Erreur', msg);
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message;
+
+      if (!error?.response) {
+        Alert.alert('Erreur réseau', 'Impossible de joindre le serveur. Vérifiez votre connexion.');
+      } else if (status === 409) {
+        Alert.alert('Identifiant déjà pris', msg || 'Ce nom d\'utilisateur est déjà utilisé.');
+      } else if (status === 422) {
+        const apiErrors = error?.response?.data?.errors;
+        if (apiErrors?.length) {
+          const newErrors: Record<string, string> = {};
+          apiErrors.forEach((e: { field: string; message: string }) => {
+            newErrors[e.field] = e.message;
+          });
+          setErrors(newErrors);
+        } else {
+          Alert.alert('Données invalides', msg || 'Vérifiez les champs du formulaire.');
+        }
+      } else {
+        Alert.alert('Erreur', msg || 'Erreur lors de la création du compte');
+      }
     } finally {
       setLoading(false);
     }
@@ -86,7 +108,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>Retour</Text>
+            <Text style={styles.backText}>← Retour</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Rejoignez le réseau CAP-EPAC</Text>
@@ -100,25 +122,40 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="Ex : Max Frejus"
             autoCapitalize="words"
             error={errors.display_name}
+            editable={!loading}
           />
 
           <Input
             label="Identifiant"
             value={form.username}
             onChangeText={(v) => set('username', v)}
-            placeholder="Ex : max.frejus ou MaxFrejus "
+            placeholder="Ex : max.frejus"
+            autoCapitalize="none"
             error={errors.username}
+            editable={!loading}
           />
 
-          <Text style={styles.sectionLabel}>Service</Text>
+          {/* FIX: afficher l'email généré automatiquement */}
+          {form.username.trim().length >= 3 && (
+            <View style={styles.emailPreview}>
+              <Text style={styles.emailPreviewLabel}>Email généré : </Text>
+              <Text style={styles.emailPreviewValue}>
+                {form.username.trim().toLowerCase()}@cap-epac.bj
+              </Text>
+            </View>
+          )}
+
+          {/* FIX: utiliser les valeurs EXACTES du backend */}
+          <Text style={styles.sectionLabel}>Service *</Text>
           <View style={styles.deptGrid}>
             {DEPARTMENTS.map((dept) => (
               <TouchableOpacity
                 key={dept}
-                onPress={() => set('department', dept)}
+                onPress={() => !loading && set('department', dept)}
                 style={[
                   styles.deptChip,
                   form.department === dept && styles.deptChipActive,
+                  errors.department ? styles.deptChipError : null,
                 ]}
               >
                 <Text
@@ -132,9 +169,9 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </View>
-          {errors.department && (
+          {errors.department ? (
             <Text style={styles.errorText}>{errors.department}</Text>
-          )}
+          ) : null}
 
           <Input
             label="Mot de passe"
@@ -143,6 +180,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="Min. 8 car., 1 majuscule, 1 chiffre"
             secureTextEntry
             error={errors.password}
+            editable={!loading}
           />
 
           <Input
@@ -152,12 +190,14 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="Répéter le mot de passe"
             secureTextEntry
             error={errors.confirmPassword}
+            editable={!loading}
           />
 
           <Button
-            title="Créer mon compte"
+            title={loading ? 'Création...' : 'Créer mon compte'}
             onPress={handleRegister}
             loading={loading}
+            disabled={loading}
             size="lg"
             style={styles.submitBtn}
           />
@@ -186,15 +226,19 @@ const styles = StyleSheet.create({
   },
   subtitle: { color: 'rgba(255,255,255,0.75)', fontSize: SIZES.sm },
   form: { padding: 24 },
-  infoBox: {
+  emailPreview: {
+    flexDirection: 'row',
     backgroundColor: COLORS.primaryXXLight,
     borderRadius: SIZES.radiusMd,
     padding: 10,
     marginBottom: 16,
+    marginTop: -8,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
+    flexWrap: 'wrap',
   },
-  infoText: { color: COLORS.primaryDark, fontSize: SIZES.sm },
+  emailPreviewLabel: { fontSize: SIZES.xs, color: COLORS.gray500 },
+  emailPreviewValue: { fontSize: SIZES.xs, color: COLORS.primaryDark, fontWeight: '600' },
   sectionLabel: {
     fontSize: SIZES.sm,
     fontWeight: '500',
@@ -218,6 +262,9 @@ const styles = StyleSheet.create({
   deptChipActive: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primaryXLight,
+  },
+  deptChipError: {
+    borderColor: COLORS.danger,
   },
   deptChipText: { fontSize: SIZES.sm, color: COLORS.gray600 },
   deptChipTextActive: { color: COLORS.primaryDark, fontWeight: '600' },

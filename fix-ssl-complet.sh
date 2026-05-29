@@ -26,7 +26,7 @@ if [ -z "$SERVER_IP" ]; then
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 fi
 if [ -z "$SERVER_IP" ]; then
-    read -p "  Entrez l'IP LAN du serveur (ex: 192.168.100.195) : " SERVER_IP
+    read -p "  Entrez l'IP LAN du serveur (ex: 192.168.10.150) : " SERVER_IP
 fi
 info "IP LAN détectée : $SERVER_IP"
 

@@ -102,7 +102,9 @@ export const DEPARTMENTS = [
   'Responsable Division',
   'Secrétariat',
   'Soutien Informatique',
-];
+] as const;
+
+export type Department = typeof DEPARTMENTS[number];
 
 export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 

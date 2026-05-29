@@ -44,16 +44,36 @@ app.use(helmet({
 app.set('trust proxy', 1);
 
 // ── CORS ──────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim());
+
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+ 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    // FIX 1 : pas d'origin = app mobile native ou curl → toujours autoriser
+    // Les apps React Native n'envoient pas d'en-tête Origin sur les appels API
+    if (!origin) return cb(null, true);
+ 
+    // FIX 2 : origines explicitement autorisées (web frontend)
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+ 
+    // FIX 3 : en développement, tout autoriser
+    if (process.env.NODE_ENV !== 'production') return cb(null, true);
+ 
     cb(new Error('CORS non autorisé'));
   },
-  credentials: true,
-  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','X-Requested-With'],
+  credentials: true,                        // REQUIS pour les cookies httpOnly (refresh_token)
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Set-Cookie'],           // FIX 4 : exposer Set-Cookie pour mobile
+  optionsSuccessStatus: 200,                // FIX 5 : certains navigateurs/libs bloquent 204
 }));
+ 
+// FIX 6 : pré-répondre aux OPTIONS (preflight) explicitement
+app.options('*', cors());
+
 
 // ── Parsing & Compression ─────────────────────────────────────────
 app.use(compression());

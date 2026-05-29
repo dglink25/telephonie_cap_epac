@@ -1,10 +1,10 @@
-
-import React, { useState } from 'react';
+// src/screens/auth/LoginScreen.tsx
+import React, { useState, useEffect } from 'react';
 import { Image } from 'react-native';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
-  StatusBar, Dimensions,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
+  StatusBar, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { Button, Input } from '../../components/common';
@@ -23,15 +23,26 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error, clearError } = useAuthStore();
 
+  // FIX: effacer l'erreur quand l'utilisateur retape
+  useEffect(() => {
+    if (error) clearError();
+  }, [username, password]);
+
   const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('Champs requis', 'Veuillez saisir votre identifiant et mot de passe.');
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password.trim()) {
+      // Affichage inline au lieu d'Alert (meilleure UX)
+      useAuthStore.setState({ error: 'Veuillez saisir votre identifiant et mot de passe.' });
       return;
     }
     clearError();
     try {
-      await login(username.trim(), password);
-    } catch {}
+      await login(trimmedUsername, password);
+      // La navigation vers l'app principale est gérée par AppNavigator
+      // via isAuthenticated — pas besoin de navigate() ici
+    } catch {
+      // L'erreur est déjà dans le store
+    }
   };
 
   return (
@@ -48,13 +59,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         {/* Header vert */}
         <View style={styles.header}>
           <View style={styles.logoCircle}>
+            {/* FIX: fallback si l'image n'existe pas */}
             <Image
               source={require('../../assets/logo.png')}
               style={styles.logoImage}
               resizeMode="contain"
+              onError={() => {}}
             />
           </View>
-
           <Text style={styles.appName}>CAP-EPAC</Text>
           <Text style={styles.appSubtitle}>Téléphonie Interne</Text>
         </View>
@@ -66,11 +78,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             Connectez-vous à votre compte professionnel
           </Text>
 
-          {error && (
+          {/* FIX: banner d'erreur avec message complet */}
+          {error ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
-          )}
+          ) : null}
 
           <Input
             label="Identifiant"
@@ -79,6 +92,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="votre.identifiant"
             keyboardType="default"
             autoCapitalize="none"
+            editable={!isLoading}
           />
 
           <Input
@@ -87,24 +101,33 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             onChangeText={setPassword}
             placeholder="••••••••"
             secureTextEntry={!showPassword}
+            editable={!isLoading}
             rightIcon={
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+              >
                 <Text style={styles.showHide}>{showPassword ? 'Masquer' : 'Voir'}</Text>
               </TouchableOpacity>
             }
           />
 
           <Button
-            title="Se connecter"
+            title={isLoading ? 'Connexion...' : 'Se connecter'}
             onPress={handleLogin}
             loading={isLoading}
+            disabled={isLoading}
             style={styles.loginBtn}
             size="lg"
           />
 
           <TouchableOpacity
             style={styles.registerLink}
-            onPress={() => navigation.navigate('Register')}
+            onPress={() => {
+              clearError();
+              navigation.navigate('Register');
+            }}
+            disabled={isLoading}
           >
             <Text style={styles.registerText}>
               Pas encore de compte ?{' '}
@@ -161,16 +184,22 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.dangerLight,
     borderRadius: SIZES.radiusMd,
     padding: 12,
     marginBottom: 16,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.danger,
+    gap: 8,
   },
+  errorIcon: { fontSize: 16 },
   errorText: {
+    flex: 1,
     color: COLORS.danger,
     fontSize: SIZES.sm,
+    lineHeight: 20,
   },
   loginBtn: { marginTop: 8, width: '100%' },
   showHide: {
@@ -196,7 +225,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontSize: SIZES.xs,
     paddingVertical: 16,
-
   },
   logoCircle: {
     width: 90,
@@ -205,7 +233,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    overflow: 'hidden',   // important pour le borderRadius
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   logoImage: {
     width: 70,

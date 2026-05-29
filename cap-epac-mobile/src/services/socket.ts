@@ -1,8 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
-const SOCKET_URL = 'https://192.168.100.195';
+const SOCKET_URL = 'https://192.168.10.150';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -10,25 +9,34 @@ class SocketService {
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 10;
   private connectionPromise: Promise<void> | null = null;
+  private isConnecting = false;
 
   async connect(): Promise<void> {
-    // Éviter les connexions multiples simultanées
-    if (this.socket?.connected) return;
-    if (this.connectionPromise) return this.connectionPromise;
+    if (this.socket?.connected) {
+      console.log('[Socket] Déjà connecté');
+      return;
+    }
+    if (this.isConnecting && this.connectionPromise) {
+      return this.connectionPromise;
+    }
 
+    this.isConnecting = true;
     this.connectionPromise = this._doConnect();
     try {
       await this.connectionPromise;
     } finally {
+      this.isConnecting = false;
       this.connectionPromise = null;
     }
   }
 
   private async _doConnect(): Promise<void> {
     const token = await AsyncStorage.getItem('accessToken');
-    if (!token) throw new Error('Token manquant — connexion socket impossible');
+    if (!token) {
+      console.warn('[Socket] Pas de token — connexion abandonnée');
+      throw new Error('Token manquant — connexion socket impossible');
+    }
 
-    // Fermer proprement une ancienne connexion
     if (this.socket) {
       this.socket.removeAllListeners();
       this.socket.disconnect();
@@ -36,33 +44,31 @@ class SocketService {
     }
 
     return new Promise<void>((resolve, reject) => {
-      // ── IMPORTANT pour Android ──────────────────────────────────
-      // Sur React Native/Android, la vérification SSL est gérée par
-      // OkHttp via network_security_config.xml.
-      // L'option rejectUnauthorized est une option Node.js qui N'A
-      // AUCUN EFFET sur la couche réseau Android.
-      // Il ne faut PAS passer d'options SSL ici.
-      // ────────────────────────────────────────────────────────────
+      // FIX: transports polling d'abord (plus fiable sur Android/LAN)
+      // puis upgrade vers websocket si disponible
       this.socket = io(SOCKET_URL, {
         auth: { token },
-        // Essayer websocket en premier, polling en fallback
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],    // FIX: polling en premier = plus fiable
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 8000,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 10000,
         randomizationFactor: 0.5,
-        timeout: 15000,
-        // Forcer la connexion sécurisée (wss:// et https://)
+        timeout: 20000,
         secure: true,
-        // Pas d'option rejectUnauthorized ici — géré par Android
+        path: '/socket.io/',                     // FIX: chemin explicite
+        forceNew: false,
+        upgrade: true,                           // autorise l'upgrade polling→ws après connexion
+        rememberUpgrade: false,
       });
+
+      let resolved = false;
 
       const onConnect = () => {
         console.log('[Socket] ✅ Connecté:', this.socket?.id);
         this.reconnectAttempts = 0;
         this._emit('socket:connected', {});
-        resolve();
+        if (!resolved) { resolved = true; resolve(); }
         cleanup();
       };
 
@@ -70,8 +76,8 @@ class SocketService {
         console.error('[Socket] ❌ Erreur connexion:', error.message);
         this.reconnectAttempts++;
         this._emit('socket:error', { error: error.message });
-        // Ne rejeter que si c'est la première tentative
-        if (this.reconnectAttempts === 1) {
+        if (!resolved && this.reconnectAttempts >= 3) {
+          resolved = true;
           reject(error);
           cleanup();
         }
@@ -83,12 +89,15 @@ class SocketService {
       };
 
       this.socket.once('connect', onConnect);
-      this.socket.once('connect_error', onConnectError);
+      this.socket.on('connect_error', onConnectError);
 
-      // Événements permanents (pas once)
       this.socket.on('disconnect', (reason) => {
         console.log('[Socket] Déconnecté:', reason);
         this._emit('socket:disconnected', { reason });
+        // FIX: si déconnecté par le serveur (token révoqué), on nettoie
+        if (reason === 'io server disconnect') {
+          this.socket?.connect();
+        }
       });
 
       this.socket.on('reconnect', (attempt: number) => {
@@ -101,11 +110,12 @@ class SocketService {
       });
 
       this.socket.on('reconnect_failed', () => {
-        console.error('[Socket] Reconnexion abandonnée');
+        console.error('[Socket] Reconnexion abandonnée après', this.maxReconnectAttempts, 'tentatives');
         this._emit('socket:error', { error: 'Reconnexion abandonnée' });
+        if (!resolved) { resolved = true; reject(new Error('Reconnexion abandonnée')); }
       });
 
-      // ── Rediriger tous les événements serveur ─────────────────
+      // ── Rediriger tous les événements serveur ─────────────
       const serverEvents = [
         'message:new',
         'message:edited',
@@ -151,9 +161,9 @@ class SocketService {
     }
     this.reconnectAttempts = 0;
     this.connectionPromise = null;
+    this.isConnecting = false;
   }
 
-  // ── Émettre un événement vers le serveur ──────────────────────
   sendEvent(event: string, data: unknown): void {
     if (!this.socket?.connected) {
       console.warn('[Socket] Pas connecté — événement ignoré:', event);
@@ -162,13 +172,11 @@ class SocketService {
     this.socket.emit(event, data);
   }
 
-  // ── S'abonner à un événement ──────────────────────────────────
   on(event: string, callback: (...args: unknown[]) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event)!.add(callback);
-    // Retourner une fonction de désabonnement
     return () => this.off(event, callback);
   }
 
@@ -178,11 +186,7 @@ class SocketService {
 
   private _emit(event: string, data: unknown): void {
     this.listeners.get(event)?.forEach((cb) => {
-      try {
-        cb(data);
-      } catch (e) {
-        console.error('[Socket] Erreur listener:', event, e);
-      }
+      try { cb(data); } catch (e) { console.error('[Socket] Erreur listener:', event, e); }
     });
   }
 
@@ -190,7 +194,7 @@ class SocketService {
     return this.socket?.connected ?? false;
   }
 
-  // ── Raccourcis ────────────────────────────────────────────────
+  // ── Raccourcis ────────────────────────────────────────────
 
   sendTyping(conversationId: string, isTyping: boolean): void {
     this.sendEvent('message:typing', { conversationId, isTyping });
@@ -237,11 +241,7 @@ class SocketService {
     this.sendEvent('webrtc:answer', { targetUserId, sdp, callId });
   }
 
-  sendIceCandidate(
-    targetUserId: string,
-    candidate: unknown,
-    callId: string
-  ): void {
+  sendIceCandidate(targetUserId: string, candidate: unknown, callId: string): void {
     this.sendEvent('webrtc:ice-candidate', { targetUserId, candidate, callId });
   }
 
