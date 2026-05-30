@@ -1,0 +1,1 @@
+/home/houndokinnou/Documents/projets/telephonie-cap-epac/cap-epac-mobile/android/app/build/intermediates/cxx/RelWithDebInfo/4q4b45h3/obj/x86

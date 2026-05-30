@@ -1,0 +1,198 @@
+// src/screens/calls/IncomingCallScreen.tsx
+import React, { useEffect, useRef } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  Vibration, Animated, Dimensions,
+} from 'react-native';
+import { useCallStore } from '../../store/callStore';
+import { socketService } from '../../services/socket';
+import { Avatar } from '../../components/common';
+import { COLORS, SIZES } from '../../utils/constants';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+const { width } = Dimensions.get('window');
+
+interface Props {
+  navigation: NativeStackNavigationProp<any>;
+}
+
+const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
+  const { activeCall, setStatus, endCall } = useCallStore();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Vibration pattern : sonnerie
+    const pattern = [0, 700, 500, 700, 500];
+    Vibration.vibrate(pattern, true);
+
+    // Animation pulse
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      Vibration.cancel();
+      loop.stop();
+    };
+  }, []);
+
+  if (!activeCall) return null;
+
+  const handleAccept = () => {
+    Vibration.cancel();
+    socketService.acceptCall(activeCall.callId);
+    setStatus('connecting');
+    navigation.replace('ActiveCall', { isIncoming: true });
+  };
+
+  const handleReject = () => {
+    Vibration.cancel();
+    socketService.rejectCall(activeCall.callId);
+    endCall();
+    navigation.goBack();
+  };
+
+  const isVideo = activeCall.type === 'video' || activeCall.type === 'group_video';
+
+  return (
+    <View style={styles.container}>
+      {/* Background vert dégradé simulé par couches */}
+      <View style={styles.bg} />
+
+      <View style={styles.content}>
+        {/* Indicateur type d'appel */}
+        <Text style={styles.callTypeLabel}>
+          {activeCall.isGroupCall
+            ? `📞 Appel de groupe entrant`
+            : isVideo
+            ? '📹 Appel vidéo entrant'
+            : '📞 Appel audio entrant'}
+        </Text>
+
+        {/* Avatar avec pulse */}
+        <Animated.View style={[styles.avatarPulse, { transform: [{ scale: pulseAnim }] }]}>
+          <View style={styles.avatarRing}>
+            <Avatar
+              url={activeCall.callerAvatar}
+              name={activeCall.callerName}
+              size={110}
+            />
+          </View>
+        </Animated.View>
+
+        <Text style={styles.callerName}>{activeCall.callerName}</Text>
+        {activeCall.isGroupCall && activeCall.groupName && (
+          <Text style={styles.groupName}>{activeCall.groupName}</Text>
+        )}
+        <Text style={styles.callStatus}>vous appelle...</Text>
+
+        {/* Boutons */}
+        <View style={styles.buttons}>
+          {/* Rejeter */}
+          <View style={styles.btnGroup}>
+            <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
+              <Text style={styles.btnIcon}>📵</Text>
+            </TouchableOpacity>
+            <Text style={styles.btnLabel}>Refuser</Text>
+          </View>
+
+          {/* Accepter audio */}
+          <View style={styles.btnGroup}>
+            <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
+              <Text style={styles.btnIcon}>{isVideo ? '📹' : '📞'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.btnLabel}>Accepter</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  bg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f5132',
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    paddingTop: 80,
+  },
+  callTypeLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: SIZES.sm,
+    marginBottom: 40,
+    letterSpacing: 0.5,
+  },
+  avatarPulse: { marginBottom: 28 },
+  avatarRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callerName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.white,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  groupName: {
+    fontSize: SIZES.md,
+    color: 'rgba(255,255,255,0.75)',
+    marginBottom: 4,
+  },
+  callStatus: {
+    fontSize: SIZES.md,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 64,
+  },
+  buttons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '80%',
+  },
+  btnGroup: { alignItems: 'center', gap: 10 },
+  rejectBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.danger,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  acceptBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#22c55e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  btnIcon: { fontSize: 28 },
+  btnLabel: { color: 'rgba(255,255,255,0.8)', fontSize: SIZES.sm },
+});
+
+export default IncomingCallScreen;
