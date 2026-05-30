@@ -9,7 +9,7 @@ import useAuthStore from '../store/authStore';
 import useSocketStore from '../store/socketStore';
 
 const PRESENCE_LABELS = {
-  online:  { label: 'En ligne',       dot: 'bg-green-500'  },
+  online:  { label: 'En ligne',       dot: 'bg-primary-600'  },
   away:    { label: 'Absent',          dot: 'bg-yellow-400' },
   dnd:     { label: 'Ne pas déranger', dot: 'bg-red-500'    },
   offline: { label: 'Hors ligne',      dot: 'bg-slate-400'  },

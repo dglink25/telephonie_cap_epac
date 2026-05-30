@@ -45,7 +45,7 @@ export default function MentionPicker({ members, query, onSelect, position }) {
             </div>
             {/* Indicateur présence */}
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-              m.presence_status === 'online' ? 'bg-green-500' :
+              m.presence_status === 'online' ? 'bg-primary-600' :
               m.presence_status === 'away'   ? 'bg-yellow-400' : 'bg-slate-300'
             }`} />
           </button>

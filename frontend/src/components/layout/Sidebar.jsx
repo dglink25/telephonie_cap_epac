@@ -93,7 +93,7 @@ export default function Sidebar({ isMobile = false, onNavigate }) {
         {/* Indicateur de connexion */}
         <div className={`flex items-center gap-2 px-3 py-1.5 mb-2 ${isMobile ? '' : 'md:justify-center lg:justify-start md:px-0 lg:px-3'}`}>
           {isConnected
-            ? <><Wifi className="w-3.5 h-3.5 text-green-400" /><span className={`text-xs text-green-300 ${isMobile ? '' : 'md:hidden lg:inline'}`}>Connecté au LAN</span></>
+            ? <><Wifi className="w-3.5 h-3.5 text-primary-400" /><span className={`text-xs text-primary-300 ${isMobile ? '' : 'md:hidden lg:inline'}`}>Connecté au LAN</span></>
             : <><WifiOff className="w-3.5 h-3.5 text-red-400" /><span className={`text-xs text-red-300 ${isMobile ? '' : 'md:hidden lg:inline'}`}>Hors ligne</span></>
           }
         </div>
@@ -112,7 +112,7 @@ export default function Sidebar({ isMobile = false, onNavigate }) {
                 {avatarLetter}
               </div>
             )}
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-primary-800" />
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-primary-400 rounded-full border-2 border-primary-800" />
           </div>
           <div className={`flex-1 min-w-0 ${isMobile ? '' : 'md:hidden lg:block'}`}>
             <p className="text-sm font-medium text-white truncate">{user?.display_name}</p>

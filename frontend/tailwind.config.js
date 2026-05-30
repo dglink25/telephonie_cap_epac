@@ -4,26 +4,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Palette principale CAP-EPAC : vert & blanc
+        // Palette principale CAP-EPAC : vert teal du site officiel
         primary: {
-          50:  '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',  // Couleur principale
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
-          950: '#052e16',
+          50:  '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          300: '#5eead4',
+          400: '#2dd4bf',
+          500: '#14b8a6',
+          600: '#0d9488',  // Couleur principale du site cap-epac.bj
+          700: '#0f766e',
+          800: '#115e59',
+          900: '#134e4a',
+          950: '#042f2e',
         },
         capepac: {
-          green:      '#16a34a',
-          'green-light': '#22c55e',
-          'green-dark':  '#15803d',
+          green:      '#0d9488',
+          'green-light': '#14b8a6',
+          'green-dark':  '#0f766e',
           white:      '#ffffff',
-          'off-white': '#f0fdf4',
+          'off-white': '#f0fdfa',
           'gray-soft': '#f8fafb',
           'gray-mid':  '#e2e8f0',
         },

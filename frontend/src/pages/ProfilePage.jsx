@@ -12,23 +12,23 @@ import useSocketStore from '../store/socketStore';
 
 // ─── Palette centralisée ────────────────────────────────────────
 const C = {
-  primary:      '#16a34a',   // vert principal
-  primaryDark:  '#15803d',   // vert foncé
-  primaryLight: '#22c55e',   // vert clair
-  primaryPale:  '#dcfce7',   // vert très pâle (fond carte)
-  primaryGhost: '#f0fdf4',   // quasi-blanc verdâtre (fond page)
-  text:         '#14532d',   // texte principal
-  textMid:      '#166534',   // texte secondaire
-  textLight:    '#4b7c59',   // texte tertiaire
-  border:       '#86efac',   // bordure
-  borderLight:  '#bbf7d0',   // bordure légère
+  primary:      '#0d9488',   // vert teal principal (cap-epac.bj)
+  primaryDark:  '#0f766e',   // vert teal foncé
+  primaryLight: '#14b8a6',   // vert teal clair
+  primaryPale:  '#ccfbf1',   // vert teal très pâle (fond carte)
+  primaryGhost: '#f0fdfa',   // quasi-blanc verdâtre (fond page)
+  text:         '#134e4a',   // texte principal
+  textMid:      '#115e59',   // texte secondaire
+  textLight:    '#14b8a6',   // texte tertiaire
+  border:       '#5eead4',   // bordure
+  borderLight:  '#99f6e4',   // bordure légère
   white:        '#ffffff',
   inputBg:      '#ffffff',
   cardBg:       'rgba(255,255,255,0.92)',
 };
 
 const PRESENCE_OPTIONS = [
-  { value: 'online',  label: 'En ligne',        color: '#16a34a' },
+  { value: 'online',  label: 'En ligne',        color: '#0d9488' },
   { value: 'away',    label: 'Absent',            color: '#ca8a04' },
   { value: 'dnd',     label: 'Ne pas déranger',   color: '#dc2626' },
   { value: 'offline', label: 'Hors ligne',         color: '#9ca3af' },

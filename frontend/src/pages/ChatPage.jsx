@@ -35,7 +35,7 @@ function Avatar({ user, size = 'md' }) {
 }
 
 function PresenceBadge({ status }) {
-  const colors = { online: 'bg-green-500', away: 'bg-yellow-400', dnd: 'bg-red-500', offline: 'bg-slate-400' };
+  const colors = { online: 'bg-primary-600', away: 'bg-yellow-400', dnd: 'bg-red-500', offline: 'bg-slate-400' };
   return <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${colors[status] || colors.offline}`} />;
 }
 
@@ -733,7 +733,7 @@ export default function ChatPage() {
                   {showAttachMenu && (
                     <div className="absolute bottom-12 left-0 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1 z-10 min-w-[160px]">
                       {[
-                        { label: 'Image',    icon: Image,    accept: 'image/*',                                                    ref: imageInputRef, color: 'text-green-600 bg-green-50' },
+                        { label: 'Image',    icon: Image,    accept: 'image/*',                                                    ref: imageInputRef, color: 'text-primary-600 bg-primary-50' },
                         { label: 'Vidéo',    icon: Film,     accept: 'video/*',                                                    ref: videoInputRef, color: 'text-purple-600 bg-purple-50' },
                         { label: 'Document', icon: FileText, accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv', ref: fileInputRef,  color: 'text-blue-600 bg-blue-50' },
                         { label: 'Audio',    icon: Music,    accept: 'audio/*',                                                    ref: null,          color: 'text-pink-600 bg-pink-50' },

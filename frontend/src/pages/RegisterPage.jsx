@@ -71,7 +71,7 @@ function parseServerError(err) {
 function PasswordStrength({ value }) {
   if (!value) return null;
   const passed = PASSWORD_RULES.filter((r) => r.test(value)).length;
-  const bar    = ['bg-red-400', 'bg-amber-400', 'bg-yellow-400', 'bg-green-500'];
+  const bar    = ['bg-red-400', 'bg-amber-400', 'bg-yellow-400', 'bg-primary-600'];
   const label  = ['Très faible', 'Faible', 'Correct', 'Fort'];
   const idx    = Math.min(passed, 3);
   return (
@@ -85,14 +85,14 @@ function PasswordStrength({ value }) {
         {PASSWORD_RULES.map((rule) => {
           const ok = rule.test(value);
           return (
-            <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-green-600' : 'text-slate-400'}`}>
-              <CheckCircle2 className={`w-3 h-3 flex-shrink-0 ${ok ? 'text-green-500' : 'text-slate-300'}`} />
+            <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-primary-600' : 'text-slate-400'}`}>
+              <CheckCircle2 className={`w-3 h-3 flex-shrink-0 ${ok ? 'text-primary-600' : 'text-slate-300'}`} />
               {rule.label}
             </li>
           );
         })}
       </ul>
-      <p className={`text-xs font-medium ${['text-red-500','text-amber-500','text-yellow-600','text-green-600'][idx]}`}>
+      <p className={`text-xs font-medium ${['text-red-500','text-amber-500','text-yellow-600','text-primary-600'][idx]}`}>
         Force : {label[idx]}
       </p>
     </div>

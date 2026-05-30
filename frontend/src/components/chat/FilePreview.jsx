@@ -3,10 +3,10 @@ import { FileText, Film, Music, Archive, Download, ExternalLink } from 'lucide-r
 
 const EXT_ICONS = {
   pdf:  { icon: FileText, color: 'text-red-500',    bg: 'bg-red-50'    },
-  doc:  { icon: FileText, color: 'text-blue-600',   bg: 'bg-blue-50'   },
-  docx: { icon: FileText, color: 'text-blue-600',   bg: 'bg-blue-50'   },
-  xls:  { icon: FileText, color: 'text-green-600',  bg: 'bg-green-50'  },
-  xlsx: { icon: FileText, color: 'text-green-600',  bg: 'bg-green-50'  },
+  doc:  { icon: FileText, color: 'text-blue-600',     bg: 'bg-blue-50'     },
+  docx: { icon: FileText, color: 'text-blue-600',     bg: 'bg-blue-50'     },
+  xls:  { icon: FileText, color: 'text-primary-600',  bg: 'bg-primary-50'  },
+  xlsx: { icon: FileText, color: 'text-primary-600',  bg: 'bg-primary-50'  },
   ppt:  { icon: FileText, color: 'text-orange-500', bg: 'bg-orange-50' },
   pptx: { icon: FileText, color: 'text-orange-500', bg: 'bg-orange-50' },
   zip:  { icon: Archive,  color: 'text-yellow-600', bg: 'bg-yellow-50' },

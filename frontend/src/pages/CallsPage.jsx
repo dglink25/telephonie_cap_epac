@@ -10,9 +10,9 @@ import useSocketStore from '../store/socketStore';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
-  completed:  { label: 'Terminé',  color: 'text-green-600',  bg: 'bg-green-50',  icon: Phone },
-  missed:     { label: 'Manqué',   color: 'text-red-500',    bg: 'bg-red-50',    icon: PhoneMissed },
-  rejected:   { label: 'Refusé',   color: 'text-orange-500', bg: 'bg-orange-50', icon: PhoneMissed },
+  completed:  { label: 'Terminé',  color: 'text-primary-600',  bg: 'bg-primary-50',  icon: Phone },
+  missed:     { label: 'Manqué',   color: 'text-red-500',      bg: 'bg-red-50',      icon: PhoneMissed },
+  rejected:   { label: 'Refusé',   color: 'text-orange-500',   bg: 'bg-orange-50',   icon: PhoneMissed },
   failed:     { label: 'Échoué',   color: 'text-slate-500',  bg: 'bg-slate-50',  icon: PhoneMissed },
   ongoing:    { label: 'En cours', color: 'text-blue-600',   bg: 'bg-blue-50',   icon: Phone },
 };

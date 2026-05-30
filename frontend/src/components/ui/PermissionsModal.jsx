@@ -41,13 +41,13 @@ const requestPermission = async (type) => {
 };
 
 const PERMS = [
-  { id: 'microphone',    label: 'Microphone',   desc: 'Requis pour les appels audio et messages vocaux', icon: Mic,   iconBg: 'bg-green-100',  iconColor: 'text-green-600',  required: true  },
-  { id: 'camera',        label: 'Caméra',        desc: 'Requis pour les appels vidéo',                    icon: Video, iconBg: 'bg-blue-100',   iconColor: 'text-blue-600',   required: false },
-  { id: 'notifications', label: 'Notifications', desc: 'Recevoir des alertes pour messages et appels',    icon: Bell,  iconBg: 'bg-purple-100', iconColor: 'text-purple-600', required: false },
+  { id: 'microphone',    label: 'Microphone',   desc: 'Requis pour les appels audio et messages vocaux', icon: Mic,   iconBg: 'bg-primary-100',  iconColor: 'text-primary-600',  required: true  },
+  { id: 'camera',        label: 'Caméra',        desc: 'Requis pour les appels vidéo',                    icon: Video, iconBg: 'bg-blue-100',     iconColor: 'text-blue-600',     required: false },
+  { id: 'notifications', label: 'Notifications', desc: 'Recevoir des alertes pour messages et appels',    icon: Bell,  iconBg: 'bg-purple-100',   iconColor: 'text-purple-600',   required: false },
 ];
 
 const STATUS = {
-  granted:     { color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-200',  label: 'Accordée',         dot: 'bg-green-500'  },
+  granted:     { color: 'text-primary-600',  bg: 'bg-primary-50',  border: 'border-primary-200',  label: 'Accordée',         dot: 'bg-primary-600'  },
   denied:      { color: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-200',    label: 'Refusée',          dot: 'bg-red-500'    },
   prompt:      { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', label: 'En attente',       dot: 'bg-orange-400' },
   unknown:     { color: 'text-slate-500',  bg: 'bg-slate-50',  border: 'border-slate-200',  label: 'Non vérifiée',     dot: 'bg-slate-400'  },
@@ -79,7 +79,7 @@ function PermissionRow({ config, state, onRequest, loading }) {
         )}
       </div>
       <div className="flex-shrink-0 self-start sm:self-auto">
-        {state === 'granted'     && <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center"><Check className="w-4 h-4 text-green-600" /></div>}
+        {state === 'granted'     && <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center"><Check className="w-4 h-4 text-primary-600" /></div>}
         {state === 'denied'      && <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center"><X className="w-4 h-4 text-red-500" /></div>}
         {state === 'unavailable' && <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></div>}
         {!['granted','denied','unavailable'].includes(state) && (

@@ -53,8 +53,8 @@ function UserProfileModal({ user, onClose, onEdit }) {
             <div>
               <p className="font-semibold text-slate-800">{user.display_name}</p>
               <p className="text-sm text-slate-500">@{user.username}</p>
-              <span className={`inline-flex items-center gap-1.5 text-xs font-medium mt-1 ${user.is_active ? 'text-green-600' : 'text-red-500'}`}>
-                <span className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className={`inline-flex items-center gap-1.5 text-xs font-medium mt-1 ${user.is_active ? 'text-primary-600' : 'text-red-500'}`}>
+                <span className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-primary-600' : 'bg-red-500'}`} />
                 {user.is_active ? 'Compte actif' : 'Compte désactivé'}
               </span>
             </div>
@@ -125,8 +125,8 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
         </span>
       </td>
       <td className="px-4 py-3">
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${user.is_active ? 'text-green-600' : 'text-red-500'}`}>
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${user.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${user.is_active ? 'text-primary-600' : 'text-red-500'}`}>
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${user.is_active ? 'bg-primary-600' : 'bg-red-500'}`} />
           <span className="hidden sm:inline">{user.is_active ? 'Actif' : 'Désactivé'}</span>
         </span>
       </td>
@@ -145,7 +145,7 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
               className={`btn-icon w-8 h-8 ${
                 user.is_active
                   ? 'text-slate-500 hover:text-red-600 hover:bg-red-50'
-                  : 'text-slate-500 hover:text-green-600 hover:bg-green-50'
+                  : 'text-slate-500 hover:text-primary-600 hover:bg-primary-50'
               }`}
               title={user.is_active ? 'Désactiver le compte' : 'Activer le compte'}
             >
@@ -336,7 +336,7 @@ export default function AdminPage() {
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
               {allUsers.length} utilisateur{allUsers.length > 1 ? 's' : ''} —{' '}
-              <span className="text-green-600">{activeCount} actif{activeCount > 1 ? 's' : ''}</span>
+              <span className="text-primary-600">{activeCount} actif{activeCount > 1 ? 's' : ''}</span>
               {inactiveCount > 0 && (
                 <span className="text-red-500">, {inactiveCount} désactivé{inactiveCount > 1 ? 's' : ''}</span>
               )}
