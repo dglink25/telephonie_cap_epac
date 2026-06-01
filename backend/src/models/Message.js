@@ -58,6 +58,11 @@ const Message = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    delivered_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Date de délivrance du message au destinataire',
+    },
   },
   {
     tableName: 'messages',

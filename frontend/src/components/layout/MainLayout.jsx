@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
+import NotificationBell from '../notifications/NotificationBell';
 import useSocketStore from '../../store/socketStore';
 import { useEffect, useRef } from 'react';
 import useCallStore from '../../store/callStore';
@@ -211,7 +212,9 @@ export default function MainLayout() {
             <Menu className="w-6 h-6" />
           </button>
           <h1 className="font-bold text-lg">CAP-EPAC</h1>
-          <div className="w-10" />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+          </div>
         </div>
 
         <div className="flex-1 overflow-hidden">

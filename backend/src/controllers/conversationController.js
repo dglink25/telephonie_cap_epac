@@ -11,6 +11,7 @@ const {
   sequelize,
 } = require('../models');
 const logger = require('../utils/logger');
+const NotificationService = require('../services/notificationService');
 
 // ── Délai maximum de modification : 15 minutes ───────────────────
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -167,6 +168,7 @@ const getMessages = async (req, res, next) => {
         { model: User, as: 'sender', attributes: ['id','username','display_name','avatar_url'] },
         { model: Message, as: 'replyTo', include: [{ model: User, as: 'sender', attributes: ['id','display_name'] }] },
         { model: MessageReaction, as: 'reactions', include: [{ model: User, as: 'user', attributes: ['id','display_name'] }] },
+        { model: MessageReadStatus, as: 'readStatuses', include: [{ model: User, as: 'user', attributes: ['id','display_name','avatar_url'] }] },
       ],
       order: [['created_at','DESC']],
       limit: parseInt(limit),
@@ -175,11 +177,18 @@ const getMessages = async (req, res, next) => {
     member.last_read_at = new Date();
     await member.save();
 
-    // Enrichir chaque message avec canEdit (encore modifiable ?)
-    const enriched = messages.reverse().map((msg) => ({
-      ...msg.toJSON(),
-      canEdit: msg.sender_id === userId && !msg.is_deleted && isEditable(msg),
-    }));
+    // Enrichir chaque message avec canEdit et statut de lecture
+    const enriched = messages.reverse().map((msg) => {
+      const msgJson = msg.toJSON();
+      return {
+        ...msgJson,
+        canEdit: msg.sender_id === userId && !msg.is_deleted && isEditable(msg),
+        // Ajouter le statut de lecture pour l'expéditeur
+        readBy: msgJson.readStatuses || [],
+        isRead: msgJson.readStatuses && msgJson.readStatuses.length > 0,
+        isDelivered: !!msgJson.delivered_at,
+      };
+    });
 
     return res.json({ success: true, data: { messages: enriched, hasMore: messages.length === parseInt(limit) } });
   } catch (err) { next(err); }
@@ -237,6 +246,24 @@ fileData = {
 
     await Conversation.update({ updated_at: new Date() }, { where: { id } });
 
+    // ── Vérifier si les destinataires sont en ligne pour marquer comme délivré ──
+    const { isUserOnline } = require('../socket');
+    const conversation = await Conversation.findByPk(id, {
+      include: [{ model: User, as: 'members', through: { attributes: [] } }],
+    });
+
+    let isDelivered = false;
+    if (conversation) {
+      // Vérifier si au moins un destinataire (autre que l'expéditeur) est en ligne
+      const otherMembers = conversation.members.filter(m => m.id !== userId);
+      isDelivered = otherMembers.some(m => isUserOnline(m.id));
+      
+      if (isDelivered) {
+        message.delivered_at = new Date();
+        await message.save();
+      }
+    }
+
     const full = await Message.findByPk(message.id, {
       include: [
         { model: User, as: 'sender', attributes: ['id','username','display_name','avatar_url'] },
@@ -244,10 +271,71 @@ fileData = {
       ],
     });
 
-    const msgJson = { ...full.toJSON(), canEdit: isEditable(full) };
+    const msgJson = { ...full.toJSON(), canEdit: isEditable(full), isDelivered };
 
     const io = req.app.get('io');
-    if (io) io.to(`conv:${id}`).emit('message:new', { message: msgJson });
+    if (io) {
+      io.to(`conv:${id}`).emit('message:new', { message: msgJson });
+
+      // ── Envoyer des notifications aux autres membres ──────────
+      try {
+        // Récupérer la conversation et ses membres
+        const conversation = await Conversation.findByPk(id, {
+          include: [{ model: User, as: 'members', through: { attributes: [] } }],
+        });
+
+        if (conversation) {
+          const conversationName = conversation.name || 'Conversation';
+          const senderName = req.user.display_name || req.user.username;
+          
+          // Créer un aperçu du message
+          let messagePreview = content || '';
+          if (msgType === 'image') messagePreview = '📷 Image';
+          else if (msgType === 'video') messagePreview = '🎥 Vidéo';
+          else if (msgType === 'audio') messagePreview = '🎵 Audio';
+          else if (msgType === 'file') messagePreview = `📎 ${fileData.file_name || 'Fichier'}`;
+          
+          // Limiter la longueur de l'aperçu
+          if (messagePreview.length > 100) {
+            messagePreview = messagePreview.substring(0, 97) + '...';
+          }
+
+          // Détecter les mentions (@username)
+          const mentionRegex = /@(\w+)/g;
+          const mentions = content ? [...content.matchAll(mentionRegex)].map(m => m[1]) : [];
+
+          // Envoyer des notifications à tous les membres sauf l'expéditeur
+          for (const member of conversation.members) {
+            if (member.id !== userId) {
+              // Si l'utilisateur est mentionné, envoyer une notification de mention
+              if (mentions.includes(member.username)) {
+                await NotificationService.notifyMention(
+                  io,
+                  member.id,
+                  senderName,
+                  conversationName,
+                  messagePreview,
+                  id
+                );
+              } else {
+                // Sinon, envoyer une notification de message normal
+                await NotificationService.notifyNewMessage(
+                  io,
+                  member.id,
+                  senderName,
+                  conversationName,
+                  messagePreview,
+                  id
+                );
+              }
+            }
+          }
+        }
+      } catch (notifError) {
+        logger.error('Erreur envoi notifications:', notifError.message);
+        // Ne pas bloquer l'envoi du message si les notifications échouent
+      }
+    }
 
     return res.status(201).json({ success: true, data: { message: msgJson } });
   } catch (err) { next(err); }
@@ -359,11 +447,50 @@ const markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    await ConversationMember.update({ last_read_at: new Date() }, { where: { conversation_id: id, user_id: userId } });
+    const { messageIds } = req.body; // Optionnel : liste des IDs de messages à marquer comme lus
+
+    // Mettre à jour last_read_at de la conversation
+    await ConversationMember.update(
+      { last_read_at: new Date() },
+      { where: { conversation_id: id, user_id: userId } }
+    );
+
+    // Si des messageIds sont fournis, marquer ces messages comme lus
+    if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
+      for (const msgId of messageIds) {
+        // Vérifier si le message existe et n'est pas envoyé par l'utilisateur
+        const message = await Message.findOne({
+          where: { id: msgId, conversation_id: id },
+        });
+
+        if (message && message.sender_id !== userId) {
+          // Créer ou mettre à jour le statut de lecture
+          await MessageReadStatus.findOrCreate({
+            where: { message_id: msgId, user_id: userId },
+            defaults: { read_at: new Date() },
+          });
+        }
+      }
+
+      // Émettre un événement pour notifier les autres utilisateurs
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`conv:${id}`).emit('messages:read', {
+          userId,
+          conversationId: id,
+          messageIds,
+          readAt: new Date(),
+        });
+      }
+    }
+
     const io = req.app.get('io');
     if (io) io.to(`conv:${id}`).emit('conversation:read', { userId, conversationId: id });
+
     return res.json({ success: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 };
 
 /**

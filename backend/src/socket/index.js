@@ -1,6 +1,6 @@
 // src/socket/index.js
 const jwt      = require('jsonwebtoken');
-const { User, ConversationMember, CallLog, Conversation } = require('../models');
+const { User, ConversationMember, CallLog, Conversation, Notification } = require('../models');
 const { setUserPresence, removeUserPresence } = require('../config/redis');
 const logger   = require('../utils/logger');
 
@@ -67,6 +67,69 @@ const initSocket = (io) => {
       { where: { id: userId } }
     );
     socket.broadcast.emit('user:presence', { userId, status: 'online' });
+
+    // ── Marquer les messages non délivrés comme délivrés ──────────
+    try {
+      const { Message } = require('../models');
+      
+      // Trouver tous les messages non délivrés destinés à cet utilisateur
+      const memberRows = await ConversationMember.findAll({
+        where: { user_id: userId },
+        attributes: ['conversation_id'],
+      });
+      
+      const conversationIds = memberRows.map(m => m.conversation_id);
+      
+      if (conversationIds.length > 0) {
+        // Mettre à jour les messages non délivrés
+        const updatedMessages = await Message.update(
+          { delivered_at: new Date() },
+          {
+            where: {
+              conversation_id: conversationIds,
+              sender_id: { [require('sequelize').Op.ne]: userId },
+              delivered_at: null,
+              is_deleted: false,
+            },
+            returning: true,
+          }
+        );
+
+        // Notifier les expéditeurs que leurs messages ont été délivrés
+        if (updatedMessages[0] > 0) {
+          const deliveredMessages = await Message.findAll({
+            where: {
+              conversation_id: conversationIds,
+              sender_id: { [require('sequelize').Op.ne]: userId },
+              delivered_at: { [require('sequelize').Op.ne]: null },
+              is_deleted: false,
+            },
+            attributes: ['id', 'sender_id', 'conversation_id'],
+            order: [['delivered_at', 'DESC']],
+            limit: 100,
+          });
+
+          // Grouper par expéditeur et notifier
+          const bySender = {};
+          deliveredMessages.forEach(msg => {
+            if (!bySender[msg.sender_id]) bySender[msg.sender_id] = [];
+            bySender[msg.sender_id].push(msg.id);
+          });
+
+          Object.entries(bySender).forEach(([senderId, messageIds]) => {
+            io.to(`user:${senderId}`).emit('messages:delivered', {
+              messageIds,
+              deliveredTo: userId,
+              deliveredAt: new Date(),
+            });
+          });
+
+          logger.info(`${updatedMessages[0]} messages marqués comme délivrés pour ${userId}`);
+        }
+      }
+    } catch (err) {
+      logger.error('Erreur marquage messages délivrés:', err.message);
+    }
 
     // ── Messagerie ────────────────────────────────────────────────
 
@@ -351,6 +414,35 @@ const initSocket = (io) => {
       socket.broadcast.emit('user:presence', { userId, status });
     });
 
+    // ── Notifications ─────────────────────────────────────────────
+
+    socket.on('notification:mark-read', async ({ notificationId }) => {
+      try {
+        const notification = await Notification.findOne({
+          where: { id: notificationId, user_id: userId },
+        });
+        if (notification) {
+          notification.is_read = true;
+          notification.read_at = new Date();
+          await notification.save();
+          socket.emit('notification:updated', { notification });
+        }
+      } catch (err) {
+        logger.error('Erreur notification:mark-read:', err.message);
+      }
+    });
+
+    socket.on('notification:delete', async ({ notificationId }) => {
+      try {
+        await Notification.destroy({
+          where: { id: notificationId, user_id: userId },
+        });
+        socket.emit('notification:deleted', { notificationId });
+      } catch (err) {
+        logger.error('Erreur notification:delete:', err.message);
+      }
+    });
+
     // ── Déconnexion ───────────────────────────────────────────────
 
     socket.on('disconnect', async () => {
@@ -384,4 +476,35 @@ const isUserOnline     = (userId) => {
   return s && s.size > 0;
 };
 
-module.exports = { initSocket, getUserSocketIds, isUserOnline };
+/**
+ * Envoyer une notification en temps réel à un utilisateur
+ * @param {Object} io - Instance Socket.IO
+ * @param {Number} userId - ID de l'utilisateur destinataire
+ * @param {Object} notification - Objet notification
+ */
+const sendNotification = async (io, userId, notificationData) => {
+  try {
+    // Créer la notification en base de données
+    const notification = await Notification.create({
+      user_id: userId,
+      type: notificationData.type,
+      title: notificationData.title,
+      message: notificationData.message,
+      data: notificationData.data || null,
+      action_url: notificationData.actionUrl || null,
+      priority: notificationData.priority || 'normal',
+      expires_at: notificationData.expiresAt || null,
+    });
+
+    // Envoyer via socket si l'utilisateur est connecté
+    io.to(`user:${userId}`).emit('notification:new', { notification });
+
+    logger.info(`Notification envoyée à ${userId}: ${notificationData.title}`);
+    return notification;
+  } catch (err) {
+    logger.error('Erreur sendNotification:', err.message);
+    throw err;
+  }
+};
+
+module.exports = { initSocket, getUserSocketIds, isUserOnline, sendNotification };

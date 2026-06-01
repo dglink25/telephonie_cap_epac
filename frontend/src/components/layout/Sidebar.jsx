@@ -2,10 +2,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Phone, MessageSquare, BookUser, User, LogOut,
-  Shield, Wifi, WifiOff,
+  Shield, Wifi, WifiOff, Bell,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import useSocketStore from '../../store/socketStore';
+import useNotificationStore from '../../store/notificationStore';
 import toast from 'react-hot-toast';
 
 const NavItem = ({ to, icon: Icon, label, badge, onClick }) => (
@@ -29,6 +30,7 @@ const NavItem = ({ to, icon: Icon, label, badge, onClick }) => (
 export default function Sidebar({ isMobile = false, onNavigate }) {
   const { user, logout } = useAuthStore();
   const { isConnected } = useSocketStore();
+  const { unreadCount } = useNotificationStore();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -72,6 +74,7 @@ export default function Sidebar({ isMobile = false, onNavigate }) {
         </p>
         <NavItem to="/chat" icon={MessageSquare} label="Messagerie" onClick={handleNavClick} />
         <NavItem to="/calls" icon={Phone} label="Appels" onClick={handleNavClick} />
+        <NavItem to="/notifications" icon={Bell} label="Notifications" badge={unreadCount} onClick={handleNavClick} />
 
         <p className={`text-primary-300 text-xs font-medium uppercase tracking-wider px-3 mb-2 mt-4 ${isMobile ? '' : 'md:hidden lg:block'}`}>
           Annuaire

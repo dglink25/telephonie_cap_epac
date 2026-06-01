@@ -13,6 +13,7 @@ import CallsPage     from './pages/CallsPage';
 import DirectoryPage from './pages/DirectoryPage';
 import ProfilePage   from './pages/ProfilePage';
 import AdminPage     from './pages/AdminPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 import IncomingCallModal from './components/calls/IncomingCallModal';
 import OutgoingCallModal from './components/calls/OutgoingCallModal';
@@ -63,6 +64,7 @@ export default function App() {
           <Route path="chat"                 element={<ChatPage />} />
           <Route path="chat/:conversationId" element={<ChatPage />} />
           <Route path="calls"                element={<CallsPage />} />
+          <Route path="notifications"        element={<NotificationsPage />} />
           <Route path="directory"            element={<DirectoryPage />} />
           <Route path="profile"              element={<ProfilePage />} />
           <Route path="admin" element={<AdminRoute><AdminPage /></AdminRoute>} />

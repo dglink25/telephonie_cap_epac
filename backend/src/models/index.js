@@ -4,6 +4,7 @@ const User = require('./User');
 const Conversation = require('./Conversation');
 const Message = require('./Message');
 const CallLog = require('./CallLog');
+const Notification = require('./Notification')(sequelize);
 
 // ── ConversationMember (table de jointure) ──────────────────────
 const { DataTypes } = require('sequelize');
@@ -82,6 +83,10 @@ User.hasMany(RefreshToken, { foreignKey: 'user_id', as: 'refreshTokens' });
 // Conversation creator
 Conversation.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
+// Notification
+Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
+
 module.exports = {
   sequelize,
   User,
@@ -92,4 +97,5 @@ module.exports = {
   MessageReadStatus,
   CallLog,
   RefreshToken,
+  Notification,
 };

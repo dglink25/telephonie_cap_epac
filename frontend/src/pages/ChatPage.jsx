@@ -166,6 +166,30 @@ function MessageBubble({ msg, currentUserId, onReply, onEdit, onDelete }) {
           {msg.is_edited && !msg.is_deleted && (
             <span className="text-[10px] text-slate-400 italic">· modifié</span>
           )}
+          {isOwn && !msg.is_deleted && (
+            <span className="flex items-center gap-0.5" title={
+              msg.isRead ? `Lu par ${msg.readBy?.length || 0} personne(s)` : 
+              msg.isDelivered ? 'Délivré' : 
+              'Envoyé'
+            }>
+              {msg.isRead ? (
+                // Double coche bleue (lu)
+                <svg className="w-4 h-4 text-blue-500" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/>
+                </svg>
+              ) : msg.isDelivered ? (
+                // Double coche grise (délivré mais pas lu)
+                <svg className="w-4 h-4 text-slate-400" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/>
+                </svg>
+              ) : (
+                // Simple coche grise (envoyé mais pas délivré)
+                <svg className="w-4 h-4 text-slate-400" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M13.485 1.431a1.473 1.473 0 0 1 2.104 2.062l-7.84 9.801a1.473 1.473 0 0 1-2.12.04L.431 8.138a1.473 1.473 0 0 1 2.084-2.083l4.111 4.112 6.82-8.69a.486.486 0 0 1 .04-.045z"/>
+                </svg>
+              )}
+            </span>
+          )}
           {isOwn && !msg.is_deleted && msg.type === 'text' && msg.canEdit && (
             <span title="Modifiable encore" className="text-[10px] text-primary-400">✎</span>
           )}
@@ -383,10 +407,55 @@ export default function ChatPage() {
     onSuccess: () => {
       qc.invalidateQueries(['messages', conversationId]);
       setDeleteTarget(null);
-      showFeedback('success', 'Message retiré avec succès.');
     },
-    onError: () => showFeedback('error', 'Erreur lors du retrait du message.'),
+    onError: () => showFeedback('error', 'Erreur lors de la suppression.'),
   });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: (messageIds) => api.post(`/conversations/${conversationId}/read`, { messageIds }),
+    onSuccess: () => {
+      qc.invalidateQueries(['messages', conversationId]);
+    },
+  });
+
+  // ── Marquer les messages comme lus automatiquement ────────────────
+  useEffect(() => {
+    if (!conversationId || !messages.length || !user) return;
+
+    // Trouver les messages non lus qui ne sont pas envoyés par l'utilisateur actuel
+    const unreadMessageIds = messages
+      .filter(msg => 
+        msg.sender_id !== user.id && 
+        !msg.is_deleted &&
+        (!msg.readBy || !msg.readBy.some(r => r.user_id === user.id))
+      )
+      .map(msg => msg.id);
+
+    if (unreadMessageIds.length > 0) {
+      // Marquer comme lus après un court délai (pour simuler la lecture)
+      const timer = setTimeout(() => {
+        markAsReadMutation.mutate(unreadMessageIds);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [conversationId, messages, user]);
+
+  // ── Socket : écouter les mises à jour de lecture ──────────────────
+  useEffect(() => {
+    if (!socket || !conversationId) return;
+
+    const handleMessagesRead = ({ userId, messageIds }) => {
+      // Mettre à jour les messages localement
+      qc.invalidateQueries(['messages', conversationId]);
+    };
+
+    socket.on('messages:read', handleMessagesRead);
+
+    return () => {
+      socket.off('messages:read', handleMessagesRead);
+    };
+  }, [socket, conversationId, qc]);
 
   // ── Socket.IO ─────────────────────────────────────────────────────
   useEffect(() => {

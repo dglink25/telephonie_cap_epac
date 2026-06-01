@@ -1,11 +1,11 @@
 // src/utils/constants.ts
 
 export const COLORS = {
-  primary: '#16a34a',
-  primaryDark: '#15803d',
-  primaryLight: '#22c55e',
-  primaryXLight: '#dcfce7',
-  primaryXXLight: '#f0fdf4',
+  primary: '#0d9488',        // Vert teal du site cap-epac.bj
+  primaryDark: '#0f766e',    // Vert teal foncé
+  primaryLight: '#14b8a6',   // Vert teal clair
+  primaryXLight: '#ccfbf1',  // Vert teal très pâle
+  primaryXXLight: '#f0fdfa', // Quasi-blanc verdâtre
   white: '#ffffff',
   black: '#000000',
   gray50: '#f9fafb',
@@ -24,7 +24,7 @@ export const COLORS = {
   warningLight: '#fef3c7',
   info: '#3b82f6',
   infoLight: '#dbeafe',
-  online: '#16a34a',
+  online: '#0d9488',         // Vert teal pour le statut en ligne
   away: '#f59e0b',
   dnd: '#dc2626',
   offline: '#9ca3af',
