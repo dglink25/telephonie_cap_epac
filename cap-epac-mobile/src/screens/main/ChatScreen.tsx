@@ -15,6 +15,7 @@ import { conversationsAPI, getMediaUrl } from '../../services/api';
 import { Avatar } from '../../components/common';
 import { COLORS, SIZES } from '../../utils/constants';
 import dayjs from 'dayjs';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 
@@ -206,19 +207,31 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
           {msg.type === 'image' && (
             <TouchableOpacity>
-              <Text style={styles.mediaMsg}>📷 {msg.file_name || 'Image'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icon name="image" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+                <Text style={styles.mediaMsg}>{msg.file_name || 'Image'}</Text>
+              </View>
             </TouchableOpacity>
           )}
           {msg.type === 'file' && (
             <TouchableOpacity>
-              <Text style={styles.mediaMsg}>📎 {msg.file_name || 'Fichier'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icon name="file-document" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+                <Text style={styles.mediaMsg}>{msg.file_name || 'Fichier'}</Text>
+              </View>
             </TouchableOpacity>
           )}
           {msg.type === 'audio' && (
-            <Text style={styles.mediaMsg}>🎵 {msg.file_name || 'Audio'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="music" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+              <Text style={styles.mediaMsg}>{msg.file_name || 'Audio'}</Text>
+            </View>
           )}
           {msg.type === 'video' && (
-            <Text style={styles.mediaMsg}>🎬 {msg.file_name || 'Vidéo'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="video" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+              <Text style={styles.mediaMsg}>{msg.file_name || 'Vidéo'}</Text>
+            </View>
           )}
 
           <View style={styles.msgMeta}>
@@ -226,6 +239,20 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
               {time}
               {msg.is_edited && ' · modifié'}
             </Text>
+            {isMine && !msg.is_deleted && (
+              <View style={styles.readStatus}>
+                {msg.isRead ? (
+                  // Double coche bleue (lu)
+                  <Icon name="check-all" size={16} color={COLORS.primary} />
+                ) : msg.isDelivered ? (
+                  // Double coche grise (délivré mais pas lu)
+                  <Icon name="check-all" size={16} color={COLORS.gray400} />
+                ) : (
+                  // Simple coche grise (envoyé mais pas délivré)
+                  <Icon name="check" size={16} color={COLORS.gray400} />
+                )}
+              </View>
+            )}
           </View>
 
           {/* Réactions */}
@@ -264,7 +291,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Icon name="arrow-left" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerName} numberOfLines={1}>{name}</Text>
@@ -277,7 +304,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             onPress={() => navigation.navigate('GroupInfo', { groupId: conversationId })}
             style={styles.infoBtn}
           >
-            <Text style={styles.infoBtnText}>ⓘ</Text>
+            <Icon name="information" size={24} color={COLORS.white} />
           </TouchableOpacity>
         )}
       </View>
@@ -308,6 +335,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* Reply banner */}
         {replyTo && (
           <View style={styles.replyBanner}>
+            <Icon name="reply" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
             <View style={styles.replyBannerContent}>
               <Text style={styles.replyBannerLabel}>Répondre à</Text>
               <Text style={styles.replyBannerText} numberOfLines={1}>
@@ -315,7 +343,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
               </Text>
             </View>
             <TouchableOpacity onPress={() => setReplyTo(null)}>
-              <Text style={styles.replyClose}>✕</Text>
+              <Icon name="close" size={20} color={COLORS.gray500} />
             </TouchableOpacity>
           </View>
         )}
@@ -323,6 +351,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* Edit banner */}
         {editingMsg && (
           <View style={[styles.replyBanner, styles.editBanner]}>
+            <Icon name="pencil" size={18} color={COLORS.warning} style={{ marginRight: 8 }} />
             <View style={styles.replyBannerContent}>
               <Text style={styles.editBannerLabel}>Modifier le message</Text>
               <Text style={styles.replyBannerText} numberOfLines={1}>
@@ -330,7 +359,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
               </Text>
             </View>
             <TouchableOpacity onPress={() => { setEditingMsg(null); setText(''); }}>
-              <Text style={styles.replyClose}>✕</Text>
+              <Icon name="close" size={20} color={COLORS.gray500} />
             </TouchableOpacity>
           </View>
         )}
@@ -355,9 +384,11 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             {sending ? (
               <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
-              <Text style={styles.sendBtnText}>
-                {editingMsg ? '✓' : '↑'}
-              </Text>
+              <Icon 
+                name={editingMsg ? 'check' : 'send'} 
+                size={20} 
+                color={COLORS.white} 
+              />
             )}
           </TouchableOpacity>
         </View>
@@ -381,7 +412,8 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                     setContextMenu(null);
                   }}
                 >
-                  <Text style={styles.contextText}>↩ Répondre</Text>
+                  <Icon name="reply" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
+                  <Text style={styles.contextText}>Répondre</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -391,7 +423,8 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                     setContextMenu(null);
                   }}
                 >
-                  <Text style={styles.contextText}>😊 Réagir</Text>
+                  <Icon name="emoticon-happy-outline" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
+                  <Text style={styles.contextText}>Réagir</Text>
                 </TouchableOpacity>
 
                 {isMyMessage(contextMenu.msg) && contextMenu.msg.canEdit && (
@@ -403,7 +436,8 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                       setContextMenu(null);
                     }}
                   >
-                    <Text style={styles.contextText}>✏️ Modifier</Text>
+                    <Icon name="pencil" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
+                    <Text style={styles.contextText}>Modifier</Text>
                   </TouchableOpacity>
                 )}
 
@@ -415,8 +449,9 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                       setContextMenu(null);
                     }}
                   >
+                    <Icon name="delete" size={18} color={COLORS.danger} style={{ marginRight: 8 }} />
                     <Text style={[styles.contextText, styles.contextDangerText]}>
-                      🗑 Supprimer
+                      Supprimer
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -509,9 +544,10 @@ const styles = StyleSheet.create({
   msgText: { fontSize: SIZES.md, color: COLORS.gray900, lineHeight: 22 },
   msgTextMe: { color: COLORS.white },
   mediaMsg: { fontSize: SIZES.md, color: COLORS.primary },
-  msgMeta: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 3 },
+  msgMeta: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 3, alignItems: 'center', gap: 4 },
   msgTime: { fontSize: 10, color: COLORS.gray400 },
   msgTimMe: { color: 'rgba(255,255,255,0.65)' },
+  readStatus: { marginLeft: 2 },
   deletedMsg: { fontSize: SIZES.sm, color: COLORS.gray400, fontStyle: 'italic', padding: 4 },
   systemMsgRow: { alignItems: 'center', marginVertical: 8 },
   systemMsg: {

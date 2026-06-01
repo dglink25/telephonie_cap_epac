@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── Configuration ─────────────────────────────────────────────
 // Modifier cette IP selon votre serveur
-export const SERVER_BASE = 'https://192.168.10.150';
+// TEMPORAIRE: HTTP pour debug (à remettre en HTTPS après)
+export const SERVER_BASE = 'http://10.73.47.159';
 const BASE_URL = `${SERVER_BASE}/api`;
 
 export const api: AxiosInstance = axios.create({

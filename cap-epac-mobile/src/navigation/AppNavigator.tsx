@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useAuthStore } from '../store/authStore';
 import { useCallStore } from '../store/callStore';
@@ -39,11 +40,15 @@ const Tab = createBottomTabNavigator();
 
 // ── Onglets principaux ────────────────────────────────────────────
 const TabIcon = ({
-  emoji, label, focused, badge,
-}: { emoji: string; label: string; focused: boolean; badge?: number }) => (
+  iconName, label, focused, badge,
+}: { iconName: string; label: string; focused: boolean; badge?: number }) => (
   <View style={tabStyles.iconWrap}>
     <View>
-      <Text style={[tabStyles.emoji, focused && tabStyles.emojiFocused]}>{emoji}</Text>
+      <Icon 
+        name={iconName} 
+        size={26} 
+        color={focused ? COLORS.primary : COLORS.gray400} 
+      />
       {badge && badge > 0 ? (
         <View style={tabStyles.badgeWrap}>
           <Badge count={badge} />
@@ -72,7 +77,7 @@ const MainTabs = () => {
         component={ConversationsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="💬" label="Messages" focused={focused} badge={totalUnread} />
+            <TabIcon iconName="message-text" label="Messages" focused={focused} badge={totalUnread} />
           ),
         }}
       />
@@ -81,7 +86,7 @@ const MainTabs = () => {
         component={ContactsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👥" label="Contacts" focused={focused} />
+            <TabIcon iconName="account-group" label="Contacts" focused={focused} />
           ),
         }}
       />
@@ -90,7 +95,7 @@ const MainTabs = () => {
         component={CallHistoryScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="📞" label="Appels" focused={focused} />
+            <TabIcon iconName="phone" label="Appels" focused={focused} />
           ),
         }}
       />
@@ -99,7 +104,7 @@ const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👤" label="Profil" focused={focused} />
+            <TabIcon iconName="account" label="Profil" focused={focused} />
           ),
         }}
       />
@@ -198,9 +203,7 @@ const tabStyles = StyleSheet.create({
     gap: 3,
     position: 'relative',
   },
-  emoji: { fontSize: 22, opacity: 0.5 },
-  emojiFocused: { opacity: 1 },
-  label: { fontSize: 10, color: COLORS.gray400 },
+  label: { fontSize: 10, color: COLORS.gray400, marginTop: 2 },
   labelFocused: { color: COLORS.primary, fontWeight: '600' },
   badgeWrap: { position: 'absolute', top: -4, right: -8 },
 });

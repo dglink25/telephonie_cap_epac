@@ -9,25 +9,26 @@ import { COLORS, SIZES } from '../../utils/constants';
 import { useAuthStore } from '../../store/authStore';
 import { useCallStore, CallLog } from '../../store/callStore';
 import dayjs from 'dayjs';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-  completed: { label: 'Terminé', color: COLORS.primary, icon: '📞' },
-  missed: { label: 'Manqué', color: COLORS.danger, icon: '📵' },
-  rejected: { label: 'Refusé', color: COLORS.warning, icon: '🚫' },
-  failed: { label: 'Échoué', color: COLORS.gray500, icon: '❌' },
-  ongoing: { label: 'En cours', color: COLORS.primary, icon: '📱' },
+const STATUS_LABELS: Record<string, { label: string; color: string; iconName: string }> = {
+  completed: { label: 'Terminé', color: COLORS.primary, iconName: 'phone-check' },
+  missed: { label: 'Manqué', color: COLORS.danger, iconName: 'phone-missed' },
+  rejected: { label: 'Refusé', color: COLORS.warning, iconName: 'phone-cancel' },
+  failed: { label: 'Échoué', color: COLORS.gray500, iconName: 'phone-remove' },
+  ongoing: { label: 'En cours', color: COLORS.primary, iconName: 'phone-in-talk' },
 };
 
-const TYPE_ICONS: Record<string, string> = {
-  audio: '📞',
-  video: '📹',
-  group_audio: '👥📞',
-  group_video: '👥📹',
+const TYPE_ICON_NAMES: Record<string, string> = {
+  audio: 'phone',
+  video: 'video',
+  group_audio: 'account-group',
+  group_video: 'account-group',
 };
 
 const formatDuration = (secs: number): string => {
@@ -82,7 +83,7 @@ const CallHistoryScreen: React.FC<Props> = ({ navigation }) => {
   const renderCall = ({ item }: { item: CallLog }) => {
     const other = getOtherParty(item);
     const info = STATUS_LABELS[item.status] || STATUS_LABELS.failed;
-    const typeIcon = TYPE_ICONS[item.type] || '📞';
+    const typeIconName = TYPE_ICON_NAMES[item.type] || 'phone';
     const incoming = isIncoming(item);
     const time = dayjs(item.created_at).format('DD/MM · HH:mm');
 
@@ -111,11 +112,17 @@ const CallHistoryScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.callTime}>{time}</Text>
           </View>
           <View style={styles.callMeta}>
-            <Text style={styles.callDirection}>{incoming ? '↙' : '↗'} </Text>
+            <Icon 
+              name={incoming ? 'arrow-bottom-left' : 'arrow-top-right'} 
+              size={14} 
+              color={COLORS.gray500} 
+              style={{ marginRight: 4 }}
+            />
             <Text style={[styles.callStatus, { color: info.color }]}>
               {info.label}
             </Text>
-            <Text style={styles.callType}> · {typeIcon}</Text>
+            <Text style={styles.callType}> · </Text>
+            <Icon name={typeIconName} size={14} color={COLORS.gray500} />
             {item.duration_seconds > 0 && (
               <Text style={styles.callDuration}> · {formatDuration(item.duration_seconds)}</Text>
             )}
@@ -135,7 +142,7 @@ const CallHistoryScreen: React.FC<Props> = ({ navigation }) => {
             })
           }
         >
-          <Text style={styles.callBackIcon}>📞</Text>
+          <Icon name="phone" size={18} color={COLORS.primary} />
         </TouchableOpacity>
       </TouchableOpacity>
     );

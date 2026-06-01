@@ -11,6 +11,7 @@ import { COLORS, SIZES } from '../../utils/constants';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/fr';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 dayjs.extend(relativeTime);
@@ -66,10 +67,10 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
   const formatLastMessage = (msg: Conversation['lastMessage']): string => {
     if (!msg) return 'Aucun message';
     if (msg.is_deleted) return 'Message supprimé';
-    if (msg.type === 'image') return '📷 Image';
-    if (msg.type === 'file') return '📎 Fichier';
-    if (msg.type === 'audio') return '🎵 Audio';
-    if (msg.type === 'video') return '🎬 Vidéo';
+    if (msg.type === 'image') return 'Image';
+    if (msg.type === 'file') return 'Fichier';
+    if (msg.type === 'audio') return 'Audio';
+    if (msg.type === 'video') return 'Vidéo';
     if (msg.type === 'system') return msg.content || '';
     return msg.content || '';
   };
@@ -114,7 +115,7 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
               style={[styles.convName, hasUnread && styles.convNameBold]}
               numberOfLines={1}
             >
-              {item.is_general && '🌐 '}{name}
+              {item.is_general && <Icon name="earth" size={14} color={COLORS.primary} />}{' '}{name}
             </Text>
             <Text style={[styles.convTime, hasUnread && styles.convTimeBold]}>
               {time}
@@ -145,13 +146,13 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
           onPress={() => navigation.navigate('NewConversation')}
           style={styles.newBtn}
         >
-          <Text style={styles.newBtnText}>＋</Text>
+          <Icon name="plus" size={24} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
       {/* Search */}
       <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Icon name="magnify" size={20} color={COLORS.gray400} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher une conversation..."
@@ -161,7 +162,7 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Text style={styles.clearSearch}>✕</Text>
+            <Icon name="close" size={20} color={COLORS.gray400} />
           </TouchableOpacity>
         )}
       </View>

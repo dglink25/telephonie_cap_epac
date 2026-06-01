@@ -3,15 +3,16 @@
 <network-security-config>
 
     <!-- ── Serveur LAN CAP-EPAC ─────────────────────────────── -->
-    <domain-config cleartextTrafficPermitted="false">
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.73.47.159</domain>
         <domain includeSubdomains="true">192.168.10.150</domain>
         <domain includeSubdomains="true">cap-epac.local</domain>
         <domain includeSubdomains="true">*.cap-epac.local</domain>
 
-        <!-- Accepter notre CA mkcert locale + CA système -->
+        <!-- Accepter tous les certificats système (comme Chrome) -->
         <trust-anchors>
             <certificates src="system"/>
-            <certificates src="@raw/cap_epac_ca"/>
+            <certificates src="user"/>
         </trust-anchors>
     </domain-config>
 

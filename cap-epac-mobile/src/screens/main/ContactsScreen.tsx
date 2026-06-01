@@ -9,6 +9,7 @@ import { conversationsAPI } from '../../services/api';
 import { Avatar, EmptyState } from '../../components/common';
 import { COLORS, SIZES, PRESENCE_COLORS, PRESENCE_LABELS } from '../../utils/constants';
 import { useAuthStore } from '../../store/authStore';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 interface User {
@@ -134,19 +135,19 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
           style={styles.actionBtn}
           onPress={() => startDirectChat(u)}
         >
-          <Text style={styles.actionIcon}>💬</Text>
+          <Icon name="message-text" size={18} color={COLORS.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => initiateCall(u, 'audio')}
         >
-          <Text style={styles.actionIcon}>📞</Text>
+          <Icon name="phone" size={18} color={COLORS.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => initiateCall(u, 'video')}
         >
-          <Text style={styles.actionIcon}>📹</Text>
+          <Icon name="video" size={18} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -167,7 +168,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Search */}
       <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Icon name="magnify" size={20} color={COLORS.gray400} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher un contact..."

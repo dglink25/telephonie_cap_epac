@@ -9,17 +9,22 @@ import { usersAPI } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { Avatar, Button, Input } from '../../components/common';
 import { COLORS, SIZES, PRESENCE_COLORS, PRESENCE_LABELS, DEPARTMENTS } from '../../utils/constants';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
 }
 
-const PRESENCE_OPTIONS: Array<{ key: 'online' | 'away' | 'dnd' | 'offline'; icon: string }> = [
-  { key: 'online', icon: '🟢' },
-  { key: 'away', icon: '🟡' },
-  { key: 'dnd', icon: '🔴' },
-  { key: 'offline', icon: '⚫' },
+const PRESENCE_OPTIONS: Array<{ 
+  key: 'online' | 'away' | 'dnd' | 'offline'; 
+  iconName: string;
+  iconColor: string;
+}> = [
+  { key: 'online', iconName: 'checkbox-blank-circle', iconColor: COLORS.online },
+  { key: 'away', iconName: 'checkbox-blank-circle', iconColor: COLORS.away },
+  { key: 'dnd', iconName: 'minus-circle', iconColor: COLORS.danger },
+  { key: 'offline', iconName: 'checkbox-blank-circle-outline', iconColor: COLORS.offline },
 ];
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
@@ -108,7 +113,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('Admin')}
             style={styles.adminBtn}
           >
-            <Text style={styles.adminBtnText}>⚙️ Admin</Text>
+            <Icon name="cog" size={18} color={COLORS.white} style={{ marginRight: 4 }} />
+            <Text style={styles.adminBtnText}>Admin</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -134,8 +140,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
           {/* Badge rôle */}
           <View style={[styles.roleBadge, user.role === 'admin' && styles.roleBadgeAdmin]}>
+            <Icon 
+              name={user.role === 'admin' ? 'shield-account' : 'account'} 
+              size={16} 
+              color={user.role === 'admin' ? COLORS.primaryDark : COLORS.gray600}
+              style={{ marginRight: 6 }}
+            />
             <Text style={[styles.roleText, user.role === 'admin' && styles.roleTextAdmin]}>
-              {user.role === 'admin' ? '🛡 Administrateur' : '👤 Utilisateur'}
+              {user.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
             </Text>
           </View>
 
@@ -162,7 +174,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Informations</Text>
             <TouchableOpacity onPress={() => setEditing(!editing)}>
-              <Text style={styles.editBtn}>{editing ? 'Annuler' : '✏️ Modifier'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name={editing ? 'close' : 'pencil'} size={16} color={COLORS.primary} style={{ marginRight: 4 }} />
+                <Text style={styles.editBtn}>{editing ? 'Annuler' : 'Modifier'}</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -216,9 +231,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sécurité</Text>
           <TouchableOpacity style={styles.menuItem} onPress={() => setPwdModal(true)}>
-            <Text style={styles.menuItemIcon}>🔑</Text>
+            <Icon name="key" size={20} color={COLORS.primary} style={{ marginRight: 14 }} />
             <Text style={styles.menuItemText}>Changer le mot de passe</Text>
-            <Text style={styles.menuChevron}>›</Text>
+            <Icon name="chevron-right" size={24} color={COLORS.gray400} />
           </TouchableOpacity>
         </View>
 
@@ -240,15 +255,15 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <Pressable style={styles.modalOverlay} onPress={() => setPresenceModal(false)}>
           <View style={styles.bottomSheet}>
             <Text style={styles.sheetTitle}>Changer le statut</Text>
-            {PRESENCE_OPTIONS.map(({ key, icon }) => (
+            {PRESENCE_OPTIONS.map(({ key, iconName, iconColor }) => (
               <TouchableOpacity
                 key={key}
                 style={[styles.presenceOption, user.presence_status === key && styles.presenceOptionActive]}
                 onPress={() => changePresence(key)}
               >
-                <Text style={styles.presenceOptionIcon}>{icon}</Text>
+                <Icon name={iconName} size={24} color={iconColor} />
                 <Text style={styles.presenceOptionText}>{PRESENCE_LABELS[key]}</Text>
-                {user.presence_status === key && <Text style={styles.checkmark}>✓</Text>}
+                {user.presence_status === key && <Icon name="check" size={20} color={COLORS.primary} />}
               </TouchableOpacity>
             ))}
           </View>
