@@ -2,14 +2,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Alert, Platform, Animated,
+  Alert, Animated,
 } from 'react-native';
 import { useCallStore } from '../../store/callStore';
 import { useAuthStore } from '../../store/authStore';
 import { socketService } from '../../services/socket';
+import { webrtcService, RTCView } from '../../services/webrtc';
+import type { MediaStream } from 'react-native-webrtc';
 import { useWebRTCEvents } from '../../hooks/useSocket';
 import { Avatar } from '../../components/common';
 import { COLORS, SIZES } from '../../utils/constants';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 
@@ -28,17 +31,22 @@ const formatDuration = (secs: number): string => {
 };
 
 const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { activeCall, status, isMuted, isVideoOff, isSpeakerOn,
-    setMuted, setVideoOff, setSpeaker, setStatus, endCall } = useCallStore();
+  const { activeCall, status, setStatus, endCall: storeEndCall } = useCallStore();
   const { user } = useAuthStore();
 
   const [duration, setDuration] = useState(0);
-  const [connecting, setConnecting] = useState(status === 'connecting');
+  const [connecting, setConnecting] = useState(true);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+  
   const timerRef = useRef<ReturnType<typeof setInterval>>();
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
   const connectingAnim = useRef(new Animated.Value(0)).current;
+  const isInitialized = useRef(false);
 
-  // Animation points de connexion
+  // Animation connexion
   useEffect(() => {
     if (connecting) {
       const loop = Animated.loop(
@@ -52,100 +60,141 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [connecting]);
 
-  // Démarrer le chrono quand l'appel est actif
+  // Chronomètre
   useEffect(() => {
-    if (status === 'active') {
+    if (status === 'active' && !timerRef.current) {
       setConnecting(false);
       timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
     }
-    return () => clearInterval(timerRef.current);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+    };
   }, [status]);
 
-  // Initialiser WebRTC si appelant
+  // Initialiser WebRTC
   useEffect(() => {
-    if (!route.params?.isIncoming && activeCall) {
-      initPeerConnection();
-    }
+    if (!activeCall || isInitialized.current) return;
+    
+    isInitialized.current = true;
+    initializeWebRTC();
+
     return () => {
-      peerConnection.current?.close();
+      cleanupCall();
     };
-  }, []);
-
-  const initPeerConnection = useCallback(async () => {
-    try {
-      // Configuration STUN locale (réseau LAN)
-      const config: RTCConfiguration = {
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      };
-
-      // NOTE: En production React Native, utiliser react-native-webrtc
-      // import { RTCPeerConnection, RTCSessionDescription, mediaDevices } from 'react-native-webrtc';
-      // Ici on simule l'interface pour la structure du code
-
-      if (!activeCall) return;
-
-      // Créer la connexion pair
-      // const pc = new RTCPeerConnection(config);
-      // peerConnection.current = pc;
-
-      // Obtenir le flux local
-      // const stream = await mediaDevices.getUserMedia({
-      //   audio: true,
-      //   video: activeCall.type === 'video' || activeCall.type === 'group_video',
-      // });
-      // stream.getTracks().forEach(track => pc.addTrack(track, stream));
-      // useCallStore.getState().setLocalStream(stream);
-
-      // Créer l'offre SDP
-      // const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-      // await pc.setLocalDescription(offer);
-      // socketService.sendOffer(activeCall.calleeId || activeCall.callerId, offer, activeCall.callId);
-
-      setStatus('active'); // Simulé — sera géré par les événements WebRTC
-    } catch (err) {
-      console.error('WebRTC init error:', err);
-      Alert.alert('Erreur', 'Impossible d\'établir la connexion audio');
-    }
   }, [activeCall]);
 
-  // Gestion des événements WebRTC entrants
+  const initializeWebRTC = async () => {
+    if (!activeCall) return;
+
+    try {
+      console.log('[ActiveCall] Initializing WebRTC');
+      
+      const isVideo = activeCall.type === 'video' || activeCall.type === 'group_video';
+      const isInitiator = !route.params?.isIncoming;
+
+      // Configurer les callbacks
+      webrtcService.onLocalStream((stream) => {
+        console.log('[ActiveCall] Local stream received');
+        setLocalStream(stream);
+      });
+
+      webrtcService.onRemoteStream((stream) => {
+        console.log('[ActiveCall] Remote stream received');
+        setRemoteStream(stream);
+        setConnecting(false);
+        setStatus('active');
+      });
+
+      webrtcService.onCallEnd(() => {
+        console.log('[ActiveCall] Call ended by WebRTC');
+        handleEnd();
+      });
+
+      // Initialiser l'appel
+      await webrtcService.initializeCall({
+        callId: activeCall.callId,
+        isVideoCall: isVideo,
+        isInitiator,
+        remoteUserId: isInitiator 
+          ? (activeCall.calleeId || activeCall.callerId)
+          : activeCall.callerId,
+      });
+
+      setIsSpeakerOn(isVideo); // Speaker ON par défaut pour vidéo
+      
+    } catch (error: any) {
+      console.error('[ActiveCall] WebRTC init error:', error);
+      Alert.alert(
+        'Erreur',
+        error.message || 'Impossible d\'établir la connexion',
+        [{ text: 'OK', onPress: handleEnd }]
+      );
+    }
+  };
+
+  const cleanupCall = () => {
+    console.log('[ActiveCall] Cleanup');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = undefined;
+    }
+    isInitialized.current = false;
+  };
+
+  // Gérer WebRTC events
   const handleOffer = useCallback(async (data: unknown) => {
-    const { sdp, callId, fromUserId } = data as { sdp: unknown; callId: string; fromUserId: string };
+    const { sdp, callId } = data as { sdp: any; callId: string };
     if (!activeCall || callId !== activeCall.callId) return;
-    // await peerConnection.current?.setRemoteDescription(new RTCSessionDescription(sdp));
-    // const answer = await peerConnection.current?.createAnswer();
-    // await peerConnection.current?.setLocalDescription(answer);
-    // socketService.sendAnswer(fromUserId, answer, callId);
-    setStatus('active');
+    
+    try {
+      console.log('[ActiveCall] Handling offer');
+      await webrtcService.handleOffer(sdp);
+    } catch (error) {
+      console.error('[ActiveCall] Handle offer error:', error);
+    }
   }, [activeCall]);
 
   const handleAnswer = useCallback(async (data: unknown) => {
-    const { sdp } = data as { sdp: unknown };
-    // await peerConnection.current?.setRemoteDescription(new RTCSessionDescription(sdp));
-    setStatus('active');
-  }, []);
+    const { sdp, callId } = data as { sdp: any; callId: string };
+    if (!activeCall || callId !== activeCall.callId) return;
+    
+    try {
+      console.log('[ActiveCall] Handling answer');
+      await webrtcService.handleAnswer(sdp);
+    } catch (error) {
+      console.error('[ActiveCall] Handle answer error:', error);
+    }
+  }, [activeCall]);
 
   const handleIceCandidate = useCallback(async (data: unknown) => {
-    const { candidate } = data as { candidate: unknown };
-    // await peerConnection.current?.addIceCandidate(new RTCIceCandidate(candidate));
-  }, []);
+    const { candidate, callId } = data as { candidate: any; callId: string };
+    if (!activeCall || callId !== activeCall.callId) return;
+    
+    try {
+      await webrtcService.handleIceCandidate(candidate);
+    } catch (error) {
+      console.error('[ActiveCall] Handle ICE candidate error:', error);
+    }
+  }, [activeCall]);
 
   useWebRTCEvents(handleOffer, handleAnswer, handleIceCandidate);
 
   const handleEnd = () => {
     if (!activeCall) return;
+    
     socketService.endCall(activeCall.callId);
-    peerConnection.current?.close();
-    endCall();
+    webrtcService.endCall();
+    storeEndCall();
     navigation.replace('Tabs');
   };
 
   const toggleMute = () => {
-    const newMuted = !isMuted;
-    setMuted(newMuted);
-    // peerConnection.current?.getSenders()
-    //   .find(s => s.track?.kind === 'audio')
-    //   ?.track && (track.enabled = !newMuted);
+    const newMuted = webrtcService.toggleAudio();
+    setIsMuted(newMuted);
+    
     if (activeCall) {
       socketService.toggleMute(
         activeCall.callId,
@@ -156,8 +205,9 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const toggleVideo = () => {
-    const newOff = !isVideoOff;
-    setVideoOff(newOff);
+    const newOff = webrtcService.toggleVideo();
+    setIsVideoOff(newOff);
+    
     if (activeCall) {
       socketService.toggleVideo(
         activeCall.callId,
@@ -167,7 +217,19 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const toggleSpeaker = () => setSpeaker(!isSpeakerOn);
+  const toggleSpeaker = () => {
+    const newState = !isSpeakerOn;
+    webrtcService.toggleSpeaker(newState);
+    setIsSpeakerOn(newState);
+  };
+
+  const switchCamera = async () => {
+    try {
+      await webrtcService.switchCamera();
+    } catch (error) {
+      console.error('[ActiveCall] Switch camera error:', error);
+    }
+  };
 
   if (!activeCall) return null;
 
@@ -177,24 +239,47 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     <View style={styles.container}>
       <View style={styles.bg} />
 
-      {/* Remote video placeholder */}
-      {isVideo && !isVideoOff && (
-        <View style={styles.remoteVideo}>
-          <Text style={styles.remoteVideoText}>📹 Flux vidéo distant</Text>
-          <Text style={styles.remoteVideoSub}>(react-native-webrtc requis)</Text>
+      {/* Remote video */}
+      {isVideo && remoteStream && !isVideoOff ? (
+        <RTCView
+          streamURL={remoteStream.toURL()}
+          style={styles.remoteVideo}
+          objectFit="cover"
+          mirror={false}
+        />
+      ) : isVideo ? (
+        <View style={styles.remoteVideoPlaceholder}>
+          <Avatar
+            url={activeCall.callerAvatar}
+            name={activeCall.callerName}
+            size={120}
+          />
+          <Text style={styles.remoteVideoText}>Vidéo désactivée</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Local video thumbnail */}
-      {isVideo && (
-        <View style={styles.localVideo}>
-          <Text style={styles.localVideoText}>📷</Text>
-        </View>
+      {isVideo && localStream && (
+        <TouchableOpacity 
+          style={styles.localVideo}
+          onPress={switchCamera}
+          activeOpacity={0.8}
+        >
+          <RTCView
+            streamURL={localStream.toURL()}
+            style={styles.localVideoView}
+            objectFit="cover"
+            mirror={true}
+          />
+          <View style={styles.switchCameraBtn}>
+            <Icon name="camera-flip" size={20} color={COLORS.white} />
+          </View>
+        </TouchableOpacity>
       )}
 
       <View style={styles.content}>
-        {/* Info appelant */}
-        {(!isVideo || isVideoOff) && (
+        {/* Info appelant (si pas de vidéo ou vidéo off) */}
+        {(!isVideo || isVideoOff || !remoteStream) && (
           <View style={styles.callerInfo}>
             <Avatar
               url={activeCall.callerAvatar}
@@ -228,7 +313,11 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={[styles.ctrlBtn, isMuted && styles.ctrlBtnActive]}
                 onPress={toggleMute}
               >
-                <Text style={styles.ctrlIcon}>{isMuted ? '🔇' : '🎤'}</Text>
+                <Icon 
+                  name={isMuted ? 'microphone-off' : 'microphone'} 
+                  size={26} 
+                  color={COLORS.white} 
+                />
               </TouchableOpacity>
               <Text style={styles.ctrlLabel}>{isMuted ? 'Muet' : 'Micro'}</Text>
             </View>
@@ -236,7 +325,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
             {/* Fin d'appel */}
             <View style={styles.ctrlGroup}>
               <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
-                <Text style={styles.endBtnIcon}>📵</Text>
+                <Icon name="phone-hangup" size={32} color={COLORS.white} />
               </TouchableOpacity>
               <Text style={styles.ctrlLabel}>Raccrocher</Text>
             </View>
@@ -247,7 +336,11 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={[styles.ctrlBtn, isSpeakerOn && styles.ctrlBtnActive]}
                 onPress={toggleSpeaker}
               >
-                <Text style={styles.ctrlIcon}>{isSpeakerOn ? '🔊' : '🔈'}</Text>
+                <Icon 
+                  name={isSpeakerOn ? 'volume-high' : 'volume-medium'} 
+                  size={26} 
+                  color={COLORS.white} 
+                />
               </TouchableOpacity>
               <Text style={styles.ctrlLabel}>HP</Text>
             </View>
@@ -261,9 +354,23 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
                   style={[styles.ctrlBtn, isVideoOff && styles.ctrlBtnActive]}
                   onPress={toggleVideo}
                 >
-                  <Text style={styles.ctrlIcon}>{isVideoOff ? '📵' : '📹'}</Text>
+                  <Icon 
+                    name={isVideoOff ? 'video-off' : 'video'} 
+                    size={26} 
+                    color={COLORS.white} 
+                  />
                 </TouchableOpacity>
                 <Text style={styles.ctrlLabel}>{isVideoOff ? 'Vidéo off' : 'Vidéo'}</Text>
+              </View>
+
+              <View style={styles.ctrlGroup}>
+                <TouchableOpacity
+                  style={styles.ctrlBtn}
+                  onPress={switchCamera}
+                >
+                  <Icon name="camera-flip" size={26} color={COLORS.white} />
+                </TouchableOpacity>
+                <Text style={styles.ctrlLabel}>Retourner</Text>
               </View>
             </View>
           )}
@@ -278,27 +385,44 @@ const styles = StyleSheet.create({
   bg: { ...StyleSheet.absoluteFillObject, backgroundColor: '#064e3b' },
   remoteVideo: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
+  remoteVideoPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#1a1a2e',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 20,
   },
-  remoteVideoText: { color: COLORS.white, fontSize: SIZES.xl, opacity: 0.6 },
-  remoteVideoSub: { color: 'rgba(255,255,255,0.4)', fontSize: SIZES.xs, marginTop: 6 },
+  remoteVideoText: { color: COLORS.white, fontSize: SIZES.lg, opacity: 0.7 },
   localVideo: {
     position: 'absolute',
     top: 60,
     right: 20,
-    width: 90,
-    height: 130,
-    backgroundColor: '#374151',
+    width: 100,
+    height: 140,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     borderWidth: 2,
     borderColor: COLORS.white,
     zIndex: 10,
+    backgroundColor: '#374151',
   },
-  localVideoText: { fontSize: 30 },
+  localVideoView: {
+    width: '100%',
+    height: '100%',
+  },
+  switchCameraBtn: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     flex: 1,
     alignItems: 'center',
@@ -327,10 +451,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
   },
   ctrlBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderColor: COLORS.white,
+    backgroundColor: COLORS.danger,
+    borderColor: COLORS.danger,
   },
-  ctrlIcon: { fontSize: 24 },
   ctrlLabel: { color: 'rgba(255,255,255,0.75)', fontSize: SIZES.xs },
   endBtn: {
     width: 72,
@@ -345,7 +468,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  endBtnIcon: { fontSize: 30 },
 });
 
 export default ActiveCallScreen;

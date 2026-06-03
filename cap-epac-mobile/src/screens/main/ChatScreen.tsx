@@ -6,7 +6,7 @@ import React, {
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  Modal, Pressable,
+  Modal, Pressable, Image, Animated,
 } from 'react-native';
 import { useChatStore, Message } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
@@ -18,6 +18,12 @@ import dayjs from 'dayjs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import { launchImageLibrary } from 'react-native-image-picker';
+import DocumentPicker from 'react-native-document-picker';
+import { showMessage } from 'react-native-flash-message';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { audioRecorderService } from '../../services/audioRecorder';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -43,6 +49,13 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [emojiMenu, setEmojiMenu] = useState<{ msgId: string } | null>(null);
+  const [attachmentMenu, setAttachmentMenu] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [recordingAudio, setRecordingAudio] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [audioDuration, setAudioDuration] = useState<Record<string, number>>({});
+  const recordAnim = useRef(new Animated.Value(0)).current;
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -52,6 +65,13 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     socketService.joinConversation(conversationId);
     loadMessages(conversationId).then((more) => setHasMore(!!more));
     markAsRead(conversationId);
+
+    // Debug: vérifier la connexion Socket
+    console.log('[ChatScreen] Socket connected:', socketService.isConnected());
+    if (!socketService.isConnected()) {
+      console.warn('[ChatScreen] Socket not connected! Messages may not be received in real-time');
+    }
+
     return () => {
       socketService.leaveConversation(conversationId);
       setActiveConversation(null);
@@ -137,7 +157,299 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch {}
   };
 
+  const requestStoragePermission = async (): Promise<boolean> => {
+    try {
+      if (Platform.OS === 'ios') {
+        const result = await request(PERMISSIONS.IOS.PHOTO_LIBRARY);
+        return result === RESULTS.GRANTED || result === RESULTS.LIMITED;
+      } else {
+        // Android 13+ (API 33+) utilise READ_MEDIA_IMAGES et READ_MEDIA_VIDEO
+        const androidVersion = Platform.Version;
+        
+        if (androidVersion >= 33) {
+          const imageResult = await request(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
+          const videoResult = await request(PERMISSIONS.ANDROID.READ_MEDIA_VIDEO);
+          return (
+            imageResult === RESULTS.GRANTED || 
+            videoResult === RESULTS.GRANTED
+          );
+        } else {
+          const result = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
+          return result === RESULTS.GRANTED;
+        }
+      }
+    } catch (err) {
+      console.warn('Permission error:', err);
+      return false;
+    }
+  };
+
+  const handleImagePicker = async () => {
+    setAttachmentMenu(false);
+    
+    const hasPermission = await requestStoragePermission();
+    if (!hasPermission) {
+      Alert.alert('Permission refusée', 'Accès à la galerie photo nécessaire');
+      return;
+    }
+
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'mixed', // photos + vidéos
+        selectionLimit: 1,
+        quality: 0.8,
+      });
+
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        throw new Error(result.errorMessage || 'Erreur sélection');
+      }
+
+      const asset = result.assets?.[0];
+      if (!asset || !asset.uri) return;
+
+      setUploadingFile(true);
+      const formData = new FormData();
+      
+      formData.append('file', {
+        uri: asset.uri,
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || `upload_${Date.now()}.jpg`,
+      } as any);
+
+      formData.append('type', asset.type?.startsWith('video') ? 'video' : 'image');
+      if (replyTo) formData.append('reply_to_id', replyTo.id);
+
+      await conversationsAPI.sendMessage(conversationId, formData, true);
+      setReplyTo(null);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
+      showMessage({ message: 'Fichier envoyé', type: 'success' });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Erreur', error?.response?.data?.message || 'Échec envoi fichier');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDocumentPicker = async () => {
+    setAttachmentMenu(false);
+
+    try {
+      const result = await DocumentPicker.pick({
+        type: [DocumentPicker.types.allFiles],
+        copyTo: 'cachesDirectory',
+      });
+
+      const file = result[0];
+      if (!file) return;
+
+      // Vérifier la taille (max 100MB comme backend)
+      if (file.size && file.size > 100 * 1024 * 1024) {
+        Alert.alert('Erreur', 'Fichier trop volumineux (max 100 MB)');
+        return;
+      }
+
+      setUploadingFile(true);
+      const formData = new FormData();
+
+      formData.append('file', {
+        uri: file.fileCopyUri || file.uri,
+        type: file.type || 'application/octet-stream',
+        name: file.name,
+      } as any);
+
+      // Déterminer le type
+      let messageType = 'file';
+      if (file.type?.startsWith('audio/')) messageType = 'audio';
+      else if (file.type?.startsWith('video/')) messageType = 'video';
+      else if (file.type?.startsWith('image/')) messageType = 'image';
+
+      formData.append('type', messageType);
+      if (replyTo) formData.append('reply_to_id', replyTo.id);
+
+      await conversationsAPI.sendMessage(conversationId, formData, true);
+      setReplyTo(null);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
+      showMessage({ message: 'Fichier envoyé', type: 'success' });
+    } catch (error: any) {
+      if (DocumentPicker.isCancel(error)) return;
+      console.error('Document picker error:', error);
+      Alert.alert('Erreur', error?.response?.data?.message || 'Échec envoi document');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const requestAudioPermission = async (): Promise<boolean> => {
+    try {
+      const permission = Platform.OS === 'ios'
+        ? PERMISSIONS.IOS.MICROPHONE
+        : PERMISSIONS.ANDROID.RECORD_AUDIO;
+
+      const result = await request(permission);
+      return result === RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Audio permission error:', err);
+      return false;
+    }
+  };
+
+  const startAudioRecording = async () => {
+    const hasPermission = await requestAudioPermission();
+    if (!hasPermission) {
+      Alert.alert('Permission refusée', 'Accès au microphone nécessaire pour enregistrer');
+      return;
+    }
+
+    try {
+      ReactNativeHapticFeedback.trigger('impactMedium');
+      
+      await audioRecorderService.startRecording();
+      
+      // Listener pour la durée
+      audioRecorderService.onRecordProgress((duration) => {
+        setRecordDuration(duration);
+      });
+
+      setRecordingAudio(true);
+
+      // Animation de pulsation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(recordAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(recordAnim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      console.log('[Chat] Audio recording started');
+    } catch (error: any) {
+      console.error('Audio recording error:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de démarrer l\'enregistrement');
+    }
+  };
+
+  const stopAudioRecording = async (): Promise<string | null> => {
+    if (!recordingAudio) return null;
+
+    try {
+      const filePath = await audioRecorderService.stopRecording();
+      setRecordingAudio(false);
+      recordAnim.setValue(0);
+      return filePath;
+    } catch (error) {
+      console.error('Stop recording error:', error);
+      return null;
+    }
+  };
+
+  const cancelAudioRecording = async () => {
+    await stopAudioRecording();
+    setRecordDuration(0);
+    ReactNativeHapticFeedback.trigger('notificationWarning');
+  };
+
+  const sendAudioRecording = async () => {
+    const filePath = await stopAudioRecording();
+    if (!filePath) return;
+
+    ReactNativeHapticFeedback.trigger('notificationSuccess');
+    setUploadingFile(true);
+
+    try {
+      const formData = new FormData();
+      
+      // Fix du path pour Android
+      const uri = Platform.OS === 'android' && !filePath.startsWith('file://') 
+        ? `file://${filePath}` 
+        : filePath;
+
+      formData.append('file', {
+        uri,
+        type: 'audio/mp4',
+        name: `audio_${Date.now()}.${Platform.OS === 'ios' ? 'm4a' : 'mp4'}`,
+      } as any);
+
+      formData.append('type', 'audio');
+      if (replyTo) formData.append('reply_to_id', replyTo.id);
+
+      await conversationsAPI.sendMessage(conversationId, formData, true);
+      setReplyTo(null);
+      setRecordDuration(0);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
+      showMessage({ message: 'Message vocal envoyé', type: 'success' });
+    } catch (error: any) {
+      console.error('Send audio error:', error);
+      Alert.alert('Erreur', error?.response?.data?.message || 'Échec envoi audio');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
   const isMyMessage = (msg: Message) => msg.sender_id === user?.id;
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const toggleAudioPlay = async (messageId: string, fileUrl: string) => {
+    if (!fileUrl) {
+      Alert.alert('Erreur', 'Fichier audio introuvable');
+      return;
+    }
+
+    const url = getMediaUrl(fileUrl);
+    console.log('[Audio] Toggle play:', url);
+
+    if (playingAudio === messageId) {
+      // Stop
+      try {
+        await audioRecorderService.stopPlayer();
+        setPlayingAudio(null);
+      } catch (error) {
+        console.error('[Audio] Stop error:', error);
+      }
+    } else {
+      // Play
+      try {
+        setPlayingAudio(messageId);
+        
+        // Listener pour la progression
+        audioRecorderService.onPlayerProgress((currentPosition, audioDurationMs) => {
+          setAudioDuration((prev) => ({
+            ...prev,
+            [messageId]: Math.floor(currentPosition / 1000),
+          }));
+        });
+
+        await audioRecorderService.startPlayer(url, () => {
+          // Callback de fin de lecture
+          console.log('[Audio] Playback finished');
+          setPlayingAudio(null);
+        });
+      } catch (error: any) {
+        console.error('[Audio] Play error:', error);
+        setPlayingAudio(null);
+        Alert.alert('Erreur', error.message || 'Impossible de lire l\'audio');
+      }
+    }
+  };
 
   const renderTypingIndicator = () => {
     const { typingUsers } = useChatStore.getState();
@@ -206,32 +518,176 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={[styles.msgText, isMine && styles.msgTextMe]}>{msg.content}</Text>
           )}
           {msg.type === 'image' && (
-            <TouchableOpacity>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Icon name="image" size={18} color={isMine ? COLORS.white : COLORS.primary} />
-                <Text style={styles.mediaMsg}>{msg.file_name || 'Image'}</Text>
-              </View>
+            <TouchableOpacity onPress={() => {
+              if (msg.file_url) {
+                const url = getMediaUrl(msg.file_url);
+                console.log('[Image] Opening:', url);
+                // TODO: Ouvrir image viewer full-screen (react-native-image-viewing)
+                Alert.alert('Image', `${msg.file_name || 'Photo'}\n\nURL: ${url}`, [
+                  { 
+                    text: 'Copier URL', 
+                    onPress: () => {
+                      import('@react-native-clipboard/clipboard').then(({ default: Clipboard }) => {
+                        Clipboard.setString(url);
+                        showMessage({ message: 'URL copiée', type: 'success' });
+                      });
+                    }
+                  },
+                  { text: 'Fermer', style: 'cancel' }
+                ]);
+              }
+            }}>
+              {msg.file_url ? (
+                <>
+                  <Image 
+                    source={{ uri: getMediaUrl(msg.file_url) }}
+                    style={styles.imageMsg}
+                    resizeMode="cover"
+                    onLoadStart={() => console.log('[Image] Loading started:', msg.file_url)}
+                    onLoad={() => console.log('[Image] Loaded successfully:', msg.file_url)}
+                    onError={(e) => {
+                      const errorMsg = e.nativeEvent.error || 'Unknown error';
+                      console.error('[Image] Load error:', errorMsg, 'URL:', getMediaUrl(msg.file_url || ''));
+                    }}
+                  />
+                  {/* Indicateur de chargement */}
+                  <View style={styles.imageLoadingOverlay}>
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  </View>
+                </>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="image" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+                  <Text style={[styles.mediaMsg, isMine && styles.msgTextMe]}>
+                    {msg.file_name || 'Image'}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
           {msg.type === 'file' && (
-            <TouchableOpacity>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Icon name="file-document" size={18} color={isMine ? COLORS.white : COLORS.primary} />
-                <Text style={styles.mediaMsg}>{msg.file_name || 'Fichier'}</Text>
+            <TouchableOpacity onPress={async () => {
+              if (msg.file_url) {
+                const url = getMediaUrl(msg.file_url);
+                console.log('[File] Download:', url);
+                
+                Alert.alert(
+                  'Document',
+                  `${msg.file_name || 'Fichier'}\n${msg.file_size ? `Taille: ${formatFileSize(msg.file_size)}` : ''}\n\nQue souhaitez-vous faire?`,
+                  [
+                    {
+                      text: 'Copier le lien',
+                      onPress: () => {
+                        import('@react-native-clipboard/clipboard').then(({ default: Clipboard }) => {
+                          Clipboard.setString(url);
+                          showMessage({
+                            message: 'Lien copié',
+                            description: 'Le lien du fichier a été copié dans le presse-papier',
+                            type: 'success',
+                          });
+                        });
+                      }
+                    },
+                    {
+                      text: 'Télécharger',
+                      onPress: () => {
+                        showMessage({
+                          message: 'Téléchargement',
+                          description: 'Fonctionnalité bientôt disponible. Utilisez "Copier le lien" pour l\'instant.',
+                          type: 'info',
+                          duration: 4000,
+                        });
+                        // TODO: Implémenter téléchargement avec react-native-fs ou react-native-blob-util
+                        // const { config, fs } = require('react-native-fs');
+                        // const downloadDir = fs.dirs.DownloadDir;
+                        // config({ fileCache: true, addAndroidDownloads: { ... } }).fetch('GET', url)
+                      }
+                    },
+                    { text: 'Annuler', style: 'cancel' }
+                  ]
+                );
+              }
+            }}>
+              <View style={styles.fileContainer}>
+                <View style={styles.fileIcon}>
+                  <Icon name="file-document" size={24} color={COLORS.primary} />
+                </View>
+                <View style={styles.fileInfo}>
+                  <Text style={[styles.fileName, isMine && styles.fileNameMe]} numberOfLines={2}>
+                    {msg.file_name || 'Fichier'}
+                  </Text>
+                  {msg.file_size && (
+                    <Text style={[styles.fileSize, isMine && styles.fileSizeMe]}>
+                      {formatFileSize(msg.file_size)}
+                    </Text>
+                  )}
+                </View>
+                <Icon 
+                  name="download" 
+                  size={20} 
+                  color={isMine ? COLORS.white : COLORS.primary} 
+                />
               </View>
             </TouchableOpacity>
           )}
           {msg.type === 'audio' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="music" size={18} color={isMine ? COLORS.white : COLORS.primary} />
-              <Text style={styles.mediaMsg}>{msg.file_name || 'Audio'}</Text>
-            </View>
+            <TouchableOpacity 
+              onPress={() => toggleAudioPlay(msg.id, msg.file_url || '')}
+              disabled={!msg.file_url}
+            >
+              <View style={styles.audioContainer}>
+                <View style={styles.audioIcon}>
+                  <Icon 
+                    name={playingAudio === msg.id ? 'pause-circle' : 'play-circle'} 
+                    size={32} 
+                    color={isMine ? COLORS.white : COLORS.primary} 
+                  />
+                </View>
+                <View style={styles.audioInfo}>
+                  <Text style={[styles.audioName, isMine && styles.audioNameMe]}>
+                    Message vocal
+                  </Text>
+                  <Text style={[styles.audioDuration, isMine && styles.audioDurationMe]}>
+                    {audioDuration[msg.id] 
+                      ? formatDuration(audioDuration[msg.id]) 
+                      : (msg.duration ? formatDuration(msg.duration) : '0:00')
+                    }
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           )}
           {msg.type === 'video' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="video" size={18} color={isMine ? COLORS.white : COLORS.primary} />
-              <Text style={styles.mediaMsg}>{msg.file_name || 'Vidéo'}</Text>
-            </View>
+            <TouchableOpacity onPress={() => {
+              // TODO: Lire la vidéo
+              const url = getMediaUrl(msg.file_url || '');
+              Alert.alert('Vidéo', `Lecture de ${msg.file_name}`);
+            }}>
+              {msg.file_url ? (
+                <View style={styles.videoContainer}>
+                  <Image 
+                    source={{ uri: getMediaUrl(msg.file_url) }}
+                    style={styles.videoThumbnail}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.videoOverlay}>
+                    <Icon name="play-circle" size={48} color={COLORS.white} />
+                  </View>
+                  {msg.duration && (
+                    <View style={styles.videoDuration}>
+                      <Text style={styles.videoDurationText}>
+                        {formatDuration(msg.duration)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="video" size={18} color={isMine ? COLORS.white : COLORS.primary} />
+                  <Text style={styles.mediaMsg}>{msg.file_name || 'Vidéo'}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           )}
 
           <View style={styles.msgMeta}>
@@ -366,32 +822,110 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* Input bar */}
         <View style={styles.inputBar}>
-          <TextInput
-            style={styles.textInput}
-            value={text}
-            onChangeText={(v) => { setText(v); handleTyping(); }}
-            placeholder="Message..."
-            placeholderTextColor={COLORS.gray400}
-            multiline
-            maxLength={10000}
-            returnKeyType="default"
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={!text.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Icon 
-                name={editingMsg ? 'check' : 'send'} 
-                size={20} 
-                color={COLORS.white} 
+          {!recordingAudio && (
+            <>
+              <TouchableOpacity 
+                style={styles.attachBtn}
+                onPress={() => setAttachmentMenu(true)}
+                disabled={uploadingFile}
+              >
+                <Icon 
+                  name="paperclip" 
+                  size={24} 
+                  color={uploadingFile ? COLORS.gray400 : COLORS.primary} 
+                />
+              </TouchableOpacity>
+              
+              <TextInput
+                style={styles.textInput}
+                value={text}
+                onChangeText={(v) => { setText(v); handleTyping(); }}
+                placeholder="Message..."
+                placeholderTextColor={COLORS.gray400}
+                multiline
+                maxLength={10000}
+                returnKeyType="default"
+                editable={!uploadingFile}
               />
-            )}
-          </TouchableOpacity>
+            </>
+          )}
+
+          {recordingAudio ? (
+            // UI enregistrement audio
+            <>
+              <TouchableOpacity 
+                style={styles.cancelRecordBtn}
+                onPress={cancelAudioRecording}
+              >
+                <Icon name="close" size={24} color={COLORS.danger} />
+              </TouchableOpacity>
+
+              <View style={styles.recordingIndicator}>
+                <Animated.View 
+                  style={[
+                    styles.recordingDot,
+                    {
+                      opacity: recordAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                    },
+                  ]}
+                />
+                <Text style={styles.recordingTime}>{formatDuration(recordDuration)}</Text>
+                <Text style={styles.recordingHint}>← Glisser pour annuler</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.sendAudioBtn}
+                onPress={sendAudioRecording}
+              >
+                <Icon name="send" size={20} color={COLORS.white} />
+              </TouchableOpacity>
+            </>
+          ) : text.trim() ? (
+            // Bouton envoi
+            <TouchableOpacity
+              style={[styles.sendBtn, (!text.trim() || sending || uploadingFile) && styles.sendBtnDisabled]}
+              onPress={sendMessage}
+              disabled={!text.trim() || sending || uploadingFile}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Icon 
+                  name={editingMsg ? 'check' : 'send'} 
+                  size={20} 
+                  color={COLORS.white} 
+                />
+              )}
+            </TouchableOpacity>
+          ) : (
+            // Bouton micro (style WhatsApp)
+            <TouchableOpacity
+              style={styles.micBtn}
+              onLongPress={startAudioRecording}
+              onPressOut={() => {
+                if (recordingAudio && recordDuration > 1) {
+                  sendAudioRecording();
+                } else if (recordingAudio) {
+                  cancelAudioRecording();
+                }
+              }}
+              delayLongPress={200}
+            >
+              <Icon name="microphone" size={24} color={COLORS.white} />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Upload progress */}
+        {uploadingFile && (
+          <View style={styles.uploadProgress}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.uploadText}>Envoi du fichier...</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* Context Menu */}
@@ -482,6 +1016,44 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Attachment Menu */}
+      <Modal
+        transparent
+        visible={attachmentMenu}
+        animationType="slide"
+        onRequestClose={() => setAttachmentMenu(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setAttachmentMenu(false)}>
+          <View style={styles.attachmentPanel}>
+            <Text style={styles.emojiTitle}>Envoyer un fichier</Text>
+            
+            <TouchableOpacity 
+              style={styles.attachmentOption}
+              onPress={handleImagePicker}
+            >
+              <Icon name="image" size={28} color={COLORS.primary} />
+              <Text style={styles.attachmentText}>Photo/Vidéo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.attachmentOption}
+              onPress={handleDocumentPicker}
+            >
+              <Icon name="file-document" size={28} color={COLORS.success} />
+              <Text style={styles.attachmentText}>Document</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.attachmentOption, styles.attachmentCancel]}
+              onPress={() => setAttachmentMenu(false)}
+            >
+              <Icon name="close" size={28} color={COLORS.gray600} />
+              <Text style={styles.attachmentText}>Annuler</Text>
+            </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
@@ -649,6 +1221,60 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { opacity: 0.5 },
+  micBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelRecordBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.dangerLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  recordingIndicator: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.dangerLight,
+    borderRadius: SIZES.radiusLg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.danger,
+    marginRight: 8,
+  },
+  recordingTime: {
+    fontSize: SIZES.md,
+    fontWeight: '600',
+    color: COLORS.danger,
+    marginRight: 12,
+  },
+  recordingHint: {
+    flex: 1,
+    fontSize: SIZES.xs,
+    color: COLORS.gray600,
+    fontStyle: 'italic',
+  },
+  sendAudioBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sendBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
   modalOverlay: {
     flex: 1,
@@ -701,6 +1327,172 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   emojiText: { fontSize: 32 },
+  attachBtn: {
+    padding: 8,
+    marginRight: 8,
+  },
+  uploadProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryXLight,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.primaryXXLight,
+  },
+  uploadText: {
+    marginLeft: 10,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  imageMsg: {
+    width: 200,
+    height: 200,
+    borderRadius: SIZES.radiusMd,
+    marginVertical: 4,
+  },
+  imageLoadingOverlay: {
+    position: 'absolute',
+    top: 4,
+    left: 0,
+    right: 0,
+    bottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: SIZES.radiusMd,
+  },
+  attachmentPanel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  attachmentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray50,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: SIZES.radiusLg,
+    marginBottom: 12,
+  },
+  attachmentCancel: {
+    backgroundColor: COLORS.gray200,
+  },
+  attachmentText: {
+    fontSize: SIZES.md,
+    fontWeight: '500',
+    color: COLORS.gray800,
+    marginLeft: 16,
+  },
+  fileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: SIZES.radiusMd,
+    padding: 12,
+    minWidth: 200,
+    maxWidth: 280,
+  },
+  fileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryXLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: SIZES.sm,
+    fontWeight: '500',
+    color: COLORS.gray900,
+    marginBottom: 2,
+  },
+  fileNameMe: {
+    color: COLORS.white,
+  },
+  fileSize: {
+    fontSize: SIZES.xs,
+    color: COLORS.gray500,
+  },
+  fileSizeMe: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  audioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 200,
+    maxWidth: 280,
+  },
+  audioIcon: {
+    marginRight: 12,
+  },
+  audioInfo: {
+    flex: 1,
+  },
+  audioName: {
+    fontSize: SIZES.sm,
+    fontWeight: '500',
+    color: COLORS.gray900,
+    marginBottom: 2,
+  },
+  audioNameMe: {
+    color: COLORS.white,
+  },
+  audioDuration: {
+    fontSize: SIZES.xs,
+    color: COLORS.gray500,
+  },
+  audioDurationMe: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  videoContainer: {
+    position: 'relative',
+    width: 200,
+    height: 200,
+    borderRadius: SIZES.radiusMd,
+    overflow: 'hidden',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoDuration: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: SIZES.radiusSm,
+  },
+  videoDurationText: {
+    color: COLORS.white,
+    fontSize: SIZES.xs,
+    fontWeight: '600',
+  },
 });
 
 export default ChatScreen;

@@ -4,17 +4,21 @@ import { socketService } from '../services/socket';
 import { useChatStore } from '../store/chatStore';
 import { useCallStore } from '../store/callStore';
 import { useAuthStore } from '../store/authStore';
+import { useNotificationStore } from '../store/notificationStore';
 import type { Message, Conversation } from '../store/chatStore';
 import type { ActiveCall } from '../store/callStore';
+import type { Notification } from '../store/notificationStore';
 
 export const useSocketEvents = () => {
   const { addMessage, updateMessage, deleteMessage, addReaction, removeReaction,
     addConversation, updateConversation, setTyping, resetUnread } = useChatStore();
   const { setStatus, setActiveCall, endCall, addToHistory } = useCallStore();
   const { user } = useAuthStore();
+  const { addNotification, markAsRead: markNotificationAsRead, deleteNotification } = useNotificationStore();
 
   const handleNewMessage = useCallback((data: unknown) => {
     const { message } = data as { message: Message };
+    console.log('[useSocket] New message received:', message.id, 'convId:', message.conversation_id);
     addMessage(message);
   }, [addMessage]);
 
@@ -142,6 +146,21 @@ export const useSocketEvents = () => {
     // Recharger les infos du groupe si besoin
   }, []);
 
+  const handleNotificationNew = useCallback((data: unknown) => {
+    const { notification } = data as { notification: Notification };
+    addNotification(notification);
+  }, [addNotification]);
+
+  const handleNotificationMarkRead = useCallback((data: unknown) => {
+    const { notificationId } = data as { notificationId: string };
+    markNotificationAsRead(notificationId);
+  }, [markNotificationAsRead]);
+
+  const handleNotificationDelete = useCallback((data: unknown) => {
+    const { notificationId } = data as { notificationId: string };
+    deleteNotification(notificationId);
+  }, [deleteNotification]);
+
   useEffect(() => {
     const unsubscribers = [
       socketService.on('message:new', handleNewMessage),
@@ -159,6 +178,9 @@ export const useSocketEvents = () => {
       socketService.on('call:ended', handleCallEnded),
       socketService.on('group:updated', handleGroupUpdated),
       socketService.on('group:members_updated', handleGroupMembersUpdated),
+      socketService.on('notification:new', handleNotificationNew),
+      socketService.on('notification:mark-read', handleNotificationMarkRead),
+      socketService.on('notification:delete', handleNotificationDelete),
     ];
 
     return () => unsubscribers.forEach((unsub) => unsub());
@@ -168,6 +190,7 @@ export const useSocketEvents = () => {
     handleNewConversation, handleConversationRead, handleUserPresence,
     handleIncomingCall, handleCallAccepted, handleCallRejected,
     handleCallEnded, handleGroupUpdated, handleGroupMembersUpdated,
+    handleNotificationNew, handleNotificationMarkRead, handleNotificationDelete,
   ]);
 };
 

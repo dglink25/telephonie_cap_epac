@@ -7,7 +7,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── Configuration ─────────────────────────────────────────────
 // Modifier cette IP selon votre serveur
-// TEMPORAIRE: HTTP pour debug (à remettre en HTTPS après)
 export const SERVER_BASE = 'http://10.73.47.159';
 const BASE_URL = `${SERVER_BASE}/api`;
 
@@ -256,6 +255,20 @@ export const callsAPI = {
   update: (id: string, data: object) => api.patch(`/calls/${id}`, data),
 
   getStats: (params?: object) => api.get('/calls/stats', { params }),
+};
+
+// ══ Notifications ══════════════════════════════════════════════
+export const notificationsAPI = {
+  getAll: (params?: { unread_only?: boolean }) =>
+    api.get('/notifications', { params }),
+
+  markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
+
+  markAllAsRead: () => api.put('/notifications/read-all'),
+
+  delete: (id: string) => api.delete(`/notifications/${id}`),
+
+  deleteAllRead: () => api.delete('/notifications/read'),
 };
 
 // ── Utilitaire URL média ──────────────────────────────────────

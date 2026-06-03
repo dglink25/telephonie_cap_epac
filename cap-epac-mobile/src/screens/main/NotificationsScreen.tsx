@@ -9,6 +9,9 @@ import { fr } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { EmptyState } from '../../components/common';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { notificationsAPI } from '../../services/api';
+import { showMessage } from 'react-native-flash-message';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface Notification {
   id: string;
@@ -47,19 +50,29 @@ const NOTIFICATION_COLORS: Record<string, string> = {
 };
 
 const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+  const { 
+    notifications, 
+    unreadCount, 
+    setNotifications, 
+    markAsRead: storeMarkAsRead, 
+    markAllAsRead: storeMarkAllAsRead,
+    deleteNotification: storeDeleteNotification,
+    deleteAllRead: storeDeleteAllRead,
+  } = useNotificationStore();
   const [refreshing, setRefreshing] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const fetchNotifications = async () => {
     try {
-      // TODO: Implémenter l'appel API quand le backend sera prêt
-      // const resp = await notificationsAPI.getAll();
-      // setNotifications(resp.data.data.notifications);
-      setNotifications([]);
+      const resp = await notificationsAPI.getAll();
+      setNotifications(resp.data.data.notifications || []);
     } catch (error) {
       console.error('Erreur chargement notifications:', error);
+      showMessage({
+        message: 'Erreur',
+        description: 'Impossible de charger les notifications',
+        type: 'danger',
+      });
     } finally {
       setLoading(false);
     }
@@ -78,11 +91,12 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const handleNotificationPress = async (notification: Notification) => {
     // Marquer comme lue
     if (!notification.is_read) {
-      // TODO: Appel API pour marquer comme lue
-      // await notificationsAPI.markAsRead(notification.id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
-      );
+      try {
+        await notificationsAPI.markAsRead(notification.id);
+        storeMarkAsRead(notification.id);
+      } catch (error) {
+        console.error('Erreur marquage notification:', error);
+      }
     }
 
     // Navigation si action_url existe
@@ -96,29 +110,71 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleMarkAsRead = async (id: string) => {
-    // TODO: Appel API
-    // await notificationsAPI.markAsRead(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-    );
+    try {
+      await notificationsAPI.markAsRead(id);
+      storeMarkAsRead(id);
+    } catch (error) {
+      console.error('Erreur marquage notification:', error);
+      showMessage({
+        message: 'Erreur',
+        description: 'Impossible de marquer comme lue',
+        type: 'danger',
+      });
+    }
   };
 
   const handleDelete = async (id: string) => {
-    // TODO: Appel API
-    // await notificationsAPI.delete(id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await notificationsAPI.delete(id);
+      storeDeleteNotification(id);
+      showMessage({
+        message: 'Notification supprimée',
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Erreur suppression notification:', error);
+      showMessage({
+        message: 'Erreur',
+        description: 'Impossible de supprimer',
+        type: 'danger',
+      });
+    }
   };
 
   const handleMarkAllAsRead = async () => {
-    // TODO: Appel API
-    // await notificationsAPI.markAllAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    try {
+      await notificationsAPI.markAllAsRead();
+      storeMarkAllAsRead();
+      showMessage({
+        message: 'Toutes les notifications marquées comme lues',
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Erreur marquage toutes notifications:', error);
+      showMessage({
+        message: 'Erreur',
+        description: 'Impossible de marquer toutes comme lues',
+        type: 'danger',
+      });
+    }
   };
 
   const handleDeleteAllRead = async () => {
-    // TODO: Appel API
-    // await notificationsAPI.deleteAllRead();
-    setNotifications((prev) => prev.filter((n) => !n.is_read));
+    try {
+      await notificationsAPI.deleteAllRead();
+      storeDeleteAllRead();
+      showMessage({
+        message: 'Notifications lues supprimées',
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Erreur suppression notifications lues:', error);
+      showMessage({
+        message: 'Erreur',
+        description: 'Impossible de supprimer',
+        type: 'danger',
+      });
+    }
   };
 
   const renderNotification = ({ item }: { item: Notification }) => {
