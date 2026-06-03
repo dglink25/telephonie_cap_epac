@@ -101,11 +101,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+
         release {
             storeFile file('cap-epac-release.keystore')
-            storePassword 'capepac2025'
-            keyAlias 'cap-epac-key'
-            keyPassword 'capepac2025'
+            storePassword 'CAP-EPAC'
+            keyAlias 'cap-epac'
+            keyPassword 'CAP-EPAC'
         }
     }
     buildTypes {
