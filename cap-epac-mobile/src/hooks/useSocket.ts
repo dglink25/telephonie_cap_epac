@@ -1,5 +1,5 @@
 // src/hooks/useSocket.ts
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { socketService } from '../services/socket';
 import { useChatStore } from '../store/chatStore';
 import { useCallStore } from '../store/callStore';
@@ -11,10 +11,20 @@ import type { Notification } from '../store/notificationStore';
 
 export const useSocketEvents = () => {
   const { addMessage, updateMessage, deleteMessage, addReaction, removeReaction,
-    addConversation, updateConversation, setTyping, resetUnread } = useChatStore();
+    addConversation, updateConversation, setTyping, resetUnread, loadConversations } = useChatStore();
   const { setStatus, setActiveCall, endCall, addToHistory } = useCallStore();
   const { user } = useAuthStore();
   const { addNotification, markAsRead: markNotificationAsRead, deleteNotification } = useNotificationStore();
+
+  // Ref pour tracker si les conversations ont été chargées après reconnexion
+  const hasLoadedAfterConnect = useRef(false);
+
+  const handleSocketConnected = useCallback(() => {
+    console.log('[useSocket] Socket (re)connecté — rechargement des conversations');
+    // Recharger les conversations à chaque (re)connexion pour ne rien manquer
+    loadConversations().catch(() => {});
+    hasLoadedAfterConnect.current = true;
+  }, [loadConversations]);
 
   const handleNewMessage = useCallback((data: unknown) => {
     const { message } = data as { message: Message };
@@ -162,7 +172,16 @@ export const useSocketEvents = () => {
   }, [deleteNotification]);
 
   useEffect(() => {
+    // Si le socket est déjà connecté au moment du montage du composant,
+    // déclencher manuellement le chargement initial (cas app déjà ouverte)
+    if (socketService.isConnected() && !hasLoadedAfterConnect.current) {
+      loadConversations().catch(() => {});
+      hasLoadedAfterConnect.current = true;
+    }
+
     const unsubscribers = [
+      // ✅ Écouter les (re)connexions pour recharger les données manquées
+      socketService.on('socket:connected', handleSocketConnected),
       socketService.on('message:new', handleNewMessage),
       socketService.on('message:edited', handleMessageEdited),
       socketService.on('message:deleted', handleMessageDeleted),
@@ -183,14 +202,19 @@ export const useSocketEvents = () => {
       socketService.on('notification:delete', handleNotificationDelete),
     ];
 
-    return () => unsubscribers.forEach((unsub) => unsub());
+    return () => {
+      unsubscribers.forEach((unsub) => unsub());
+      hasLoadedAfterConnect.current = false;
+    };
   }, [
+    handleSocketConnected,
     handleNewMessage, handleMessageEdited, handleMessageDeleted,
     handleReactionAdded, handleReactionRemoved, handleTyping,
     handleNewConversation, handleConversationRead, handleUserPresence,
     handleIncomingCall, handleCallAccepted, handleCallRejected,
     handleCallEnded, handleGroupUpdated, handleGroupMembersUpdated,
     handleNotificationNew, handleNotificationMarkRead, handleNotificationDelete,
+    loadConversations,
   ]);
 };
 

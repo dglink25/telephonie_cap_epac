@@ -13,7 +13,6 @@ import { useSocketEvents } from '../hooks/useSocket';
 import { COLORS, SIZES } from '../utils/constants';
 import { Badge } from '../components/common';
 import { useChatStore } from '../store/chatStore';
-
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
@@ -116,9 +115,19 @@ const MainTabs = () => {
 const AppContent = () => {
   const { isAuthenticated, isLoading, loadFromStorage } = useAuthStore();
   const { status: callStatus } = useCallStore();
+  const { loadConversations } = useChatStore();
 
   // Charger la session au démarrage
   useEffect(() => { loadFromStorage(); }, []);
+
+  // ✅ Dès que l'utilisateur est authentifié (login ou session restaurée),
+  // charger les conversations. Ça couvre le cas où socket:connected
+  // s'est déclenché avant que useSocketEvents soit monté.
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadConversations().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   // Activer les événements socket en temps réel
   useSocketEvents();

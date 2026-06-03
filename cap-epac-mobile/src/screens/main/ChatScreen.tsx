@@ -66,13 +66,17 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     loadMessages(conversationId).then((more) => setHasMore(!!more));
     markAsRead(conversationId);
 
-    // Debug: vérifier la connexion Socket
-    console.log('[ChatScreen] Socket connected:', socketService.isConnected());
-    if (!socketService.isConnected()) {
-      console.warn('[ChatScreen] Socket not connected! Messages may not be received in real-time');
-    }
+    // ✅ Si le socket se reconnecte pendant qu'on est dans ce chat,
+    // rejoindre à nouveau la room et recharger les messages manqués
+    const unsubReconnect = socketService.on('socket:connected', () => {
+      console.log('[ChatScreen] Socket reconnecté — rejoin room + rechargement messages');
+      socketService.joinConversation(conversationId);
+      loadMessages(conversationId).then((more) => setHasMore(!!more));
+      markAsRead(conversationId);
+    });
 
     return () => {
+      unsubReconnect();
       socketService.leaveConversation(conversationId);
       setActiveConversation(null);
     };

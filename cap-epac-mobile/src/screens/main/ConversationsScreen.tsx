@@ -12,6 +12,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/fr';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { socketService } from '../../services/socket';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 dayjs.extend(relativeTime);
@@ -30,6 +31,14 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     loadConversations();
   }, []);
+
+  // ✅ Recharger les conversations si le socket se reconnecte pendant qu'on est sur cet écran
+  useEffect(() => {
+    const unsub = socketService.on('socket:connected', () => {
+      loadConversations().catch(() => {});
+    });
+    return () => unsub();
+  }, [loadConversations]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
