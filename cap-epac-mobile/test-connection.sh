@@ -12,16 +12,16 @@ if [ -f "../.env" ]; then
     SERVER_IP=$(grep "SERVER_LAN_IP=" ../.env | cut -d'=' -f2)
     echo "📍 IP serveur (depuis .env): $SERVER_IP"
 else
-    echo "⚠️  Fichier .env non trouvé, utilisation IP par défaut"
-    SERVER_IP="10.73.47.159"
+    echo "  Fichier .env non trouvé, utilisation IP par défaut"
+    SERVER_IP="192.168.10.150"
 fi
 
 echo ""
 echo "🌐 Test 1: Ping du serveur..."
 if ping -c 2 $SERVER_IP &> /dev/null; then
-    echo "✅ Serveur accessible sur le réseau"
+    echo " Serveur accessible sur le réseau"
 else
-    echo "❌ ERREUR: Serveur inaccessible"
+    echo " ERREUR: Serveur inaccessible"
     echo "   Vérifiez:"
     echo "   - Que vous êtes sur le même réseau"
     echo "   - Que l'IP est correcte dans .env"
@@ -32,18 +32,18 @@ echo ""
 echo "🔌 Test 2: API HTTP (port 80)..."
 HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" "http://$SERVER_IP/api/auth/me" 2>/dev/null)
 if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "200" ]; then
-    echo "✅ API HTTP répond (code: $HTTP_CODE)"
+    echo " API HTTP répond (code: $HTTP_CODE)"
 else
-    echo "❌ API HTTP ne répond pas (code: $HTTP_CODE)"
+    echo " API HTTP ne répond pas (code: $HTTP_CODE)"
 fi
 
 echo ""
-echo "🔐 Test 3: API HTTPS (port 443)..."
+echo " Test 3: API HTTPS (port 443)..."
 HTTPS_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$SERVER_IP/api/auth/me" 2>/dev/null)
 if [ "$HTTPS_CODE" = "401" ] || [ "$HTTPS_CODE" = "200" ]; then
-    echo "✅ API HTTPS répond (code: $HTTPS_CODE)"
+    echo " API HTTPS répond (code: $HTTPS_CODE)"
 else
-    echo "❌ API HTTPS ne répond pas (code: $HTTPS_CODE)"
+    echo " API HTTPS ne répond pas (code: $HTTPS_CODE)"
 fi
 
 echo ""

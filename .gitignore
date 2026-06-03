@@ -1,2 +1,6 @@
 .env
 nginx/coturn.conf
+src/services/socket.ts
+src/services/api.ts
+quick-rebuild.sh
+android/app/src/main/res/xml/network_security_config.xml
