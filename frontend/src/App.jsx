@@ -21,6 +21,18 @@ import ActiveCallBar     from './components/calls/ActiveCallBar';
 import PermissionsModal  from './components/ui/PermissionsModal';
 import { usePermissions }from './hooks/usePermissions';
 
+// ✅ Restaurer le token immédiatement au chargement du module (avant le premier render)
+// Cela évite les requêtes 401 lors du rechargement de page
+const _initialToken = (() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('cap-epac-auth') || '{}');
+    return stored?.state?.accessToken || null;
+  } catch { return null; }
+})();
+if (_initialToken) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${_initialToken}`;
+}
+
 const PrivateRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return isAuthenticated ? children : <Navigate to="/login" replace />;

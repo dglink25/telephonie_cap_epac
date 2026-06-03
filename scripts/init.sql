@@ -106,11 +106,13 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `is_deleted`      TINYINT(1) NOT NULL DEFAULT 0,
   `is_pinned`       TINYINT(1) NOT NULL DEFAULT 0,
   `created_at`      DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `delivered_at`    DATETIME  DEFAULT NULL,
   `updated_at`      DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_msg_conv` (`conversation_id`),
   INDEX `idx_msg_sender` (`sender_id`),
   INDEX `idx_msg_created` (`created_at`),
+  INDEX `idx_delivered_at` (`delivered_at`),
   FULLTEXT INDEX `ft_msg_content` (`content`),
   CONSTRAINT `fk_msg_conv` FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_msg_sender` FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
@@ -160,6 +162,29 @@ CREATE TABLE IF NOT EXISTS `call_logs` (
   INDEX `idx_call_status` (`status`),
   CONSTRAINT `fk_call_caller` FOREIGN KEY (`caller_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_call_callee` FOREIGN KEY (`callee_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Table notifications ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id`         INT          NOT NULL AUTO_INCREMENT,
+  `user_id`    CHAR(36)     NOT NULL,
+  `type`       ENUM('message','mention','call_missed','call_incoming','group_added','group_removed','user_status','system') NOT NULL,
+  `title`      VARCHAR(255) NOT NULL,
+  `message`    TEXT         DEFAULT NULL,
+  `data`       JSON         DEFAULT NULL,
+  `is_read`    TINYINT(1)   NOT NULL DEFAULT 0,
+  `read_at`    DATETIME     DEFAULT NULL,
+  `action_url` VARCHAR(500) DEFAULT NULL,
+  `priority`   ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
+  `expires_at` DATETIME     DEFAULT NULL,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_notif_user_id` (`user_id`),
+  INDEX `idx_notif_is_read` (`is_read`),
+  INDEX `idx_notif_type` (`type`),
+  INDEX `idx_notif_created` (`created_at`),
+  CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Table refresh_tokens ────────────────────────────────────────

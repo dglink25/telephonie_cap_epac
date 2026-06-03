@@ -22,6 +22,15 @@ const useAuthStore = create(
         });
       },
 
+      // ✅ Méthode pour restaurer l'état depuis localStorage
+      restoreAuth: () => {
+        const state = get();
+        if (state.accessToken && state.isAuthenticated) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${state.accessToken}`;
+          console.log('[Auth] Token restauré depuis localStorage');
+        }
+      },
+
       updateUser: (userData) =>
         set((state) => ({ user: { ...state.user, ...userData } })),
 
