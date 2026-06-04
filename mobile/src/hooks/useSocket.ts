@@ -1,5 +1,6 @@
 // src/hooks/useSocket.ts
 import { useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 import { socketService } from '../services/socket';
 import { useChatStore } from '../store/chatStore';
 import { useCallStore } from '../store/callStore';
@@ -10,6 +11,36 @@ import type { Message, Conversation } from '../store/chatStore';
 import type { ActiveCall } from '../store/callStore';
 import type { Notification } from '../store/notificationStore';
 
+// ── Notifications push natives (optionnel) ─────────────────────
+// Décommentez si vous avez installé @notifee/react-native
+// import notifee, { AndroidImportance } from '@notifee/react-native';
+
+async function showLocalNotification(title: string, body: string, data?: Record<string, string>): Promise<void> {
+  try {
+    // ✅ Option 1 — Notifee (recommandé, plus riche)
+    // const channelId = await notifee.createChannel({
+    //   id: 'messages',
+    //   name: 'Messages',
+    //   importance: AndroidImportance.HIGH,
+    //   sound: 'default',
+    // });
+    // await notifee.displayNotification({
+    //   title,
+    //   body,
+    //   data: data || {},
+    //   android: { channelId, sound: 'default', pressAction: { id: 'default' } },
+    //   ios: { sound: 'default', badge: 1 },
+    // });
+
+    // ✅ Option 2 — PushNotificationIOS / @react-native-community/push-notification-ios
+    // PushNotification.localNotification({ title, message: body, userInfo: data });
+
+    console.log('[PushNotif]', title, '—', body);
+  } catch (err) {
+    console.warn('[PushNotif] Erreur notification locale:', err);
+  }
+}
+
 export const useSocketEvents = () => {
   const {
     addMessage, updateMessage, deleteMessage, addReaction, removeReaction,
@@ -18,22 +49,42 @@ export const useSocketEvents = () => {
   } = useChatStore();
   const { setStatus, setActiveCall, endCall } = useCallStore();
   const { user } = useAuthStore();
-  const { addNotification, markAsRead: markNotifRead, deleteNotification } = useNotificationStore();
+  const { addNotification } = useNotificationStore();
 
   const hasLoadedAfterConnect = useRef(false);
 
-  // ── Socket connecté / reconnecté ─────────────────────────────────
+  // ── Socket connecté / reconnecté ─────────────────────────────
   const handleSocketConnected = useCallback(() => {
+    console.log('[Socket] Reconnecté — rechargement des données...');
     loadConversations().catch(() => {});
     hasLoadedAfterConnect.current = true;
   }, [loadConversations]);
 
-  // ── Messages ──────────────────────────────────────────────────────
+  // ── Nouveau message ───────────────────────────────────────────
   const handleNewMessage = useCallback((data: unknown) => {
     const { message } = data as { message: Message };
     addMessage(message);
     loadConversationsDebounced();
-  }, [addMessage, loadConversationsDebounced]);
+
+    // ✅ Notification push si l'expéditeur n'est pas l'utilisateur courant
+    if (message.sender_id !== user?.id) {
+      const senderName = message.sender?.display_name || 'Quelqu\'un';
+      let preview = message.content || '';
+      if (message.type === 'image') preview = '📷 Image';
+      else if (message.type === 'audio') preview = '🎤 Message vocal';
+      else if (message.type === 'video') preview = '🎥 Vidéo';
+      else if (message.type === 'file') preview = `📎 ${message.file_name || 'Fichier'}`;
+      else if (message.type === 'system') return; // pas de notif pour les msgs système
+
+      if (preview.length > 80) preview = preview.slice(0, 77) + '…';
+
+      // Afficher la notification seulement si l'app est en arrière-plan
+      showLocalNotification(senderName, preview, {
+        conversationId: message.conversation_id,
+        messageId: message.id,
+      });
+    }
+  }, [addMessage, loadConversationsDebounced, user?.id]);
 
   const handleMessageEdited = useCallback((data: unknown) => {
     const { message } = data as { message: Message };
@@ -47,6 +98,23 @@ export const useSocketEvents = () => {
     loadConversationsDebounced();
   }, [deleteMessage, loadConversationsDebounced]);
 
+  // ── Statuts de lecture / livraison ────────────────────────────
+  const handleMessagesRead = useCallback((data: unknown) => {
+    const { conversationId, userId: readerId } = data as { conversationId: string; userId: string; messageIds: string[] };
+    if (readerId !== user?.id) {
+      // Mettre à jour les messages comme lus dans le store
+      useChatStore.getState().markMessagesAsRead(conversationId, readerId);
+    }
+  }, [user?.id]);
+
+  const handleMessagesDelivered = useCallback((data: unknown) => {
+    const { messageIds, deliveredTo } = data as { messageIds: string[]; deliveredTo: string; deliveredAt: string };
+    if (deliveredTo !== user?.id) {
+      useChatStore.getState().markMessagesAsDelivered(messageIds);
+    }
+  }, [user?.id]);
+
+  // ── Réactions ─────────────────────────────────────────────────
   const handleReactionAdded = useCallback((data: unknown) => {
     const { messageId, userId, emoji } = data as { messageId: string; userId: string; emoji: string };
     const { messages } = useChatStore.getState();
@@ -69,6 +137,7 @@ export const useSocketEvents = () => {
     }
   }, [removeReaction]);
 
+  // ── Typing ────────────────────────────────────────────────────
   const handleTyping = useCallback((data: unknown) => {
     const { userId: typingUserId, conversationId, isTyping } = data as {
       userId: string; conversationId: string; isTyping: boolean;
@@ -78,7 +147,7 @@ export const useSocketEvents = () => {
     }
   }, [setTyping, user?.id]);
 
-  // ── Conversations ─────────────────────────────────────────────────
+  // ── Conversations ─────────────────────────────────────────────
   const handleNewConversation = useCallback((data: unknown) => {
     const { conversation } = data as { conversation: Conversation };
     addConversation(conversation);
@@ -90,32 +159,32 @@ export const useSocketEvents = () => {
     resetUnread(conversationId);
   }, [resetUnread]);
 
-  // ── Présence ──────────────────────────────────────────────────────
+  // ── Présence ──────────────────────────────────────────────────
   const handleUserPresence = useCallback((data: unknown) => {
     const { userId: presenceUserId, status } = data as { userId: string; status: string };
-    const { conversations, updateConversation: updateConv } = useChatStore.getState();
+    const { conversations } = useChatStore.getState();
     conversations.forEach((conv) => {
       if (conv.type === 'direct') {
         const updated = conv.members.map((m) =>
           m.id === presenceUserId ? { ...m, presence_status: status } : m
         );
-        updateConv(conv.id, { members: updated });
+        updateConversation(conv.id, { members: updated });
       }
     });
   }, []);
 
-  // ── Groupes ───────────────────────────────────────────────────────
+  // ── Groupes ───────────────────────────────────────────────────
   const handleGroupUpdated = useCallback((data: unknown) => {
     const { groupId, ...rest } = data as { groupId: string; [key: string]: unknown };
     updateConversation(groupId, rest as Partial<Conversation>);
     loadConversationsDebounced();
   }, [updateConversation, loadConversationsDebounced]);
 
-  const handleGroupMembersUpdated = useCallback((data: unknown) => {
+  const handleGroupMembersUpdated = useCallback(() => {
     loadConversationsDebounced();
   }, [loadConversationsDebounced]);
 
-  // ── Appels ────────────────────────────────────────────────────────
+  // ── Appels entrants ───────────────────────────────────────────
   const handleIncomingCall = useCallback((data: unknown) => {
     const d = data as {
       callId: string;
@@ -136,15 +205,21 @@ export const useSocketEvents = () => {
       groupName: d.groupName,
     };
     setActiveCall(call);
-    // ✅ setStatus('incoming') déclenche la navigation auto dans AppNavigator
     setStatus('incoming');
+
+    // ✅ Notification push pour appel entrant (même en background)
+    const callType = d.type === 'video' ? 'vidéo' : 'audio';
+    showLocalNotification(
+      `📞 Appel ${callType} entrant`,
+      `${d.callerName} vous appelle`,
+      { callId: d.callId, callerId: d.callerId, type: d.type }
+    );
   }, [setActiveCall, setStatus]);
 
   const handleCallAccepted = useCallback((data: unknown) => {
     const { callId } = data as { callId: string };
     const { activeCall } = useCallStore.getState();
     if (activeCall?.callId === callId) {
-      // ✅ L'appelant vient d'être accepté → aller vers ActiveCall
       setStatus('connecting');
       if (navigationRef.isReady()) {
         (navigationRef as any).navigate('ActiveCall', { isIncoming: false });
@@ -152,78 +227,75 @@ export const useSocketEvents = () => {
     }
   }, [setStatus]);
 
-  const handleCallRejected = useCallback((data: unknown) => {
+  const handleCallRejected = useCallback(() => {
+    endCall();
+  }, [endCall]);
+
+  const handleCallEnded = useCallback((data: unknown) => {
     const { callId } = data as { callId: string };
     const { activeCall } = useCallStore.getState();
     if (activeCall?.callId === callId) {
       endCall();
-      // La navigation vers Tabs sera gérée par AppNavigator via callStatus → 'idle'
     }
   }, [endCall]);
 
-  const handleCallEnded = useCallback((data: unknown) => {
-    const { callId } = data as { callId: string; duration?: number };
-    const { activeCall } = useCallStore.getState();
-    if (activeCall?.callId === callId) {
-      endCall();
-      // La navigation vers Tabs sera gérée par AppNavigator via callStatus → 'idle'
-    }
-  }, [endCall]);
-
-  const handleMuteChanged = useCallback((data: unknown) => {
-    // Peut être utilisé pour afficher l'état mute de l'autre participant
-    // Le callStore gère l'état local, cet event vient de l'autre côté
-  }, []);
-
-  const handleVideoChanged = useCallback((data: unknown) => {
-    // Idem pour la vidéo
-  }, []);
-
-  // ── Notifications ─────────────────────────────────────────────────
+  // ── Notifications ─────────────────────────────────────────────
   const handleNotificationNew = useCallback((data: unknown) => {
     const { notification } = data as { notification: Notification };
     addNotification(notification);
+
+    // ✅ Notification système push (mention, groupe, etc.)
+    if (notification.type !== 'message') { // les messages ont déjà leur propre notif
+      showLocalNotification(
+        notification.title,
+        notification.message || '',
+        { notificationId: String(notification.id), actionUrl: notification.action_url || '' }
+      );
+    }
   }, [addNotification]);
 
-  const handleNotificationMarkRead = useCallback((data: unknown) => {
-    const { notificationId } = data as { notificationId: string };
-    markNotifRead(notificationId);
-  }, [markNotifRead]);
+  const handleNotificationUpdated = useCallback((data: unknown) => {
+    const { notification } = data as { notification: Notification };
+    useNotificationStore.getState().updateNotification?.(notification);
+  }, []);
 
-  const handleNotificationDelete = useCallback((data: unknown) => {
+  const handleNotificationDeleted = useCallback((data: unknown) => {
     const { notificationId } = data as { notificationId: string };
-    deleteNotification(notificationId);
-  }, [deleteNotification]);
+    useNotificationStore.getState().deleteNotification(notificationId);
+  }, []);
 
-  // ── Effect principal ─────────────────────────────────────────────
+  // ── Effect principal ──────────────────────────────────────────
   useEffect(() => {
     if (socketService.isConnected() && !hasLoadedAfterConnect.current) {
       loadConversations().catch(() => {});
       hasLoadedAfterConnect.current = true;
     }
 
+    // Activer le listener AppState pour reconnecter quand l'app revient au premier plan
+    socketService.setupAppStateListener();
+
     const unsubs = [
-      socketService.on('socket:connected',         handleSocketConnected),
-      socketService.on('message:new',              handleNewMessage),
-      socketService.on('message:edited',           handleMessageEdited),
-      socketService.on('message:deleted',          handleMessageDeleted),
-      socketService.on('message:reaction_added',   handleReactionAdded),
-      socketService.on('message:reaction_removed', handleReactionRemoved),
-      socketService.on('message:typing',           handleTyping),
-      socketService.on('conversation:new',         handleNewConversation),
-      socketService.on('conversation:read',        handleConversationRead),
-      socketService.on('user:presence',            handleUserPresence),
-      socketService.on('call:incoming',            handleIncomingCall),
-      socketService.on('call:accepted',            handleCallAccepted),
-      socketService.on('call:rejected',            handleCallRejected),
-      socketService.on('call:ended',               handleCallEnded),
-      socketService.on('call:mute-changed',        handleMuteChanged),
-      socketService.on('call:video-changed',       handleVideoChanged),
-      socketService.on('group:updated',            handleGroupUpdated),
-      socketService.on('group:members_updated',    handleGroupMembersUpdated),
-      socketService.on('notification:new',         handleNotificationNew),
-      socketService.on('notification:mark-read',   handleNotificationMarkRead),
-      socketService.on('notification:delete',      handleNotificationDelete),
+      socketService.on('socket:connected',           handleSocketConnected),
+      socketService.on('message:new',                handleNewMessage),
+      socketService.on('message:edited',             handleMessageEdited),
+      socketService.on('message:deleted',            handleMessageDeleted),
+      socketService.on('messages:read',              handleMessagesRead),
+      socketService.on('messages:delivered',         handleMessagesDelivered),
+      socketService.on('message:reaction_added',     handleReactionAdded),
+      socketService.on('message:reaction_removed',   handleReactionRemoved),
+      socketService.on('message:typing',             handleTyping),
+      socketService.on('conversation:new',           handleNewConversation),
+      socketService.on('conversation:read',          handleConversationRead),
+      socketService.on('user:presence',              handleUserPresence),
+      socketService.on('call:incoming',              handleIncomingCall),
+      socketService.on('call:accepted',              handleCallAccepted),
+      socketService.on('call:rejected',              handleCallRejected),
+      socketService.on('call:ended',                 handleCallEnded),
+      socketService.on('group:updated',              handleGroupUpdated),
+      socketService.on('group:members_updated',      handleGroupMembersUpdated),
+      socketService.on('notification:new',           handleNotificationNew),
+      socketService.on('notification:updated',       handleNotificationUpdated),
+      socketService.on('notification:deleted',       handleNotificationDeleted),
     ];
 
     return () => {
@@ -233,17 +305,17 @@ export const useSocketEvents = () => {
   }, [
     handleSocketConnected,
     handleNewMessage, handleMessageEdited, handleMessageDeleted,
+    handleMessagesRead, handleMessagesDelivered,
     handleReactionAdded, handleReactionRemoved, handleTyping,
     handleNewConversation, handleConversationRead, handleUserPresence,
-    handleIncomingCall, handleCallAccepted, handleCallRejected,
-    handleCallEnded, handleMuteChanged, handleVideoChanged,
+    handleIncomingCall, handleCallAccepted, handleCallRejected, handleCallEnded,
     handleGroupUpdated, handleGroupMembersUpdated,
-    handleNotificationNew, handleNotificationMarkRead, handleNotificationDelete,
+    handleNotificationNew, handleNotificationUpdated, handleNotificationDeleted,
     loadConversations, loadConversationsDebounced,
   ]);
 };
 
-// ── Hook WebRTC events (utilisé dans ActiveCallScreen) ───────────
+// ── Hook WebRTC (utilisé dans ActiveCallScreen) ───────────────
 export const useWebRTCEvents = (
   onOffer: (data: unknown) => void,
   onAnswer: (data: unknown) => void,

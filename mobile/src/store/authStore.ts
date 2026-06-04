@@ -33,29 +33,15 @@ interface AuthState {
   clearError: () => void;
 }
 
-// FIX: helper pour extraire un message d'erreur lisible
 const extractErrorMessage = (error: unknown): string => {
-  if (!error) return 'Erreur inconnue';
   const axiosError = error as { response?: { data?: { message?: string }; status?: number } };
-  if (axiosError.response?.data?.message) {
-    return axiosError.response.data.message;
-  }
-  if (axiosError.response?.status === 0 || !(error as { response?: unknown }).response) {
-    return 'Impossible de joindre le serveur. Vérifiez votre connexion réseau.';
-  }
-  if (axiosError.response?.status === 401) {
-    return 'Identifiant ou mot de passe incorrect.';
-  }
-  if (axiosError.response?.status === 403) {
-    return 'Compte verrouillé. Réessayez plus tard.';
-  }
-  if (axiosError.response?.status === 429) {
-    return 'Trop de tentatives. Attendez quelques minutes.';
-  }
-  if (axiosError.response?.status === 500) {
-    return 'Erreur serveur. Contactez l\'administrateur.';
-  }
-  return 'Erreur de connexion.'; axiosError.response;
+  if (axiosError.response?.data?.message) return axiosError.response.data.message;
+  if (!axiosError.response) return 'Impossible de joindre le serveur. Vérifiez votre connexion.';
+  if (axiosError.response?.status === 401) return 'Identifiant ou mot de passe incorrect.';
+  if (axiosError.response?.status === 403) return 'Compte verrouillé. Réessayez plus tard.';
+  if (axiosError.response?.status === 429) return 'Trop de tentatives. Attendez quelques minutes.';
+  if (axiosError.response?.status === 500) return 'Erreur serveur. Contactez l\'administrateur.';
+  return 'Erreur de connexion.';
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -79,9 +65,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user, token: accessToken, isAuthenticated: true, isLoading: false, error: null });
 
-      // FIX: connexion socket après authentification réussie (non-bloquante)
-      socketService.connect().catch((err) => {
-        console.warn('[AuthStore] Socket connexion échouée (non-critique):', err.message);
+      // ✅ Connecter le socket et activer le listener AppState
+      socketService.connect().then(() => {
+        socketService.setupAppStateListener();
+      }).catch((err) => {
+        console.warn('[AuthStore] Socket connexion échouée:', err.message);
       });
     } catch (error: unknown) {
       const msg = extractErrorMessage(error);
@@ -91,30 +79,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    try {
-      await authAPI.logout();
-    } catch (err) {
-      // Déconnexion locale même si le serveur échoue
-      console.warn('[AuthStore] Erreur logout serveur (ignorée):', err);
-    }
+    try { await authAPI.logout(); } catch {}
     socketService.disconnect();
     await AsyncStorage.multiRemove(['accessToken', 'userId', 'user']);
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
 
   loadFromStorage: async () => {
-    // FIX: ne pas mettre isLoading ici pour éviter le flash d'écran de chargement
     try {
       const [[, token], [, userStr], [, userId]] = await AsyncStorage.multiGet([
-        'accessToken',
-        'user',
-        'userId',
+        'accessToken', 'user', 'userId',
       ]);
 
-      if (!token || !userStr || !userId) {
-        // Pas de session sauvegardée — on reste sur l'écran de login
-        return;
-      }
+      if (!token || !userStr || !userId) return;
 
       let user: User;
       try {
@@ -126,30 +103,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user, token, isAuthenticated: true });
 
-      // Valider le token auprès du serveur
+      // Valider le token
       try {
         const resp = await authAPI.me();
         const freshUser = resp.data.data.user as User;
         set({ user: freshUser });
         await AsyncStorage.setItem('user', JSON.stringify(freshUser));
 
-        // Connecter le socket maintenant que le token est valide
-        socketService.connect().catch((err) => {
-          console.warn('[AuthStore] Socket connexion échouée au démarrage:', err.message);
-        });
+        // ✅ Connecter socket et activer AppState listener
+        await socketService.connect();
+        socketService.setupAppStateListener();
       } catch (meError: unknown) {
         const axiosError = meError as { response?: { status?: number } };
-        // FIX: si 401 → token expiré → on tente le refresh automatique
-        // L'intercepteur axios s'en charge, mais si ça échoue aussi → logout
         if (axiosError.response?.status === 401) {
-          console.warn('[AuthStore] Token expiré au démarrage — déconnexion');
+          console.warn('[AuthStore] Token expiré — déconnexion');
           await get().logout();
         } else if (!axiosError.response) {
-          // Pas de réseau — on garde la session locale, on réessaiera plus tard
-          console.warn('[AuthStore] Pas de réseau au démarrage — session locale conservée');
+          // Pas de réseau — garder la session locale
+          console.warn('[AuthStore] Pas de réseau — session locale conservée');
           socketService.connect().catch(() => {});
+          socketService.setupAppStateListener();
         }
-        // Autres erreurs : on garde la session
       }
     } catch (err) {
       console.error('[AuthStore] Erreur loadFromStorage:', err);

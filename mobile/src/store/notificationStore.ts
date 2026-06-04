@@ -9,6 +9,8 @@ export interface Notification {
   is_read: boolean;
   created_at: string;
   action_url?: string;
+  data?: Record<string, unknown>;
+  priority?: string;
 }
 
 interface NotificationState {
@@ -16,6 +18,7 @@ interface NotificationState {
   unreadCount: number;
   setNotifications: (notifications: Notification[]) => void;
   addNotification: (notification: Notification) => void;
+  updateNotification: (notification: Notification) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
@@ -34,10 +37,20 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 
   addNotification: (notification) =>
     set((state) => {
-      const exists = state.notifications.find((n) => n.id === notification.id);
-      if (exists) return state;
-
+      if (state.notifications.find((n) => n.id === notification.id)) return state;
       const updated = [notification, ...state.notifications];
+      return {
+        notifications: updated,
+        unreadCount: updated.filter((n) => !n.is_read).length,
+      };
+    }),
+
+  // ✅ Mettre à jour une notification existante (ex: marquée lue via socket)
+  updateNotification: (notification) =>
+    set((state) => {
+      const updated = state.notifications.map((n) =>
+        n.id === notification.id ? { ...n, ...notification } : n
+      );
       return {
         notifications: updated,
         unreadCount: updated.filter((n) => !n.is_read).length,
@@ -56,13 +69,10 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     }),
 
   markAllAsRead: () =>
-    set((state) => {
-      const updated = state.notifications.map((n) => ({ ...n, is_read: true }));
-      return {
-        notifications: updated,
-        unreadCount: 0,
-      };
-    }),
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, is_read: true })),
+      unreadCount: 0,
+    })),
 
   deleteNotification: (id) =>
     set((state) => {
@@ -76,9 +86,6 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   deleteAllRead: () =>
     set((state) => {
       const updated = state.notifications.filter((n) => !n.is_read);
-      return {
-        notifications: updated,
-        unreadCount: updated.length,
-      };
+      return { notifications: updated, unreadCount: updated.length };
     }),
 }));

@@ -2,7 +2,6 @@
 import { create } from 'zustand';
 import { conversationsAPI } from '../services/api';
 
-// ✅ Debounce pour éviter de surcharger l'API quand plusieurs messages arrivent d'un coup
 let loadConvsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 300;
 
@@ -21,6 +20,10 @@ export interface Message {
   is_deleted: boolean;
   is_pinned: boolean;
   canEdit: boolean;
+  isDelivered?: boolean;
+  isRead?: boolean;
+  delivered_at?: string | null;
+  readBy?: Array<{ user_id: string; read_at: string }>;
   created_at: string;
   updated_at: string;
   sender?: {
@@ -34,6 +37,7 @@ export interface Message {
     emoji: string;
     user: { id: string; display_name: string };
   }>;
+  duration?: number;
 }
 
 export interface Conversation {
@@ -86,6 +90,9 @@ interface ChatState {
   setTyping: (userId: string, conversationId: string, isTyping: boolean) => void;
   markAsRead: (conversationId: string) => void;
   resetUnread: (conversationId: string) => void;
+  // ✅ Nouveaux : statuts de lecture/livraison temps réel
+  markMessagesAsRead: (conversationId: string, readerId: string) => void;
+  markMessagesAsDelivered: (messageIds: string[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -106,8 +113,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  // ✅ Version debounced : fusionne plusieurs appels rapides en un seul
-  // Utilisée par les handlers socket pour ne pas flood l'API
   loadConversationsDebounced: () => {
     if (loadConvsDebounceTimer) clearTimeout(loadConvsDebounceTimer);
     loadConvsDebounceTimer = setTimeout(async () => {
@@ -122,16 +127,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadMessages: async (conversationId, before) => {
     set({ isLoadingMessages: true });
     try {
-      const resp = await conversationsAPI.getMessages(conversationId, {
-        limit: 50,
-        before,
-      });
+      const resp = await conversationsAPI.getMessages(conversationId, { limit: 50, before });
       const newMessages: Message[] = resp.data.data.messages;
       const hasMore: boolean = resp.data.data.hasMore;
       const existing = get().messages[conversationId] || [];
-      const merged = before
-        ? [...newMessages, ...existing]
-        : newMessages;
+      const merged = before ? [...newMessages, ...existing] : newMessages;
       set((s) => ({
         messages: { ...s.messages, [conversationId]: merged },
         isLoadingMessages: false,
@@ -149,10 +149,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const convId = message.conversation_id;
     set((s) => {
       const existing = s.messages[convId] || [];
-      // Éviter les doublons
       if (existing.find((m) => m.id === message.id)) return s;
       const updated = [...existing, message];
-      // Mettre à jour lastMessage dans la conversation
       const conversations = s.conversations.map((c) =>
         c.id === convId
           ? {
@@ -163,7 +161,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           : c
       );
-      // Trier par date de dernière activité
       conversations.sort((a, b) =>
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
@@ -258,12 +255,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { typingUsers: filtered };
     });
-    // Supprimer après 3s
     if (isTyping) {
       setTimeout(() => {
         set((s) => ({
           typingUsers: s.typingUsers.filter(
-            (t) => !(t.userId === userId && t.conversationId === conversationId) ||
+            (t) =>
+              !(t.userId === userId && t.conversationId === conversationId) ||
               Date.now() - t.timestamp < 3000
           ),
         }));
@@ -282,5 +279,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === conversationId ? { ...c, unreadCount: 0 } : c
       ),
     }));
+  },
+
+  // ✅ Marquer les messages comme lus par quelqu'un d'autre
+  markMessagesAsRead: (conversationId, readerId) => {
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [conversationId]: (s.messages[conversationId] || []).map((m) => {
+          if (m.sender_id === readerId) return m; // pas besoin de mettre à jour les siens
+          const alreadyRead = m.readBy?.some((r) => r.user_id === readerId);
+          if (alreadyRead) return m;
+          return {
+            ...m,
+            isRead: true,
+            readBy: [
+              ...(m.readBy || []),
+              { user_id: readerId, read_at: new Date().toISOString() },
+            ],
+          };
+        }),
+      },
+    }));
+  },
+
+  // ✅ Marquer des messages comme délivrés
+  markMessagesAsDelivered: (messageIds) => {
+    set((s) => {
+      const newMessages = { ...s.messages };
+      for (const convId in newMessages) {
+        newMessages[convId] = newMessages[convId].map((m) =>
+          messageIds.includes(m.id)
+            ? { ...m, isDelivered: true, delivered_at: new Date().toISOString() }
+            : m
+        );
+      }
+      return { messages: newMessages };
+    });
   },
 }));
