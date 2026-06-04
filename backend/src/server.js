@@ -88,7 +88,37 @@ app.use(morgan('combined', {
 }));
 
 // ── Fichiers statiques ────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// FIX: Headers spécifiques pour permettre le chargement d'images depuis React Native
+app.use('/uploads', (req, res, next) => {
+  // Autoriser l'accès depuis n'importe quelle origine pour les fichiers statiques
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Headers de cache
+  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 an
+  
+  // Définir le bon Content-Type basé sur l'extension
+  const ext = path.extname(req.path).toLowerCase();
+  const mimeTypes = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.pdf': 'application/pdf',
+  };
+  
+  if (mimeTypes[ext]) {
+    res.setHeader('Content-Type', mimeTypes[ext]);
+  }
+  
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // ── Santé ─────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({

@@ -221,11 +221,11 @@ const sendMessage = async (req, res, next) => {
         : detectedType === 'audio' ? 'audios'
         : 'documents';
 
-      const origin = `${req.protocol}://${req.get('host')}`;
-fileData = {
-  file_url: `${origin}/uploads/${subFolder}/${req.file.filename}`,
-  file_name: req.file.originalname,
-  file_size: req.file.size,
+      // Utiliser des URLs relatives (fonctionne pour web HTTPS et mobile HTTP)
+      fileData = {
+        file_url: `/uploads/${subFolder}/${req.file.filename}`,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
   file_mime: req.file.mimetype,
 };
     }

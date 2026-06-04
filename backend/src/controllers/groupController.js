@@ -129,13 +129,16 @@ const updateGroupAvatar = async (req, res, next) => {
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 
-    group.avatar_url = `/uploads/avatars/${req.file.filename}`;
+    // Utiliser le port 8080 pour les uploads (compatible mobile HTTP)
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    
+    group.avatar_url = avatarPath;
     await group.save();
 
     const io = req.app.get('io');
-    if (io) io.to(`conv:${id}`).emit('group:updated', { groupId: id, avatar_url: group.avatar_url });
+    if (io) io.to(`conv:${id}`).emit('group:updated', { groupId: id, avatar_url: avatarPath });
 
-    return res.json({ success: true, data: { avatar_url: group.avatar_url } });
+    return res.json({ success: true, data: { avatar_url: avatarPath } });
   } catch (err) { next(err); }
 };
 

@@ -2,8 +2,9 @@
 import React from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ActivityIndicator,
-  StyleSheet, Image, ViewStyle, TextStyle, StyleProp,
+  StyleSheet, ViewStyle, TextStyle, StyleProp,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { COLORS, SIZES, SHADOWS } from '../../utils/constants';
 import { getMediaUrl } from '../../services/api';
 
@@ -33,13 +34,29 @@ export const Avatar: React.FC<AvatarProps> = ({
     offline: COLORS.offline,
   };
 
+  const imageUrl = url ? getMediaUrl(url) : null;
+  
+  // Log pour debug
+  if (imageUrl) {
+    console.log('[Avatar] Image URL:', imageUrl);
+  }
+
   return (
     <View style={[{ width: size, height: size }, style]}>
-      {url ? (
-        <Image
-          source={{ uri: getMediaUrl(url) }}
+      {imageUrl ? (
+        <FastImage
+          source={{ 
+            uri: imageUrl,
+            priority: FastImage.priority.normal,
+          }}
           style={{ width: size, height: size, borderRadius: size / 2 }}
-          resizeMode="cover"
+          resizeMode={FastImage.resizeMode.cover}
+          onError={() => {
+            console.error('[Avatar] Failed to load image:', imageUrl);
+          }}
+          onLoad={() => {
+            console.log('[Avatar] Image loaded successfully:', imageUrl);
+          }}
         />
       ) : (
         <View

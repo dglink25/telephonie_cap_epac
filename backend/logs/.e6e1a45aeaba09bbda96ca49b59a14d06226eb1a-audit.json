@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/home/morel/Projets/telephonie_cap_epac/backend/logs/.e6e1a45aeaba09bbda96ca49b59a14d06226eb1a-audit.json",
+    "files": [
+        {
+            "date": 1780501521076,
+            "name": "/home/morel/Projets/telephonie_cap_epac/backend/logs/cap-epac-error-2026-06-03.log",
+            "hash": "a7aa5e5015ab3fe8f33c3e765104e3aa158bfa17e94994c2de7ee40dfc3c84ca"
+        }
+    ],
+    "hashType": "sha256"
+}

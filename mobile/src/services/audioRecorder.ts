@@ -115,7 +115,11 @@ class AudioRecorderService {
   /**
    * Démarrer la lecture d'un fichier audio
    */
-  async startPlayer(uri: string, onFinish?: () => void): Promise<void> {
+  async startPlayer(
+    uri: string, 
+    onFinish?: () => void,
+    onProgress?: (currentPosition: number, duration: number) => void
+  ): Promise<void> {
     if (this.isPlaying) {
       await this.stopPlayer();
     }
@@ -126,8 +130,14 @@ class AudioRecorderService {
       const msg = await this.recorder.startPlayer(uri);
       this.isPlaying = true;
 
-      // Listener pour savoir quand la lecture est terminée
+      // UN SEUL listener pour gérer à la fois la progression ET la fin
       this.recorder.addPlayBackListener((e: any) => {
+        // Callback de progression
+        if (onProgress) {
+          onProgress(e.currentPosition, e.duration);
+        }
+
+        // Détection de fin de lecture
         if (e.currentPosition >= e.duration && e.duration > 0) {
           console.log('[AudioRecorder] Playback finished');
           this.stopPlayer();
