@@ -1,0 +1,30 @@
+# Dépendances (seront installées dans l'image)
+node_modules/
+npm-debug.log
+
+# Build précédent (sera regénéré dans l'image)
+dist/
+
+# Fichiers d'environnement locaux
+.env
+.env.local
+.env.development
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+docs/

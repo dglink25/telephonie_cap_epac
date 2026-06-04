@@ -14,29 +14,47 @@ const CACHE_DIR = `${RNFS.CachesDirectoryPath}/images`;
 RNFS.mkdir(CACHE_DIR).catch(() => {});
 
 /**
+ * Génère un nom de fichier unique basé sur l'URL pour éviter les collisions
+ */
+function urlToFilename(url: string): string {
+  try {
+    const urlPath = url.replace(/^https?:\/\/[^/]+/, '');
+    return urlPath.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 200);
+  } catch {
+    return `img_${Date.now()}`;
+  }
+}
+
+/**
  * Télécharge une image et la sauvegarde localement pour contourner les problèmes SSL
  * @param imageUrl URL complète de l'image
  * @returns file:// URI local de l'image
  */
 export async function getImageAsBase64(imageUrl: string): Promise<string | null> {
   try {
+    if (!imageUrl) {
+      console.warn('[ImageCache] URL vide');
+      return null;
+    }
+
     // Vérifier le cache
     const cached = cache.get(imageUrl);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      // Vérifier que le fichier existe toujours
       const exists = await RNFS.exists(cached.localPath);
       if (exists) {
-        console.log('[ImageCache] ✅ Image trouvée dans le cache local');
+        console.log('[ImageCache] ✅ Cache hit:', imageUrl);
         return `file://${cached.localPath}`;
       }
     }
 
-    console.log('[ImageCache] 🔄 Téléchargement via RNFS...');
-    console.log('[ImageCache] URL:', imageUrl);
+    console.log('[ImageCache] 🔄 Téléchargement:', imageUrl);
 
-    // Nom de fichier basé sur l'URL
-    const filename = imageUrl.split('/').pop() || `image_${Date.now()}`;
+    // Nom de fichier unique basé sur l'URL complète (pas juste le basename)
+    const filename = urlToFilename(imageUrl);
     const localPath = `${CACHE_DIR}/${filename}`;
+
+    // S'assurer que le dossier existe
+    await RNFS.mkdir(CACHE_DIR).catch(() => {});
 
     // Télécharger directement dans le filesystem
     const downloadResult = await RNFS.downloadFile({
@@ -44,10 +62,20 @@ export async function getImageAsBase64(imageUrl: string): Promise<string | null>
       toFile: localPath,
       background: false,
       discretionary: false,
+      readTimeout: 15000,
+      connectionTimeout: 10000,
     }).promise;
 
     if (downloadResult.statusCode !== 200) {
+      console.error('[ImageCache] ❌ HTTP', downloadResult.statusCode, 'pour', imageUrl);
       throw new Error(`HTTP ${downloadResult.statusCode}`);
+    }
+
+    // Vérifier que le fichier n'est pas vide
+    const stat = await RNFS.stat(localPath);
+    if (stat.size === 0) {
+      await RNFS.unlink(localPath).catch(() => {});
+      throw new Error('Fichier vide téléchargé');
     }
 
     // Mettre en cache

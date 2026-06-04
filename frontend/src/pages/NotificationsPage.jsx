@@ -7,14 +7,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 const NOTIFICATION_ICONS = {
-  message: '💬',
+  message: '',
   mention: '@',
-  call_missed: '📞',
-  call_incoming: '📱',
-  group_added: '👥',
-  group_removed: '🚪',
-  user_status: '👤',
-  system: 'ℹ️',
+  call_missed: '',
+  call_incoming: '',
+  group_added: '',
+  group_removed: '',
+  user_status: '',
+  system: '',
 };
 
 const NOTIFICATION_COLORS = {
@@ -35,7 +35,7 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onClick }) {
   });
 
   const colorClass = NOTIFICATION_COLORS[notification.type] || 'bg-slate-50 border-slate-200';
-  const icon = NOTIFICATION_ICONS[notification.type] || 'ℹ️';
+  const icon = NOTIFICATION_ICONS[notification.type] || '';
 
   return (
     <div

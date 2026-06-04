@@ -5,7 +5,7 @@ import Video from 'react-native-video';
 import ImageView from 'react-native-image-viewing';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../utils/constants';
-import { getMediaUrl } from '../services/api';
+import { getMediaUrl } from '../config';
 
 const { width, height } = Dimensions.get('window');
 

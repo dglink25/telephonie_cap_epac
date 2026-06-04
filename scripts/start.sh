@@ -71,6 +71,19 @@ MODE="${1:-start}"
 case "$MODE" in
   start|"")
     info "Démarrage en mode production..."
+    # Rebuilder uniquement si les images n'existent pas encore
+    if docker image inspect telephonie-cap-epac-backend:latest >/dev/null 2>&1 && \
+       docker image inspect telephonie-cap-epac-frontend:latest >/dev/null 2>&1; then
+      info "Images existantes — démarrage rapide sans rebuild"
+      info "  → Pour forcer le rebuild après un changement de code : bash scripts/start.sh build"
+      docker compose up -d
+    else
+      info "Images absentes — premier build (peut prendre quelques minutes)..."
+      docker compose up -d --build
+    fi
+    ;;
+  build)
+    info "Rebuild forcé des images et redémarrage..."
     docker compose up -d --build
     ;;
   dev)
@@ -125,4 +138,5 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "  Logs    : ${YELLOW}docker compose logs -f${NC}"
 echo -e "  Arrêt   : ${YELLOW}bash scripts/start.sh stop${NC}"
+echo -e "  Rebuild : ${YELLOW}bash scripts/start.sh build${NC}"
 echo ""

@@ -34,9 +34,11 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc:  ["'self'"],
       styleSrc:   ["'self'","'unsafe-inline'"],
-      imgSrc:     ["'self'",'data:','blob:'],
-      mediaSrc:   ["'self'",'blob:'],
-      connectSrc: ["'self'",'wss:','ws:'],
+      // Autoriser les images depuis le même origine + data URI + blob
+      imgSrc:     ["'self'",'data:','blob:','*'],
+      // Autoriser les médias (audio/vidéo) depuis toutes origines (app mobile sur HTTP)
+      mediaSrc:   ["'self'",'blob:','*'],
+      connectSrc: ["'self'",'wss:','ws:','*'],
       frameSrc:   ["'none'"],
     },
   },
@@ -88,17 +90,34 @@ app.use(morgan('combined', {
 }));
 
 // ── Fichiers statiques ────────────────────────────────────────────
-// FIX: Headers spécifiques pour permettre le chargement d'images depuis React Native
+// Headers spécifiques pour permettre le chargement depuis React Native (mobile)
 app.use('/uploads', (req, res, next) => {
-  // Autoriser l'accès depuis n'importe quelle origine pour les fichiers statiques
+  // ── CORS complet : autoriser tout le monde (app mobile, web, etc.) ──
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Headers de cache
-  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 an
-  
-  // Définir le bon Content-Type basé sur l'extension
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+
+  // ── Écraser les headers helmet qui bloquent le mobile ──────────────
+  // helmet met "Cross-Origin-Resource-Policy: same-origin" par défaut → bloque les apps natives
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  // Supprimer la CSP restrictive pour les fichiers statiques (pas nécessaire sur des fichiers binaires)
+  res.removeHeader('Content-Security-Policy');
+  // Supprimer le header HSTS pour le port 8080 (HTTP pur)
+  res.removeHeader('Strict-Transport-Security');
+
+  // ── Streaming audio/vidéo ─────────────────────────────────────────
+  res.setHeader('Accept-Ranges', 'bytes');
+
+  // ── Cache ─────────────────────────────────────────────────────────
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h
+
+  // Répondre directement aux requêtes OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  // ── Content-Type explicite selon l'extension ──────────────────────
   const ext = path.extname(req.path).toLowerCase();
   const mimeTypes = {
     '.jpg': 'image/jpeg',
@@ -110,15 +129,25 @@ app.use('/uploads', (req, res, next) => {
     '.webm': 'video/webm',
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
     '.pdf': 'application/pdf',
+    '.doc':  'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls':  'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.zip':  'application/zip',
   };
-  
+
   if (mimeTypes[ext]) {
     res.setHeader('Content-Type', mimeTypes[ext]);
   }
-  
+
   next();
-}, express.static(path.join(__dirname, '../uploads')));
+}, express.static(path.join(__dirname, '../uploads'), {
+  acceptRanges: true,
+}));
 
 // ── Santé ─────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({

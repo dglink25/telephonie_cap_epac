@@ -1,0 +1,44 @@
+# Dépendances (seront installées dans l'image)
+node_modules/
+npm-debug.log
+
+# Logs et données temporaires
+logs/
+*.log
+
+# Fichiers de test
+src/tests/
+__tests__/
+coverage/
+*.test.js
+*.spec.js
+
+# Fichiers d'environnement (dangereux de copier dans l'image)
+.env
+.env.*
+
+# Uploads (données persistantes, pas dans l'image)
+uploads/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# Documentation
+README.md
+docs/
