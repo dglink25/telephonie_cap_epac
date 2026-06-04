@@ -157,7 +157,8 @@ const AppContent = () => {
   }, [isAuthenticated]);
 
   // ✅ Navigation automatique selon le statut d'appel
-  // Même comportement que le web (IncomingCallModal / OutgoingCallModal)
+  // ✅ FIX: IncomingCallScreen gère sa propre navigation vers ActiveCall
+  // Ce useEffect gère uniquement: incoming → IncomingCall et idle → retour aux Tabs
   useEffect(() => {
     if (!navigationRef.isReady()) return;
 
@@ -167,9 +168,6 @@ const AppContent = () => {
     if (callStatus === 'incoming' && prev !== 'incoming') {
       // Appel entrant → afficher l'écran IncomingCall par-dessus tout
       navigationRef.navigate('IncomingCall' as never);
-    } else if (callStatus === 'connecting' && prev === 'incoming') {
-      // L'utilisateur vient d'accepter → aller vers ActiveCall
-      navigationRef.navigate('ActiveCall' as never, { isIncoming: true } as never);
     } else if (callStatus === 'idle' && (prev === 'active' || prev === 'connecting' || prev === 'calling' || prev === 'incoming')) {
       // Appel terminé/annulé/rejeté → retour aux tabs
       const current = navigationRef.getCurrentRoute?.()?.name;
@@ -177,6 +175,8 @@ const AppContent = () => {
         navigationRef.navigate('Tabs' as never);
       }
     }
+    // ⚠️ Ne pas gérer 'connecting' ici — IncomingCallScreen et OutgoingCallScreen
+    // naviguent eux-mêmes vers ActiveCall pour éviter la double navigation
   }, [callStatus]);
 
   // Activer les événements socket en temps réel

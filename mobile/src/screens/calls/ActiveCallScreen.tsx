@@ -9,6 +9,7 @@ import { useAuthStore } from '../../store/authStore';
 import { socketService } from '../../services/socket';
 import { webrtcService, RTCView } from '../../services/webrtc';
 import type { MediaStream } from 'react-native-webrtc';
+// ✅ FIX: useWebRTCEvents n'écoute plus webrtc:offer (géré globalement dans useSocket)
 import { useWebRTCEvents } from '../../hooks/useSocket';
 import { Avatar } from '../../components/common';
 import { COLORS, SIZES } from '../../utils/constants';
@@ -21,7 +22,6 @@ interface Props {
   route: RouteProp<{ ActiveCall: { isIncoming?: boolean } }, 'ActiveCall'>;
 }
 
-// Formatage durée HH:MM:SS
 const formatDuration = (secs: number): string => {
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -31,7 +31,10 @@ const formatDuration = (secs: number): string => {
 };
 
 const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { activeCall, status, setStatus, endCall: storeEndCall } = useCallStore();
+  const {
+    activeCall, status, setStatus, endCall: storeEndCall,
+    pendingOffer, setPendingOffer,
+  } = useCallStore();
   const { user } = useAuthStore();
 
   const [duration, setDuration] = useState(0);
@@ -41,7 +44,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
-  
+
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const connectingAnim = useRef(new Animated.Value(0)).current;
   const isInitialized = useRef(false);
@@ -77,7 +80,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   // Initialiser WebRTC
   useEffect(() => {
     if (!activeCall || isInitialized.current) return;
-    
     isInitialized.current = true;
     initializeWebRTC();
 
@@ -86,16 +88,36 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     };
   }, [activeCall]);
 
+  // ✅ FIX CRITIQUE: Surveiller l'offre pendante du store
+  // Elle peut arriver AVANT ou APRÈS le montage de ce composant
+  useEffect(() => {
+    if (!pendingOffer || !activeCall) return;
+    if (pendingOffer.callId !== activeCall.callId) return;
+    // On est l'appelé → traiter l'offre dès qu'elle est disponible ET que WebRTC est prêt
+    if (!isInitialized.current) return;
+
+    console.log('[ActiveCall] Traitement de l\'offre pendante callId=', pendingOffer.callId);
+    const offer = pendingOffer;
+    // Effacer l'offre du store pour éviter de la retraiter
+    setPendingOffer(null);
+
+    webrtcService.handleOffer(offer.sdp).catch((err) => {
+      console.error('[ActiveCall] handleOffer error:', err);
+      Alert.alert('Erreur', 'Impossible de traiter l\'offre WebRTC', [
+        { text: 'OK', onPress: handleEnd },
+      ]);
+    });
+  }, [pendingOffer, activeCall]);
+
   const initializeWebRTC = async () => {
     if (!activeCall) return;
 
     try {
       console.log('[ActiveCall] Initializing WebRTC');
-      
+
       const isVideo = activeCall.type === 'video' || activeCall.type === 'group_video';
       const isInitiator = !route.params?.isIncoming;
 
-      // Configurer les callbacks
       webrtcService.onLocalStream((stream) => {
         console.log('[ActiveCall] Local stream received');
         setLocalStream(stream);
@@ -113,18 +135,30 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
         handleEnd();
       });
 
-      // Initialiser l'appel
+      const remoteUserId = isInitiator
+        ? (activeCall.calleeId || activeCall.callerId)
+        : activeCall.callerId;
+
       await webrtcService.initializeCall({
         callId: activeCall.callId,
         isVideoCall: isVideo,
         isInitiator,
-        remoteUserId: isInitiator 
-          ? (activeCall.calleeId || activeCall.callerId)
-          : activeCall.callerId,
+        remoteUserId,
       });
 
-      setIsSpeakerOn(isVideo); // Speaker ON par défaut pour vidéo
-      
+      setIsSpeakerOn(isVideo);
+
+      // ✅ FIX: Si on est l'appelé ET qu'une offre est déjà en attente dans le store
+      // (arrivée avant le montage du composant), la traiter immédiatement
+      if (!isInitiator) {
+        const currentPending = useCallStore.getState().pendingOffer;
+        if (currentPending && currentPending.callId === activeCall.callId) {
+          console.log('[ActiveCall] Offre déjà en attente — traitement immédiat');
+          setPendingOffer(null);
+          await webrtcService.handleOffer(currentPending.sdp);
+        }
+      }
+
     } catch (error: any) {
       console.error('[ActiveCall] WebRTC init error:', error);
       Alert.alert(
@@ -144,23 +178,10 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     isInitialized.current = false;
   };
 
-  // Gérer WebRTC events
-  const handleOffer = useCallback(async (data: unknown) => {
-    const { sdp, callId } = data as { sdp: any; callId: string };
-    if (!activeCall || callId !== activeCall.callId) return;
-    
-    try {
-      console.log('[ActiveCall] Handling offer');
-      await webrtcService.handleOffer(sdp);
-    } catch (error) {
-      console.error('[ActiveCall] Handle offer error:', error);
-    }
-  }, [activeCall]);
-
+  // ✅ FIX: useWebRTCEvents ne prend plus onOffer (géré globalement)
   const handleAnswer = useCallback(async (data: unknown) => {
     const { sdp, callId } = data as { sdp: any; callId: string };
     if (!activeCall || callId !== activeCall.callId) return;
-    
     try {
       console.log('[ActiveCall] Handling answer');
       await webrtcService.handleAnswer(sdp);
@@ -172,7 +193,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleIceCandidate = useCallback(async (data: unknown) => {
     const { candidate, callId } = data as { candidate: any; callId: string };
     if (!activeCall || callId !== activeCall.callId) return;
-    
     try {
       await webrtcService.handleIceCandidate(candidate);
     } catch (error) {
@@ -180,11 +200,10 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [activeCall]);
 
-  useWebRTCEvents(handleOffer, handleAnswer, handleIceCandidate);
+  useWebRTCEvents(handleAnswer, handleIceCandidate);
 
   const handleEnd = () => {
     if (!activeCall) return;
-    
     socketService.endCall(activeCall.callId);
     webrtcService.endCall();
     storeEndCall();
@@ -194,7 +213,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const toggleMute = () => {
     const newMuted = webrtcService.toggleAudio();
     setIsMuted(newMuted);
-    
     if (activeCall) {
       socketService.toggleMute(
         activeCall.callId,
@@ -207,7 +225,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const toggleVideo = () => {
     const newOff = webrtcService.toggleVideo();
     setIsVideoOff(newOff);
-    
     if (activeCall) {
       socketService.toggleVideo(
         activeCall.callId,
@@ -260,7 +277,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
 
       {/* Local video thumbnail */}
       {isVideo && localStream && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.localVideo}
           onPress={switchCamera}
           activeOpacity={0.8}
@@ -278,7 +295,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
       )}
 
       <View style={styles.content}>
-        {/* Info appelant (si pas de vidéo ou vidéo off) */}
         {(!isVideo || isVideoOff || !remoteStream) && (
           <View style={styles.callerInfo}>
             <Avatar
@@ -293,7 +309,6 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* Statut / Durée */}
         <View style={styles.statusRow}>
           {connecting ? (
             <Animated.Text style={[styles.statusText, { opacity: connectingAnim }]}>
@@ -304,25 +319,22 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </View>
 
-        {/* Contrôles */}
         <View style={styles.controls}>
           <View style={styles.controlRow}>
-            {/* Micro */}
             <View style={styles.ctrlGroup}>
               <TouchableOpacity
                 style={[styles.ctrlBtn, isMuted && styles.ctrlBtnActive]}
                 onPress={toggleMute}
               >
-                <Icon 
-                  name={isMuted ? 'microphone-off' : 'microphone'} 
-                  size={26} 
-                  color={COLORS.white} 
+                <Icon
+                  name={isMuted ? 'microphone-off' : 'microphone'}
+                  size={26}
+                  color={COLORS.white}
                 />
               </TouchableOpacity>
               <Text style={styles.ctrlLabel}>{isMuted ? 'Muet' : 'Micro'}</Text>
             </View>
 
-            {/* Fin d'appel */}
             <View style={styles.ctrlGroup}>
               <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
                 <Icon name="phone-hangup" size={32} color={COLORS.white} />
@@ -330,23 +342,21 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.ctrlLabel}>Raccrocher</Text>
             </View>
 
-            {/* Haut-parleur */}
             <View style={styles.ctrlGroup}>
               <TouchableOpacity
                 style={[styles.ctrlBtn, isSpeakerOn && styles.ctrlBtnActive]}
                 onPress={toggleSpeaker}
               >
-                <Icon 
-                  name={isSpeakerOn ? 'volume-high' : 'volume-medium'} 
-                  size={26} 
-                  color={COLORS.white} 
+                <Icon
+                  name={isSpeakerOn ? 'volume-high' : 'volume-medium'}
+                  size={26}
+                  color={COLORS.white}
                 />
               </TouchableOpacity>
               <Text style={styles.ctrlLabel}>HP</Text>
             </View>
           </View>
 
-          {/* Ligne 2 : Vidéo si applicable */}
           {isVideo && (
             <View style={styles.controlRow}>
               <View style={styles.ctrlGroup}>
@@ -354,20 +364,17 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
                   style={[styles.ctrlBtn, isVideoOff && styles.ctrlBtnActive]}
                   onPress={toggleVideo}
                 >
-                  <Icon 
-                    name={isVideoOff ? 'video-off' : 'video'} 
-                    size={26} 
-                    color={COLORS.white} 
+                  <Icon
+                    name={isVideoOff ? 'video-off' : 'video'}
+                    size={26}
+                    color={COLORS.white}
                   />
                 </TouchableOpacity>
                 <Text style={styles.ctrlLabel}>{isVideoOff ? 'Vidéo off' : 'Vidéo'}</Text>
               </View>
 
               <View style={styles.ctrlGroup}>
-                <TouchableOpacity
-                  style={styles.ctrlBtn}
-                  onPress={switchCamera}
-                >
+                <TouchableOpacity style={styles.ctrlBtn} onPress={switchCamera}>
                   <Icon name="camera-flip" size={26} color={COLORS.white} />
                 </TouchableOpacity>
                 <Text style={styles.ctrlLabel}>Retourner</Text>
@@ -408,10 +415,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     backgroundColor: '#374151',
   },
-  localVideoView: {
-    width: '100%',
-    height: '100%',
-  },
+  localVideoView: { width: '100%', height: '100%' },
   switchCameraBtn: {
     position: 'absolute',
     bottom: 4,

@@ -11,17 +11,25 @@ import InCallManager from 'react-native-incall-manager';
 import { socketService } from './socket';
 
 // Configuration STUN/TURN servers
+// ✅ FIX: Serveur TURN coturn LAN activé — indispensable pour les appels en réseau local
+// car les appareils mobiles ne peuvent pas se joindre directement via STUN Google
 const ICE_SERVERS = {
   iceServers: [
+    // TURN LAN en premier (connexion directe LAN plus fiable)
+    {
+      urls: [
+        'turn:192.168.100.195:3478?transport=udp',
+        'turn:192.168.100.195:3478?transport=tcp',
+      ],
+      username: 'cap-epac',
+      credential: 'CapEpacTurn2025',
+    },
+    {
+      urls: 'stun:192.168.100.195:3478',
+    },
+    // STUN Google en fallback si le TURN LAN est indisponible
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    // TODO: Ajouter vos propres TURN servers pour production
-    // {
-    //   urls: 'turn:your-turn-server.com:3478',
-    //   username: 'username',
-    //   credential: 'password',
-    // },
   ],
 };
 
@@ -39,6 +47,8 @@ class WebRTCService {
   private callConfig: WebRTCCallConfig | null = null;
   private isAudioMuted = false;
   private isVideoMuted = false;
+  // ✅ FIX: File d'attente des candidats ICE reçus avant que remoteDescription soit définie
+  private pendingIceCandidates: RTCIceCandidate[] = [];
 
   // Callbacks
   private onLocalStreamCallback: ((stream: MediaStream) => void) | null = null;
@@ -112,6 +122,13 @@ class WebRTCService {
 
   // ── Créer la PeerConnection ────────────────────────────────
   private createPeerConnection(): void {
+    // ✅ FIX: Fermer proprement l'ancienne connexion avant d'en créer une nouvelle
+    if (this.peerConnection) {
+      try { this.peerConnection.close(); } catch (_) {}
+      this.peerConnection = null;
+    }
+    this.pendingIceCandidates = [];
+
     this.peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
     // Événement : ICE candidate généré
@@ -186,6 +203,12 @@ class WebRTCService {
       console.log('[WebRTC] Setting remote description (offer)');
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
 
+      // ✅ FIX: Appliquer les candidats ICE mis en file d'attente
+      for (const candidate of this.pendingIceCandidates) {
+        try { await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+      }
+      this.pendingIceCandidates = [];
+
       console.log('[WebRTC] Creating answer');
       const answer = await this.peerConnection.createAnswer();
       await this.peerConnection.setLocalDescription(answer);
@@ -208,7 +231,18 @@ class WebRTCService {
 
     try {
       console.log('[WebRTC] Setting remote description (answer)');
+      // ✅ FIX: Vérifier l'état de signalisation avant de définir la remoteDescription
+      if (this.peerConnection.signalingState !== 'have-local-offer') {
+        console.warn('[WebRTC] handleAnswer: état inattendu', this.peerConnection.signalingState);
+        return;
+      }
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+
+      // ✅ FIX: Appliquer les candidats ICE mis en file d'attente
+      for (const candidate of this.pendingIceCandidates) {
+        try { await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+      }
+      this.pendingIceCandidates = [];
     } catch (error) {
       console.error('[WebRTC] Handle answer error:', error);
       throw error;
@@ -220,10 +254,16 @@ class WebRTCService {
     if (!this.peerConnection) return;
 
     try {
+      // ✅ FIX: Mettre en file d'attente si remoteDescription pas encore définie
+      if (!this.peerConnection.remoteDescription) {
+        console.log('[WebRTC] ICE candidate en file d\'attente (remoteDescription non définie)');
+        this.pendingIceCandidates.push(candidate);
+        return;
+      }
       console.log('[WebRTC] Adding ICE candidate');
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
-      console.error('[WebRTC] Add ICE candidate error:', error);
+      console.warn('[WebRTC] Add ICE candidate error:', error);
     }
   }
 
@@ -303,6 +343,7 @@ class WebRTCService {
     this.callConfig = null;
     this.isAudioMuted = false;
     this.isVideoMuted = false;
+    this.pendingIceCandidates = [];
 
     // Callback
     if (this.onCallEndCallback) {

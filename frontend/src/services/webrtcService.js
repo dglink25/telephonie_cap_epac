@@ -20,18 +20,21 @@ import useCallStore from '../store/callStore';
 import useSocketStore from '../store/socketStore';
 
 const ICE_SERVERS = [
+  // ✅ FIX: TURN LAN en priorité — plus fiable sur réseau local
   {
     urls: [
-      `stun:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478`,
-    ],
-  },
-  {
-    urls: [
-      `turn:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478`,
+      `turn:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478?transport=udp`,
+      `turn:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478?transport=tcp`,
     ],
     username: 'cap-epac',
     credential: 'CapEpacTurn2025',
   },
+  {
+    urls: `stun:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478`,
+  },
+  // STUN Google en fallback
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
 // File d'attente des candidats ICE reçus avant que la connexion soit prête

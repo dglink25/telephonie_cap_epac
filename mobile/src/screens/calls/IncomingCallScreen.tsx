@@ -21,7 +21,7 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Vibration pattern : sonnerie
+    // Sonnerie : pattern vibration
     const pattern = [0, 700, 500, 700, 500];
     Vibration.vibrate(pattern, true);
 
@@ -40,12 +40,23 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
     };
   }, []);
 
+  // ✅ FIX: Si l'appel se termine avant d'accepter → retour aux tabs
+  useEffect(() => {
+    if (!activeCall) {
+      navigation.replace('Tabs');
+    }
+  }, [activeCall]);
+
   if (!activeCall) return null;
 
   const handleAccept = () => {
     Vibration.cancel();
+    // ✅ FIX: Envoyer call:accept au serveur — le serveur va notifier l'appelant
+    // L'appelant (OutgoingCallScreen) va alors naviguer vers ActiveCallScreen
+    // et créer l'offre WebRTC qui sera stockée dans le store (handleWebRTCOffer)
     socketService.acceptCall(activeCall.callId);
     setStatus('connecting');
+    // Naviguer vers ActiveCallScreen comme appelé (isIncoming: true)
     navigation.replace('ActiveCall', { isIncoming: true });
   };
 
@@ -53,27 +64,24 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
     Vibration.cancel();
     socketService.rejectCall(activeCall.callId);
     endCall();
-    navigation.goBack();
+    navigation.replace('Tabs');
   };
 
   const isVideo = activeCall.type === 'video' || activeCall.type === 'group_video';
 
   return (
     <View style={styles.container}>
-      {/* Background vert dégradé simulé par couches */}
       <View style={styles.bg} />
 
       <View style={styles.content}>
-        {/* Indicateur type d'appel */}
         <Text style={styles.callTypeLabel}>
           {activeCall.isGroupCall
-            ? `📞 Appel de groupe entrant`
+            ? '📞 Appel de groupe entrant'
             : isVideo
             ? '📹 Appel vidéo entrant'
             : '📞 Appel audio entrant'}
         </Text>
 
-        {/* Avatar avec pulse */}
         <Animated.View style={[styles.avatarPulse, { transform: [{ scale: pulseAnim }] }]}>
           <View style={styles.avatarRing}>
             <Avatar
@@ -90,9 +98,7 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
         )}
         <Text style={styles.callStatus}>vous appelle...</Text>
 
-        {/* Boutons */}
         <View style={styles.buttons}>
-          {/* Rejeter */}
           <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
               <Text style={styles.btnIcon}>📵</Text>
@@ -100,7 +106,6 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.btnLabel}>Refuser</Text>
           </View>
 
-          {/* Accepter audio */}
           <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
               <Text style={styles.btnIcon}>{isVideo ? '📹' : '📞'}</Text>

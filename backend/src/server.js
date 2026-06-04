@@ -142,10 +142,28 @@ const bootstrap = async () => {
 
     // Socket.IO
     const io = new Server(server, {
-      cors: { origin: allowedOrigins, methods: ['GET','POST'], credentials: true },
-      transports: ['websocket','polling'],
+      cors: {
+        // ✅ FIX: Accepter toutes les origines LAN + mobile (pas d'origin = app native)
+        origin: (origin, callback) => {
+          // App mobile native : pas d'origin → autoriser
+          if (!origin) return callback(null, true);
+          // Origines explicitement autorisées
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          // En dev, tout autoriser
+          if (process.env.NODE_ENV !== 'production') return callback(null, true);
+          callback(new Error('CORS Socket.IO non autorisé'));
+        },
+        methods: ['GET', 'POST'],
+        credentials: true,
+      },
+      transports: ['websocket', 'polling'],
       pingTimeout: 30000,
       pingInterval: 15000,
+      // ✅ FIX: Augmenter les timeouts pour éviter les déconnexions sur réseau LAN
+      connectTimeout: 20000,
+      upgradeTimeout: 10000,
+      allowUpgrades: true,
+      perMessageDeflate: false,
     });
     initSocket(io);
     app.set('io', io);

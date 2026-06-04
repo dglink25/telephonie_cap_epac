@@ -107,6 +107,7 @@ services:
       args:
         VITE_API_URL: https://${SERVER_LAN_IP:-192.168.1.10}/api
         VITE_SOCKET_URL: https://${SERVER_LAN_IP:-192.168.1.10}
+        VITE_COTURN_HOST: ${SERVER_LAN_IP:-192.168.1.10}
     container_name: cap-epac-frontend
     restart: unless-stopped
     networks:

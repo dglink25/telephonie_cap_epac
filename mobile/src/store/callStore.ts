@@ -31,6 +31,8 @@ interface CallState {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   callHistory: CallLog[];
+  // ✅ FIX: Stocker l'offre SDP en attente pour la consommer dans ActiveCallScreen
+  pendingOffer: { sdp: any; callId: string; fromUserId: string } | null;
 
   setStatus: (status: CallStatus) => void;
   setActiveCall: (call: ActiveCall | null) => void;
@@ -39,6 +41,7 @@ interface CallState {
   setSpeaker: (on: boolean) => void;
   setLocalStream: (stream: MediaStream | null) => void;
   setRemoteStream: (stream: MediaStream | null) => void;
+  setPendingOffer: (offer: { sdp: any; callId: string; fromUserId: string } | null) => void;
   endCall: () => void;
   addToHistory: (log: CallLog) => void;
 }
@@ -66,6 +69,7 @@ export const useCallStore = create<CallState>((set) => ({
   localStream: null,
   remoteStream: null,
   callHistory: [],
+  pendingOffer: null,
 
   setStatus: (status) => set({ status }),
   setActiveCall: (activeCall) => set({ activeCall }),
@@ -74,6 +78,7 @@ export const useCallStore = create<CallState>((set) => ({
   setSpeaker: (isSpeakerOn) => set({ isSpeakerOn }),
   setLocalStream: (localStream) => set({ localStream }),
   setRemoteStream: (remoteStream) => set({ remoteStream }),
+  setPendingOffer: (pendingOffer) => set({ pendingOffer }),
 
   endCall: () =>
     set({
@@ -83,6 +88,7 @@ export const useCallStore = create<CallState>((set) => ({
       isVideoOff: false,
       localStream: null,
       remoteStream: null,
+      pendingOffer: null,
     }),
 
   addToHistory: (log) =>

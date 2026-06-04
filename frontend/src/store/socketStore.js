@@ -24,16 +24,24 @@ const useSocketStore = create((set, get) => ({
       existing.disconnect();
     }
 
+    // ✅ FIX: Utiliser window.location.origin dynamiquement (réseau LAN)
+    // En dev local: http://localhost:5173 → VITE_SOCKET_URL = http://localhost:3000
+    // En prod: https://192.168.100.195 → VITE_SOCKET_URL = https://192.168.100.195
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
     const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      // ✅ FIX: Commencer par polling (toujours fonctionnel) puis upgrader vers WebSocket
+      // Évite l'erreur "websocket error" causée par les certificats auto-signés
+      // La connexion polling fonctionne immédiatement, puis Socket.IO upgrades automatiquement
+      transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-      timeout: 10000,
+      reconnectionAttempts: 20,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 8000,
+      timeout: 15000,
+      path: '/socket.io/',
+      upgrade: true,
     });
 
     socket.on('connect', () => {
@@ -45,24 +53,15 @@ const useSocketStore = create((set, get) => ({
       console.log('[Socket] Déconnecté raison=', reason);
       set({ isConnected: false });
 
+      // ✅ FIX: Laisser Socket.IO gérer la reconnexion automatique
+      // Ne pas tenter de reconnecter manuellement sauf si serveur force la déconnexion
       if (reason === 'io server disconnect') {
-        console.log('[Socket] Déconnexion serveur — tentative avec token rafraîchi...');
+        console.log('[Socket] Déconnexion serveur forcée — reconnexion manuelle après refresh token');
         setTimeout(() => {
-          const newToken = (() => {
-            try {
-              const stored = JSON.parse(localStorage.getItem('cap-epac-auth') || '{}');
-              return stored?.state?.accessToken;
-            } catch { return null; }
-          })();
-          // Ne reconnecter que si le token a changé (refresh effectué entre temps)
-          if (newToken && newToken !== token) {
-            console.log('[Socket] Reconnexion avec nouveau token');
-            get().connect(newToken);
-          }
-          // Sinon, laisser socket.io gérer la reconnexion automatique
-        }, 1500);
+          socket.connect();
+        }, 2000);
       }
-      // Pour 'transport error' et autres : socket.io gère tout seul
+      // Pour les autres raisons (transport error, etc.) → Socket.IO gère automatiquement
     });
 
     socket.on('connect_error', (err) => {
@@ -78,9 +77,8 @@ const useSocketStore = create((set, get) => ({
       });
     });
 
-    // ✅ Stocker le socket immédiatement (avant connect)
-    // isConnected reste false jusqu'au event 'connect'
-    set({ socket, isConnected: false });
+    // ✅ Stocker le socket immédiatement
+    set({ socket, isConnected: socket.connected });
   },
 
   reconnectWithToken: (newToken) => {

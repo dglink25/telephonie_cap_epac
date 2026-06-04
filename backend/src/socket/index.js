@@ -154,9 +154,11 @@ const initSocket = (io) => {
           call = await CallLog.findByPk(callId);
         }
         if (!call) {
+          // ✅ FIX: Pour appel de groupe sans calleeId direct, utiliser caller_id comme callee_id
+          // temporaire (contrainte NOT NULL en DB). La vraie cible est le groupe.
           call = await CallLog.create({
             caller_id:       userId,
-            callee_id:       calleeId, // gardé pour compat DB (premier membre cible)
+            callee_id:       calleeId || userId, // fallback sur soi-même pour groupe
             conversation_id: conversationId || null,
             type,
             status: 'ongoing',
@@ -348,20 +350,28 @@ const initSocket = (io) => {
         }
         await call.save();
 
-        // ✅ FIX: Notifier tous les participants (direct + groupe)
+        // ✅ FIX: Notifier TOUS les participants (appelant + appelé + membres groupe)
         const session = groupCallSessions.get(callId);
         if (session) {
-          // Notifier tous les membres du groupe (ceux qui sonnent encore inclus)
+          // Appel de groupe : notifier tous les membres + l'appelant
           for (const memberId of session.memberIds) {
             io.to(`user:${memberId}`).emit('call:ended', {
               callId,
               duration: call.duration_seconds,
             });
           }
+          // ✅ FIX: Notifier aussi l'appelant (caller)
+          io.to(`user:${call.caller_id}`).emit('call:ended', {
+            callId,
+            duration: call.duration_seconds,
+          });
           groupCallSessions.delete(callId);
         } else {
+          // Appel direct : notifier les deux parties
           io.to(`user:${call.caller_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
-          io.to(`user:${call.callee_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
+          if (call.callee_id) {
+            io.to(`user:${call.callee_id}`).emit('call:ended', { callId, duration: call.duration_seconds });
+          }
         }
 
         logger.info(`Appel terminé: ${callId} — durée: ${call.duration_seconds}s`);

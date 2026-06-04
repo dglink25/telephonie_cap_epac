@@ -1,6 +1,5 @@
 // src/hooks/useSocket.ts
 import { useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
 import { socketService } from '../services/socket';
 import { useChatStore } from '../store/chatStore';
 import { useCallStore } from '../store/callStore';
@@ -11,30 +10,8 @@ import type { Message, Conversation } from '../store/chatStore';
 import type { ActiveCall } from '../store/callStore';
 import type { Notification } from '../store/notificationStore';
 
-// ── Notifications push natives (optionnel) ─────────────────────
-// Décommentez si vous avez installé @notifee/react-native
-// import notifee, { AndroidImportance } from '@notifee/react-native';
-
 async function showLocalNotification(title: string, body: string, data?: Record<string, string>): Promise<void> {
   try {
-    // ✅ Option 1 — Notifee (recommandé, plus riche)
-    // const channelId = await notifee.createChannel({
-    //   id: 'messages',
-    //   name: 'Messages',
-    //   importance: AndroidImportance.HIGH,
-    //   sound: 'default',
-    // });
-    // await notifee.displayNotification({
-    //   title,
-    //   body,
-    //   data: data || {},
-    //   android: { channelId, sound: 'default', pressAction: { id: 'default' } },
-    //   ios: { sound: 'default', badge: 1 },
-    // });
-
-    // ✅ Option 2 — PushNotificationIOS / @react-native-community/push-notification-ios
-    // PushNotification.localNotification({ title, message: body, userInfo: data });
-
     console.log('[PushNotif]', title, '—', body);
   } catch (err) {
     console.warn('[PushNotif] Erreur notification locale:', err);
@@ -47,7 +24,7 @@ export const useSocketEvents = () => {
     addConversation, updateConversation, setTyping, resetUnread,
     loadConversations, loadConversationsDebounced,
   } = useChatStore();
-  const { setStatus, setActiveCall, endCall } = useCallStore();
+  const { setStatus, setActiveCall, endCall, setPendingOffer } = useCallStore();
   const { user } = useAuthStore();
   const { addNotification } = useNotificationStore();
 
@@ -66,7 +43,6 @@ export const useSocketEvents = () => {
     addMessage(message);
     loadConversationsDebounced();
 
-    // ✅ Notification push si l'expéditeur n'est pas l'utilisateur courant
     if (message.sender_id !== user?.id) {
       const senderName = message.sender?.display_name || 'Quelqu\'un';
       let preview = message.content || '';
@@ -74,11 +50,9 @@ export const useSocketEvents = () => {
       else if (message.type === 'audio') preview = '🎤 Message vocal';
       else if (message.type === 'video') preview = '🎥 Vidéo';
       else if (message.type === 'file') preview = `📎 ${message.file_name || 'Fichier'}`;
-      else if (message.type === 'system') return; // pas de notif pour les msgs système
+      else if (message.type === 'system') return;
 
       if (preview.length > 80) preview = preview.slice(0, 77) + '…';
-
-      // Afficher la notification seulement si l'app est en arrière-plan
       showLocalNotification(senderName, preview, {
         conversationId: message.conversation_id,
         messageId: message.id,
@@ -98,11 +72,9 @@ export const useSocketEvents = () => {
     loadConversationsDebounced();
   }, [deleteMessage, loadConversationsDebounced]);
 
-  // ── Statuts de lecture / livraison ────────────────────────────
   const handleMessagesRead = useCallback((data: unknown) => {
     const { conversationId, userId: readerId } = data as { conversationId: string; userId: string; messageIds: string[] };
     if (readerId !== user?.id) {
-      // Mettre à jour les messages comme lus dans le store
       useChatStore.getState().markMessagesAsRead(conversationId, readerId);
     }
   }, [user?.id]);
@@ -114,7 +86,6 @@ export const useSocketEvents = () => {
     }
   }, [user?.id]);
 
-  // ── Réactions ─────────────────────────────────────────────────
   const handleReactionAdded = useCallback((data: unknown) => {
     const { messageId, userId, emoji } = data as { messageId: string; userId: string; emoji: string };
     const { messages } = useChatStore.getState();
@@ -137,7 +108,6 @@ export const useSocketEvents = () => {
     }
   }, [removeReaction]);
 
-  // ── Typing ────────────────────────────────────────────────────
   const handleTyping = useCallback((data: unknown) => {
     const { userId: typingUserId, conversationId, isTyping } = data as {
       userId: string; conversationId: string; isTyping: boolean;
@@ -147,7 +117,6 @@ export const useSocketEvents = () => {
     }
   }, [setTyping, user?.id]);
 
-  // ── Conversations ─────────────────────────────────────────────
   const handleNewConversation = useCallback((data: unknown) => {
     const { conversation } = data as { conversation: Conversation };
     addConversation(conversation);
@@ -159,7 +128,6 @@ export const useSocketEvents = () => {
     resetUnread(conversationId);
   }, [resetUnread]);
 
-  // ── Présence ──────────────────────────────────────────────────
   const handleUserPresence = useCallback((data: unknown) => {
     const { userId: presenceUserId, status } = data as { userId: string; status: string };
     const { conversations } = useChatStore.getState();
@@ -171,9 +139,8 @@ export const useSocketEvents = () => {
         updateConversation(conv.id, { members: updated });
       }
     });
-  }, []);
+  }, [updateConversation]);
 
-  // ── Groupes ───────────────────────────────────────────────────
   const handleGroupUpdated = useCallback((data: unknown) => {
     const { groupId, ...rest } = data as { groupId: string; [key: string]: unknown };
     updateConversation(groupId, rest as Partial<Conversation>);
@@ -204,18 +171,21 @@ export const useSocketEvents = () => {
       isGroupCall: d.isGroupCall || false,
       groupName: d.groupName,
     };
+    // ✅ Effacer toute offre pendante précédente
+    setPendingOffer(null);
     setActiveCall(call);
     setStatus('incoming');
 
-    // ✅ Notification push pour appel entrant (même en background)
     const callType = d.type === 'video' ? 'vidéo' : 'audio';
     showLocalNotification(
       `📞 Appel ${callType} entrant`,
       `${d.callerName} vous appelle`,
       { callId: d.callId, callerId: d.callerId, type: d.type }
     );
-  }, [setActiveCall, setStatus]);
+  }, [setActiveCall, setStatus, setPendingOffer]);
 
+  // ✅ FIX: L'appelant reçoit call:accepted → naviguer vers ActiveCall
+  // ActiveCallScreen va créer la PeerConnection et envoyer l'offre SDP
   const handleCallAccepted = useCallback((data: unknown) => {
     const { callId } = data as { callId: string };
     const { activeCall } = useCallStore.getState();
@@ -227,8 +197,13 @@ export const useSocketEvents = () => {
     }
   }, [setStatus]);
 
-  const handleCallRejected = useCallback(() => {
-    endCall();
+  const handleCallRejected = useCallback((data: unknown) => {
+    const { callId } = data as { callId: string };
+    const { activeCall } = useCallStore.getState();
+    // Terminer seulement si c'est notre appel actif
+    if (!activeCall || activeCall.callId === callId) {
+      endCall();
+    }
   }, [endCall]);
 
   const handleCallEnded = useCallback((data: unknown) => {
@@ -239,13 +214,20 @@ export const useSocketEvents = () => {
     }
   }, [endCall]);
 
+  // ✅ FIX CRITIQUE: Stocker l'offre WebRTC dans le store dès réception
+  // Elle peut arriver AVANT que ActiveCallScreen soit monté (appelé)
+  // ou après (si la navigation est rapide). ActiveCallScreen la consommera.
+  const handleWebRTCOffer = useCallback((data: unknown) => {
+    const { sdp, callId, fromUserId } = data as { sdp: any; callId: string; fromUserId: string };
+    console.log('[Socket] webrtc:offer reçu, stocké dans le store callId=', callId);
+    setPendingOffer({ sdp, callId, fromUserId });
+  }, [setPendingOffer]);
+
   // ── Notifications ─────────────────────────────────────────────
   const handleNotificationNew = useCallback((data: unknown) => {
     const { notification } = data as { notification: Notification };
     addNotification(notification);
-
-    // ✅ Notification système push (mention, groupe, etc.)
-    if (notification.type !== 'message') { // les messages ont déjà leur propre notif
+    if (notification.type !== 'message') {
       showLocalNotification(
         notification.title,
         notification.message || '',
@@ -271,7 +253,6 @@ export const useSocketEvents = () => {
       hasLoadedAfterConnect.current = true;
     }
 
-    // Activer le listener AppState pour reconnecter quand l'app revient au premier plan
     socketService.setupAppStateListener();
 
     const unsubs = [
@@ -291,6 +272,8 @@ export const useSocketEvents = () => {
       socketService.on('call:accepted',              handleCallAccepted),
       socketService.on('call:rejected',              handleCallRejected),
       socketService.on('call:ended',                 handleCallEnded),
+      // ✅ FIX: Écouter webrtc:offer au niveau global pour ne jamais le manquer
+      socketService.on('webrtc:offer',               handleWebRTCOffer),
       socketService.on('group:updated',              handleGroupUpdated),
       socketService.on('group:members_updated',      handleGroupMembersUpdated),
       socketService.on('notification:new',           handleNotificationNew),
@@ -309,6 +292,7 @@ export const useSocketEvents = () => {
     handleReactionAdded, handleReactionRemoved, handleTyping,
     handleNewConversation, handleConversationRead, handleUserPresence,
     handleIncomingCall, handleCallAccepted, handleCallRejected, handleCallEnded,
+    handleWebRTCOffer,
     handleGroupUpdated, handleGroupMembersUpdated,
     handleNotificationNew, handleNotificationUpdated, handleNotificationDeleted,
     loadConversations, loadConversationsDebounced,
@@ -316,17 +300,16 @@ export const useSocketEvents = () => {
 };
 
 // ── Hook WebRTC (utilisé dans ActiveCallScreen) ───────────────
+// ✅ FIX: Écoute uniquement answer et ice-candidate (offer est géré globalement)
 export const useWebRTCEvents = (
-  onOffer: (data: unknown) => void,
   onAnswer: (data: unknown) => void,
   onIceCandidate: (data: unknown) => void
 ) => {
   useEffect(() => {
     const unsubs = [
-      socketService.on('webrtc:offer',         onOffer),
       socketService.on('webrtc:answer',        onAnswer),
       socketService.on('webrtc:ice-candidate', onIceCandidate),
     ];
     return () => unsubs.forEach((u) => u());
-  }, [onOffer, onAnswer, onIceCandidate]);
+  }, [onAnswer, onIceCandidate]);
 };

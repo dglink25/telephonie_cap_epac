@@ -32,7 +32,7 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const callIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Lancer l'animation
+    // Animation pulse
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.12, duration: 800, useNativeDriver: true }),
@@ -41,26 +41,10 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
     );
     loop.start();
 
-    // Initier l'appel
+    // Initier l'appel dès le montage
     initiateCall();
 
-    // Écouter la réponse
-    const unsubAccepted = socketService.on('call:accepted', (data: unknown) => {
-      const { callId } = data as { callId: string };
-      if (callId === callIdRef.current) {
-        setStatus('connecting');
-        navigation.replace('ActiveCall', { isIncoming: false });
-      }
-    });
-
-    const unsubRejected = socketService.on('call:rejected', (data: unknown) => {
-      const { callId } = data as { callId: string };
-      if (callId === callIdRef.current) {
-        endCall();
-        navigation.goBack();
-      }
-    });
-
+    // ✅ FIX: Écouter call:initiated pour récupérer le callId du serveur
     const unsubInitiated = socketService.on('call:initiated', (data: unknown) => {
       const { callId } = data as { callId: string };
       callIdRef.current = callId;
@@ -73,24 +57,58 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
         type: type === 'video' ? 'video' : 'audio',
         isGroupCall: !!conversationId,
       });
+      console.log('[OutgoingCall] call:initiated callId=', callId);
     });
 
+    // ✅ FIX: call:error → annuler
     const unsubError = socketService.on('call:error', (data: unknown) => {
       const { message } = data as { message: string };
+      console.error('[OutgoingCall] call:error:', message);
       endCall();
       navigation.goBack();
     });
 
+    // ✅ FIX: call:ended (appelé a raccroché pendant la sonnerie)
+    const unsubEnded = socketService.on('call:ended', (data: unknown) => {
+      const { callId } = data as { callId: string };
+      if (!callIdRef.current || callId === callIdRef.current) {
+        endCall();
+        navigation.goBack();
+      }
+    });
+
+    // ✅ FIX: call:rejected
+    const unsubRejected = socketService.on('call:rejected', (data: unknown) => {
+      const { callId } = data as { callId: string };
+      if (!callIdRef.current || callId === callIdRef.current) {
+        endCall();
+        navigation.goBack();
+      }
+    });
+
+    // ✅ FIX: call:accepted → naviguer vers ActiveCall (appelant, isIncoming: false)
+    // useSocket.ts gère aussi ce cas via handleCallAccepted — mais OutgoingCallScreen
+    // peut être monté AVANT que useSocketEvents soit actif, donc on écoute localement aussi
+    const unsubAccepted = socketService.on('call:accepted', (data: unknown) => {
+      const { callId } = data as { callId: string };
+      if (callId === callIdRef.current) {
+        setStatus('connecting');
+        navigation.replace('ActiveCall', { isIncoming: false });
+      }
+    });
+
     return () => {
       loop.stop();
-      unsubAccepted();
-      unsubRejected();
       unsubInitiated();
       unsubError();
+      unsubEnded();
+      unsubRejected();
+      unsubAccepted();
     };
   }, []);
 
   const initiateCall = useCallback(() => {
+    console.log('[OutgoingCall] Initiation appel vers', calleeId, type);
     socketService.initiateCall({
       calleeId,
       type,
@@ -142,7 +160,6 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <Text style={styles.statusText}>Appel en cours...</Text>
 
-        {/* Annuler */}
         <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
           <Text style={styles.cancelIcon}>📵</Text>
         </TouchableOpacity>
