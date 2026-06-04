@@ -48,6 +48,8 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const connectingAnim = useRef(new Animated.Value(0)).current;
   const isInitialized = useRef(false);
+  // ✅ FIX: State (pas ref) pour déclencher le useEffect de pendingOffer
+  const [webrtcReady, setWebrtcReady] = useState(false);
 
   // Animation connexion
   useEffect(() => {
@@ -77,28 +79,27 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     };
   }, [status]);
 
-  // Initialiser WebRTC
+  // Initialiser WebRTC — une seule fois par montage du composant
   useEffect(() => {
     if (!activeCall || isInitialized.current) return;
+
     isInitialized.current = true;
     initializeWebRTC();
 
     return () => {
       cleanupCall();
     };
-  }, [activeCall]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ✅ Tableau vide : s'exécute UNE SEULE FOIS au montage
 
   // ✅ FIX CRITIQUE: Surveiller l'offre pendante du store
-  // Elle peut arriver AVANT ou APRÈS le montage de ce composant
+  // Se déclenche quand webrtcReady passe à true OU quand pendingOffer change
   useEffect(() => {
-    if (!pendingOffer || !activeCall) return;
+    if (!pendingOffer || !activeCall || !webrtcReady) return;
     if (pendingOffer.callId !== activeCall.callId) return;
-    // On est l'appelé → traiter l'offre dès qu'elle est disponible ET que WebRTC est prêt
-    if (!isInitialized.current) return;
 
     console.log('[ActiveCall] Traitement de l\'offre pendante callId=', pendingOffer.callId);
     const offer = pendingOffer;
-    // Effacer l'offre du store pour éviter de la retraiter
     setPendingOffer(null);
 
     webrtcService.handleOffer(offer.sdp).catch((err) => {
@@ -107,7 +108,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
         { text: 'OK', onPress: handleEnd },
       ]);
     });
-  }, [pendingOffer, activeCall]);
+  }, [pendingOffer, activeCall, webrtcReady]);
 
   const initializeWebRTC = async () => {
     if (!activeCall) return;
@@ -146,10 +147,11 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
         remoteUserId,
       });
 
+      // ✅ WebRTC est prêt — déclenche le useEffect de pendingOffer via state
+      setWebrtcReady(true);
       setIsSpeakerOn(isVideo);
 
-      // ✅ FIX: Si on est l'appelé ET qu'une offre est déjà en attente dans le store
-      // (arrivée avant le montage du composant), la traiter immédiatement
+      // Si on est l'appelé ET qu'une offre est déjà en attente, la traiter maintenant
       if (!isInitiator) {
         const currentPending = useCallStore.getState().pendingOffer;
         if (currentPending && currentPending.callId === activeCall.callId) {
@@ -176,6 +178,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
       timerRef.current = undefined;
     }
     isInitialized.current = false;
+    // webrtcReady sera reset par le démontage du composant (state local)
   };
 
   // ✅ FIX: useWebRTCEvents ne prend plus onOffer (géré globalement)
