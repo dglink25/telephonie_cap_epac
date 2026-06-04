@@ -9,6 +9,16 @@ export default function AudioPlayer({ src, isOwn }) {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  // Construire l'URL complète si src est relatif
+  const getFullUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    // Utiliser l'origine actuelle pour les URLs relatives
+    return `${window.location.origin}${url.startsWith('/') ? url : '/' + url}`;
+  };
+
+  const audioSrc = getFullUrl(src);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -19,7 +29,7 @@ export default function AudioPlayer({ src, isOwn }) {
     audio.addEventListener('timeupdate', onUpdate);
     audio.addEventListener('ended', onEnded);
     return () => { audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('timeupdate', onUpdate); audio.removeEventListener('ended', onEnded); };
-  }, [src]);
+  }, [audioSrc]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -35,11 +45,14 @@ export default function AudioPlayer({ src, isOwn }) {
     audio.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
   };
 
-  const fmt = (s) => { if (!s || isNaN(s)) return '0:00'; return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; };
+  const fmt = (s) => { 
+    if (!s || isNaN(s) || !isFinite(s)) return '0:00'; 
+    return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; 
+  };
 
   return (
     <div className="flex items-center gap-2.5 min-w-[180px] max-w-[260px]">
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={audioSrc} preload="metadata" crossOrigin="anonymous" />
       <button onClick={togglePlay}
         className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors
           ${isOwn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-primary-100 hover:bg-primary-200 text-primary-700'}`}>

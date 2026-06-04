@@ -176,13 +176,17 @@ const uploadAvatar = async (req, res, next) => {
       }
     }
 
-    user.avatar_url = `/uploads/avatars/${req.file.filename}`;
+    // Utiliser le port 8080 pour les uploads (compatible mobile HTTP)
+    const host = req.get('host').split(':')[0]; // Enlever le port existant si présent
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    
+    user.avatar_url = avatarPath;
     await user.save();
 
     return res.json({
       success: true,
       message: 'Avatar mis à jour',
-      data: { avatar_url: user.avatar_url },
+      data: { avatar_url: avatarPath },
     });
   } catch (err) {
     next(err);
