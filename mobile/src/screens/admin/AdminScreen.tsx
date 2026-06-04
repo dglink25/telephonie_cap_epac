@@ -7,6 +7,7 @@ import {
 import { usersAPI, callsAPI } from '../../services/api';
 import { Avatar, Button, Input, EmptyState } from '../../components/common';
 import { COLORS, SIZES, DEPARTMENTS } from '../../utils/constants';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 interface User {
@@ -85,7 +86,7 @@ const AdminScreen: React.FC<Props> = ({ navigation }) => {
       await usersAPI.adminUpdate(editUser.id, editForm);
       setEditUser(null);
       loadUsers();
-      Alert.alert('✅', 'Utilisateur mis à jour');
+      Alert.alert('Succès', 'Utilisateur mis à jour');
     } catch (e: any) {
       Alert.alert('Erreur', e?.response?.data?.message || '');
     }
@@ -129,7 +130,11 @@ const AdminScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.userStatus}>
         <View style={[styles.statusDot, { backgroundColor: u.is_active ? COLORS.primary : COLORS.gray300 }]} />
         <TouchableOpacity onPress={() => deactivateUser(u)} style={styles.deactivateBtn}>
-          <Text style={styles.deactivateBtnText}>{u.is_active ? '🚫' : '✅'}</Text>
+          <Icon
+            name={u.is_active ? 'account-cancel' : 'account-check'}
+            size={20}
+            color={u.is_active ? COLORS.danger : COLORS.primary}
+          />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

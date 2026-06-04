@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCallStore } from '../../store/callStore';
 import { useAuthStore } from '../../store/authStore';
 import { socketService } from '../../services/socket';
@@ -130,7 +131,7 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <View style={styles.content}>
         <Text style={styles.callTypeLabel}>
-          {type === 'video' ? '📹 Appel vidéo' : '📞 Appel audio'}
+          {type === 'video' ? 'Appel vidéo' : 'Appel audio'}
         </Text>
 
         <Animated.View style={[styles.avatarPulse, { transform: [{ scale: pulseAnim }] }]}>
@@ -161,7 +162,7 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={styles.statusText}>Appel en cours...</Text>
 
         <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-          <Text style={styles.cancelIcon}>📵</Text>
+          <Icon name="phone-hangup" size={32} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.cancelLabel}>Annuler</Text>
       </View>
@@ -225,7 +226,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  cancelIcon: { fontSize: 28 },
   cancelLabel: { color: 'rgba(255,255,255,0.7)', fontSize: SIZES.sm },
 });
 

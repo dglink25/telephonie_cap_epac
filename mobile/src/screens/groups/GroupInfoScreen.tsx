@@ -194,9 +194,9 @@ const GroupInfoScreen: React.FC<Props> = ({ navigation, route }) => {
                         [
                           { text: 'Annuler', style: 'cancel' },
                           !isAdmin
-                            ? { text: '⭐ Nommer admin', onPress: () => promoteToAdmin(m) }
+                            ? { text: 'Nommer admin', onPress: () => promoteToAdmin(m) }
                             : { text: '', style: 'cancel' },
-                          { text: '🚫 Retirer', style: 'destructive', onPress: () => removeMember(m) },
+                          { text: 'Retirer du groupe', style: 'destructive', onPress: () => removeMember(m) },
                         ].filter((a) => a.text)
                       );
                     }}

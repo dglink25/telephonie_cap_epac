@@ -35,7 +35,14 @@ interface Props {
   route: RouteProp<{ Chat: { conversationId: string; name: string; avatar?: string; type: string } }, 'Chat'>;
 }
 
-const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const REACTIONS = [
+  { emoji: '👍', icon: 'thumb-up',        label: 'J\'approuve'    },
+  { emoji: '❤️', icon: 'heart',           label: 'J\'aime'        },
+  { emoji: '😂', icon: 'emoticon-lol',    label: 'Drôle'          },
+  { emoji: '😮', icon: 'emoticon-excited',label: 'Surpris'        },
+  { emoji: '😢', icon: 'emoticon-sad',    label: 'Triste'         },
+  { emoji: '🙏', icon: 'hand-okay',       label: 'Merci'          },
+];
 
 // ✅ Composant animation point clignotant pour "est en train d'écrire"
 const TypingDot: React.FC<{ delay: number }> = ({ delay }) => {
@@ -621,7 +628,12 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={[styles.replyPreview, isMine && styles.replyPreviewMe]}>
               <Text style={styles.replyName}>{msg.replyTo.sender?.display_name}</Text>
               <Text style={styles.replyContent} numberOfLines={1}>
-                {msg.replyTo.content || '📎 Fichier'}
+                {msg.replyTo.content || (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Icon name="paperclip" size={12} color={COLORS.gray500} />
+                    <Text>Fichier</Text>
+                  </View>
+                )}
               </Text>
             </View>
           )}
@@ -857,21 +869,28 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                   acc[r.emoji] = (acc[r.emoji] || 0) + 1;
                   return acc;
                 }, {})
-              ).map(([emoji, count]) => (
-                <TouchableOpacity
-                  key={emoji}
-                  style={styles.reactionPill}
-                  onPress={() => addReaction(msg.id, emoji)}
-                >
-                  <Text style={styles.reactionEmoji}>{emoji}</Text>
-                  <Text style={styles.reactionCount}>{count}</Text>
-                </TouchableOpacity>
-              ))}
+              ).map(([emoji, count]) => {
+                const reaction = REACTIONS.find(r => r.emoji === emoji);
+                return (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={styles.reactionPill}
+                    onPress={() => addReaction(msg.id, emoji)}
+                  >
+                    {reaction ? (
+                      <Icon name={reaction.icon} size={14} color={COLORS.primary} />
+                    ) : (
+                      <Text style={styles.reactionEmoji}>{emoji}</Text>
+                    )}
+                    <Text style={styles.reactionCount}>{count}</Text>
+                  </TouchableOpacity>
+                );
+              })}
               <TouchableOpacity
                 style={styles.addReactionBtn}
                 onPress={() => setEmojiMenu({ msgId: msg.id })}
               >
-                <Text style={styles.addReactionText}>+</Text>
+                <Icon name="emoticon-happy-outline" size={16} color={COLORS.gray500} />
               </TouchableOpacity>
             </View>
           )}
@@ -893,14 +912,80 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             {type === 'group' ? 'Groupe' : 'Message direct'}
           </Text>
         </View>
-        {type === 'group' && (
+
+        {/* Boutons d'appel */}
+        <View style={styles.headerActions}>
+          {/* Appel audio */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('GroupInfo', { groupId: conversationId })}
-            style={styles.infoBtn}
+            style={styles.callBtn}
+            onPress={() => {
+              if (type === 'direct') {
+                const conv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+                const other = conv?.members?.find(m => m.id !== user?.id);
+                if (!other) return;
+                navigation.navigate('OutgoingCall', {
+                  calleeId: other.id,
+                  calleeName: other.display_name,
+                  calleeAvatar: other.avatar_url ?? undefined,
+                  type: 'audio',
+                });
+              } else {
+                // Groupe : appel vers le premier autre membre
+                const conv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+                const other = conv?.members?.find(m => m.id !== user?.id);
+                if (!other) return;
+                navigation.navigate('OutgoingCall', {
+                  calleeId: other.id,
+                  calleeName: name,
+                  type: 'audio',
+                  conversationId,
+                });
+              }
+            }}
           >
-            <Icon name="information" size={24} color={COLORS.white} />
+            <Icon name="phone" size={22} color={COLORS.white} />
           </TouchableOpacity>
-        )}
+
+          {/* Appel vidéo */}
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => {
+              if (type === 'direct') {
+                const conv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+                const other = conv?.members?.find(m => m.id !== user?.id);
+                if (!other) return;
+                navigation.navigate('OutgoingCall', {
+                  calleeId: other.id,
+                  calleeName: other.display_name,
+                  calleeAvatar: other.avatar_url ?? undefined,
+                  type: 'video',
+                });
+              } else {
+                const conv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+                const other = conv?.members?.find(m => m.id !== user?.id);
+                if (!other) return;
+                navigation.navigate('OutgoingCall', {
+                  calleeId: other.id,
+                  calleeName: name,
+                  type: 'video',
+                  conversationId,
+                });
+              }
+            }}
+          >
+            <Icon name="video" size={22} color={COLORS.white} />
+          </TouchableOpacity>
+
+          {/* Bouton info pour les groupes */}
+          {type === 'group' && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('GroupInfo', { groupId: conversationId })}
+              style={styles.callBtn}
+            >
+              <Icon name="information" size={22} color={COLORS.white} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Messages */}
@@ -1133,7 +1218,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         </Pressable>
       </Modal>
 
-      {/* Emoji Picker */}
+      {/* Panneau de réactions */}
       <Modal
         transparent
         visible={!!emojiMenu}
@@ -1142,15 +1227,16 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setEmojiMenu(null)}>
           <View style={styles.emojiPanel}>
-            <Text style={styles.emojiTitle}>Réagir</Text>
+            <Text style={styles.emojiTitle}>Réagir au message</Text>
             <View style={styles.emojiRow}>
-              {EMOJIS.map((emoji) => (
+              {REACTIONS.map(({ emoji, icon, label }) => (
                 <TouchableOpacity
                   key={emoji}
                   style={styles.emojiBtn}
                   onPress={() => emojiMenu && addReaction(emojiMenu.msgId, emoji)}
                 >
-                  <Text style={styles.emojiText}>{emoji}</Text>
+                  <Icon name={icon} size={28} color={COLORS.primary} />
+                  <Text style={styles.reactionLabel}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1233,6 +1319,20 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   headerName: { color: COLORS.white, fontSize: SIZES.lg, fontWeight: '700' },
   headerType: { color: 'rgba(255,255,255,0.7)', fontSize: SIZES.xs, marginTop: 1 },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  callBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
   infoBtn: { padding: 4 },
   infoBtnText: { color: COLORS.white, fontSize: 20 },
   messagesList: { padding: 12, paddingBottom: 8 },
@@ -1506,9 +1606,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   emojiBtn: {
+    alignItems: 'center',
     padding: 10,
+    gap: 4,
+    flex: 1,
   },
-  emojiText: { fontSize: 32 },
+  reactionLabel: { fontSize: SIZES.xs, color: COLORS.gray600, textAlign: 'center' },
   attachBtn: {
     padding: 8,
     marginRight: 8,

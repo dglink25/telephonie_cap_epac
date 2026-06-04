@@ -53,7 +53,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       });
       updateUser(resp.data.data.user);
       setEditing(false);
-      Alert.alert('✅', 'Profil mis à jour');
+      Alert.alert('Succès', 'Profil mis à jour');
     } catch {
       Alert.alert('Erreur', 'Mise à jour impossible');
     }
@@ -82,7 +82,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       await authAPI.changePassword(pwdForm.current, pwdForm.newPwd);
       setPwdModal(false);
       setPwdForm({ current: '', newPwd: '', confirm: '' });
-      Alert.alert('✅', 'Mot de passe modifié. Reconnectez-vous.');
+      Alert.alert('Succès', 'Mot de passe modifié. Reconnectez-vous.');
       await logout();
     } catch (e: any) {
       Alert.alert('Erreur', e?.response?.data?.message || 'Erreur');
@@ -165,7 +165,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.presenceBtnText}>
               {PRESENCE_LABELS[user.presence_status] || 'Hors ligne'}
             </Text>
-            <Text style={styles.presenceChevron}>›</Text>
+            <Icon name="chevron-right" size={18} color={COLORS.gray400} />
           </TouchableOpacity>
         </View>
 
@@ -361,7 +361,6 @@ const styles = StyleSheet.create({
   },
   presenceDot: { width: 10, height: 10, borderRadius: 5 },
   presenceBtnText: { fontSize: SIZES.sm, color: COLORS.gray700, flex: 1 },
-  presenceChevron: { color: COLORS.gray400, fontSize: 18 },
   section: {
     backgroundColor: COLORS.white,
     margin: 16,

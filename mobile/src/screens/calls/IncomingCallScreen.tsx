@@ -4,6 +4,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   Vibration, Animated, Dimensions,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCallStore } from '../../store/callStore';
 import { socketService } from '../../services/socket';
 import { Avatar } from '../../components/common';
@@ -76,10 +77,10 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.content}>
         <Text style={styles.callTypeLabel}>
           {activeCall.isGroupCall
-            ? '📞 Appel de groupe entrant'
+            ? 'Appel de groupe entrant'
             : isVideo
-            ? '📹 Appel vidéo entrant'
-            : '📞 Appel audio entrant'}
+            ? 'Appel vidéo entrant'
+            : 'Appel audio entrant'}
         </Text>
 
         <Animated.View style={[styles.avatarPulse, { transform: [{ scale: pulseAnim }] }]}>
@@ -101,14 +102,18 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.buttons}>
           <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
-              <Text style={styles.btnIcon}>📵</Text>
+              <Icon name="phone-hangup" size={32} color={COLORS.white} />
             </TouchableOpacity>
             <Text style={styles.btnLabel}>Refuser</Text>
           </View>
 
           <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
-              <Text style={styles.btnIcon}>{isVideo ? '📹' : '📞'}</Text>
+              <Icon
+                name={isVideo ? 'video' : 'phone'}
+                size={32}
+                color={COLORS.white}
+              />
             </TouchableOpacity>
             <Text style={styles.btnLabel}>Accepter</Text>
           </View>
@@ -196,7 +201,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  btnIcon: { fontSize: 28 },
   btnLabel: { color: 'rgba(255,255,255,0.8)', fontSize: SIZES.sm },
 });
 
