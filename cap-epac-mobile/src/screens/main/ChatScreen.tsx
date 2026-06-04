@@ -6,8 +6,13 @@ import React, {
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  Modal, Pressable, Image, Animated,
+  Modal, Pressable, Animated,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
+import ImageView from 'react-native-image-viewing';
+import Video from 'react-native-video';
+import { CachedImage } from '../../components/CachedImage';
+import { ImageViewer, VideoPlayer } from '../../components/MediaViewers';
 import { useChatStore, Message } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
 import { socketService } from '../../services/socket';
@@ -24,6 +29,7 @@ import { showMessage } from 'react-native-flash-message';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { audioRecorderService } from '../../services/audioRecorder';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import { downloadAndOpenFile } from '../../utils/fileDownload';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -46,6 +52,11 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
+  const [videoPlayerVisible, setVideoPlayerVisible] = useState(false);
+  const [currentVideoUrl, setCurrentVideoUrl] = useState('');
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [emojiMenu, setEmojiMenu] = useState<{ msgId: string } | null>(null);
@@ -433,20 +444,22 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       // Play
       try {
         setPlayingAudio(messageId);
-        
-        // Listener pour la progression
-        audioRecorderService.onPlayerProgress((currentPosition, audioDurationMs) => {
-          setAudioDuration((prev) => ({
-            ...prev,
-            [messageId]: Math.floor(currentPosition / 1000),
-          }));
-        });
 
-        await audioRecorderService.startPlayer(url, () => {
+        await audioRecorderService.startPlayer(
+          url,
           // Callback de fin de lecture
-          console.log('[Audio] Playback finished');
-          setPlayingAudio(null);
-        });
+          () => {
+            console.log('[Audio] Playback finished');
+            setPlayingAudio(null);
+          },
+          // Callback de progression
+          (currentPosition, audioDurationMs) => {
+            setAudioDuration((prev) => ({
+              ...prev,
+              [messageId]: Math.floor(currentPosition / 1000),
+            }));
+          }
+        );
       } catch (error: any) {
         console.error('[Audio] Play error:', error);
         setPlayingAudio(null);
@@ -524,41 +537,31 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           {msg.type === 'image' && (
             <TouchableOpacity onPress={() => {
               if (msg.file_url) {
-                const url = getMediaUrl(msg.file_url);
-                console.log('[Image] Opening:', url);
-                // TODO: Ouvrir image viewer full-screen (react-native-image-viewing)
-                Alert.alert('Image', `${msg.file_name || 'Photo'}\n\nURL: ${url}`, [
-                  { 
-                    text: 'Copier URL', 
-                    onPress: () => {
-                      import('@react-native-clipboard/clipboard').then(({ default: Clipboard }) => {
-                        Clipboard.setString(url);
-                        showMessage({ message: 'URL copiée', type: 'success' });
-                      });
-                    }
-                  },
-                  { text: 'Fermer', style: 'cancel' }
-                ]);
+                // Trouver l'index de cette image parmi toutes les images de la conversation
+                const imageMessages = messages.filter(m => m.type === 'image' && m.file_url);
+                const index = imageMessages.findIndex(m => m.id === msg.id);
+                setImageViewerIndex(index >= 0 ? index : 0);
+                setImageViewerVisible(true);
               }
             }}>
               {msg.file_url ? (
-                <>
-                  <Image 
-                    source={{ uri: getMediaUrl(msg.file_url) }}
-                    style={styles.imageMsg}
-                    resizeMode="cover"
-                    onLoadStart={() => console.log('[Image] Loading started:', msg.file_url)}
-                    onLoad={() => console.log('[Image] Loaded successfully:', msg.file_url)}
-                    onError={(e) => {
-                      const errorMsg = e.nativeEvent.error || 'Unknown error';
-                      console.error('[Image] Load error:', errorMsg, 'URL:', getMediaUrl(msg.file_url || ''));
-                    }}
-                  />
-                  {/* Indicateur de chargement */}
-                  <View style={styles.imageLoadingOverlay}>
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  </View>
-                </>
+                <CachedImage 
+                  source={{ 
+                    uri: getMediaUrl(msg.file_url),
+                    priority: FastImage.priority.normal,
+                  }}
+                  style={styles.imageMsg}
+                  resizeMode={FastImage.resizeMode.cover}
+                  onLoadStart={() => {
+                    console.log('[Image] 🔄 Chargement via cache...');
+                  }}
+                  onLoad={() => {
+                    console.log('[Image] ✅ Image affichée!');
+                  }}
+                  onError={() => {
+                    console.error('[Image] ❌ Erreur d\'affichage');
+                  }}
+                />
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Icon name="image" size={18} color={isMine ? COLORS.white : COLORS.primary} />
@@ -593,18 +596,41 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                       }
                     },
                     {
-                      text: 'Télécharger',
-                      onPress: () => {
-                        showMessage({
-                          message: 'Téléchargement',
-                          description: 'Fonctionnalité bientôt disponible. Utilisez "Copier le lien" pour l\'instant.',
-                          type: 'info',
-                          duration: 4000,
-                        });
-                        // TODO: Implémenter téléchargement avec react-native-fs ou react-native-blob-util
-                        // const { config, fs } = require('react-native-fs');
-                        // const downloadDir = fs.dirs.DownloadDir;
-                        // config({ fileCache: true, addAndroidDownloads: { ... } }).fetch('GET', url)
+                      text: 'Télécharger et ouvrir',
+                      onPress: async () => {
+                        try {
+                          setDownloadProgress({ ...downloadProgress, [msg.id]: 0 });
+                          
+                          await downloadAndOpenFile(
+                            url,
+                            msg.file_name || 'document.pdf',
+                            (progress) => {
+                              setDownloadProgress({ ...downloadProgress, [msg.id]: progress });
+                            }
+                          );
+                          
+                          // Retirer la progression après le téléchargement
+                          const newProgress = { ...downloadProgress };
+                          delete newProgress[msg.id];
+                          setDownloadProgress(newProgress);
+                          
+                          showMessage({
+                            message: 'Téléchargement terminé',
+                            description: 'Le fichier a été téléchargé et ouvert',
+                            type: 'success',
+                          });
+                        } catch (error: any) {
+                          const newProgress = { ...downloadProgress };
+                          delete newProgress[msg.id];
+                          setDownloadProgress(newProgress);
+                          
+                          showMessage({
+                            message: 'Erreur de téléchargement',
+                            description: error.message || 'Impossible de télécharger le fichier',
+                            type: 'danger',
+                            duration: 4000,
+                          });
+                        }
                       }
                     },
                     { text: 'Annuler', style: 'cancel' }
@@ -620,17 +646,25 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                   <Text style={[styles.fileName, isMine && styles.fileNameMe]} numberOfLines={2}>
                     {msg.file_name || 'Fichier'}
                   </Text>
-                  {msg.file_size && (
+                  {downloadProgress[msg.id] !== undefined ? (
+                    <Text style={[styles.fileSize, isMine && styles.fileSizeMe]}>
+                      Téléchargement... {Math.round(downloadProgress[msg.id])}%
+                    </Text>
+                  ) : msg.file_size ? (
                     <Text style={[styles.fileSize, isMine && styles.fileSizeMe]}>
                       {formatFileSize(msg.file_size)}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
-                <Icon 
-                  name="download" 
-                  size={20} 
-                  color={isMine ? COLORS.white : COLORS.primary} 
-                />
+                {downloadProgress[msg.id] !== undefined ? (
+                  <ActivityIndicator size="small" color={isMine ? COLORS.white : COLORS.primary} />
+                ) : (
+                  <Icon 
+                    name="download" 
+                    size={20} 
+                    color={isMine ? COLORS.white : COLORS.primary} 
+                  />
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -663,16 +697,21 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
           {msg.type === 'video' && (
             <TouchableOpacity onPress={() => {
-              // TODO: Lire la vidéo
-              const url = getMediaUrl(msg.file_url || '');
-              Alert.alert('Vidéo', `Lecture de ${msg.file_name}`);
+              if (msg.file_url) {
+                const url = getMediaUrl(msg.file_url);
+                setCurrentVideoUrl(url);
+                setVideoPlayerVisible(true);
+              }
             }}>
               {msg.file_url ? (
                 <View style={styles.videoContainer}>
-                  <Image 
-                    source={{ uri: getMediaUrl(msg.file_url) }}
+                  <CachedImage 
+                    source={{ 
+                      uri: getMediaUrl(msg.file_url),
+                      priority: FastImage.priority.normal,
+                    }}
                     style={styles.videoThumbnail}
-                    resizeMode="cover"
+                    resizeMode={FastImage.resizeMode.cover}
                   />
                   <View style={styles.videoOverlay}>
                     <Icon name="play-circle" size={48} color={COLORS.white} />
@@ -1061,6 +1100,24 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Image Viewer */}
+      <ImageViewer
+        visible={imageViewerVisible}
+        images={messages.filter(m => m.type === 'image' && m.file_url)}
+        imageIndex={imageViewerIndex}
+        onClose={() => setImageViewerVisible(false)}
+      />
+
+      {/* Video Player */}
+      <VideoPlayer
+        visible={videoPlayerVisible}
+        videoUrl={currentVideoUrl}
+        onClose={() => {
+          setVideoPlayerVisible(false);
+          setCurrentVideoUrl('');
+        }}
+      />
     </View>
   );
 };
@@ -1356,17 +1413,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: SIZES.radiusMd,
     marginVertical: 4,
-  },
-  imageLoadingOverlay: {
-    position: 'absolute',
-    top: 4,
-    left: 0,
-    right: 0,
-    bottom: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: SIZES.radiusMd,
+    backgroundColor: COLORS.gray200,
   },
   attachmentPanel: {
     position: 'absolute',
