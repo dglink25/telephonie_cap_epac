@@ -12,9 +12,20 @@ import { useCallStore } from '../store/callStore';
 import { useSocketEvents } from '../hooks/useSocket';
 import { COLORS, SIZES } from '../utils/constants';
 import { Badge } from '../components/common';
+import { NetworkStatus } from '../components/common/NetworkStatus';
 import { useChatStore } from '../store/chatStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsAPI } from '../services/api';
+import {
+  startCallNotificationService,
+  stopCallNotificationService,
+  onIncomingCallFromService,
+  onCallEndedFromService,
+} from '../services/callNotificationService';
+import {
+  requestAllPermissions,
+  requestNotificationPermission,
+} from '../services/permissionsService';
 
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -143,8 +154,56 @@ const AppContent = () => {
   const { setNotifications } = useNotificationStore();
   const prevCallStatus = useRef<string>('idle');
 
-  // Charger la session au démarrage
-  useEffect(() => { loadFromStorage(); }, []);
+  // Charger la session au démarrage + demander les permissions Android
+  useEffect(() => {
+    loadFromStorage();
+    // Demander toutes les permissions dès le lancement (Android 13/14/15/16+)
+    requestAllPermissions().catch(() => {});
+  }, []);
+
+  // ✅ Démarrer/arrêter le service de notifications d'appels en arrière-plan
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Demander permission notification (obligatoire Android 13+ pour que le service fonctionne)
+      requestNotificationPermission().then(() => {
+        startCallNotificationService();
+      });
+
+      // Écouter les appels reçus quand l'app était fermée/en arrière-plan
+      // CES événements viennent de MainActivity (Intent Android) via NativeEventEmitter
+      const unsubIncoming = onIncomingCallFromService((data) => {
+        const { setActiveCall, setStatus, setPendingOffer } = useCallStore.getState();
+        setPendingOffer(null);
+        setActiveCall({
+          callId:      data.callId,
+          callerId:    data.callerId,
+          callerName:  data.callerName,
+          callerAvatar: data.callerAvatar || null,
+          type:        data.type as any,
+          isGroupCall: data.isGroupCall,
+        });
+        setStatus('incoming');
+        // Naviguer directement vers IncomingCall avec le flag openedFromNotification=true
+        // pour éviter le doublon de sonnerie (le service natif joue déjà la sonnerie)
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('IncomingCall' as never, { openedFromNotification: true } as never);
+        }
+      });
+
+      const unsubEnded = onCallEndedFromService((_data) => {
+        const { endCall } = useCallStore.getState();
+        endCall();
+      });
+
+      return () => {
+        unsubIncoming();
+        unsubEnded();
+      };
+    } else {
+      // Déconnexion → arrêter le service
+      stopCallNotificationService();
+    }
+  }, [isAuthenticated]);
 
   // ✅ Dès que l'utilisateur est authentifié, charger conversations + notifications
   useEffect(() => {
@@ -155,8 +214,6 @@ const AppContent = () => {
         .catch(() => {});
     }
   }, [isAuthenticated]);
-
-  // ✅ Navigation automatique selon le statut d'appel
   // ✅ FIX: IncomingCallScreen gère sa propre navigation vers ActiveCall
   // Ce useEffect gère uniquement: incoming → IncomingCall et idle → retour aux Tabs
   useEffect(() => {
@@ -216,6 +273,7 @@ const AppContent = () => {
             name="IncomingCall"
             component={IncomingCallScreen}
             options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+            initialParams={{ openedFromNotification: false }}
           />
           <Stack.Screen
             name="ActiveCall"
@@ -237,6 +295,8 @@ const AppNavigator = () => (
   <SafeAreaProvider>
     <NavigationContainer ref={navigationRef}>
       <AppContent />
+      {/* Bandeau réseau visible sur toutes les pages */}
+      <NetworkStatus />
     </NavigationContainer>
   </SafeAreaProvider>
 );

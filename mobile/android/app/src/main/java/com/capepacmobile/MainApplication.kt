@@ -18,7 +18,8 @@ class MainApplication : Application(), ReactApplication {
         object : DefaultReactNativeHost(this) {
             override fun getPackages(): List<ReactPackage> =
                 PackageList(this).packages.apply {
-                    // Packages that cannot be autolinked yet can be added manually here
+                    // Module natif pour le service de notifications d'appels en arrière-plan
+                    add(CallServicePackage())
                 }
 
             override fun getJSMainModuleName(): String = "index"

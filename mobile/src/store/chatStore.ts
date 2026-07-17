@@ -107,7 +107,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isLoadingConversations: true });
     try {
       const resp = await conversationsAPI.getAll();
-      set({ conversations: resp.data.data.conversations, isLoadingConversations: false });
+      const conversations = resp.data.data.conversations;
+      // Toujours trier par message le plus récent
+      conversations.sort((a: Conversation, b: Conversation) => {
+        const timeA = a.lastMessage?.created_at || a.updated_at;
+        const timeB = b.lastMessage?.created_at || b.updated_at;
+        return new Date(timeB).getTime() - new Date(timeA).getTime();
+      });
+      set({ conversations, isLoadingConversations: false });
     } catch {
       set({ isLoadingConversations: false });
     }
@@ -119,7 +126,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       loadConvsDebounceTimer = null;
       try {
         const resp = await conversationsAPI.getAll();
-        set({ conversations: resp.data.data.conversations });
+        const conversations = resp.data.data.conversations;
+        // Trier par message le plus récent
+        conversations.sort((a: Conversation, b: Conversation) => {
+          const timeA = a.lastMessage?.created_at || a.updated_at;
+          const timeB = b.lastMessage?.created_at || b.updated_at;
+          return new Date(timeB).getTime() - new Date(timeA).getTime();
+        });
+        set({ conversations });
       } catch {}
     }, DEBOUNCE_MS);
   },
@@ -236,11 +250,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateConversation: (id, data) => {
-    set((s) => ({
-      conversations: s.conversations.map((c) =>
+    set((s) => {
+      const updated = s.conversations.map((c) =>
         c.id === id ? { ...c, ...data } : c
-      ),
-    }));
+      );
+      // Remonter la conversation en haut si lastMessage ou updated_at change
+      if (data.lastMessage || data.updated_at) {
+        updated.sort((a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      }
+      return { conversations: updated };
+    });
   },
 
   setTyping: (userId, conversationId, isTyping) => {

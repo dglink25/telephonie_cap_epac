@@ -29,10 +29,12 @@ android {
     namespace "com.capepacmobile"
     defaultConfig {
         applicationId "com.capepacmobile"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdk rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        minSdkVersion rootProject.ext.minSdkVersion   // API 24 = Android 7+
+        targetSdk rootProject.ext.targetSdkVersion     // API 35
+        versionCode 2
+        versionName "1.1.0"
+        // Multilingue — garder uniquement le français et l'anglais pour réduire la taille
+        resConfigs "fr", "en"
     }
 
     signingConfigs {
@@ -79,4 +81,6 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:hermes-android")
+    // Socket.IO client Java — pour le Foreground Service (connexion indépendante du JS)
+    implementation("io.socket:socket.io-client:2.1.0")
 }

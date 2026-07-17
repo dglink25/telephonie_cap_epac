@@ -13,7 +13,7 @@ if [ -f "../.env" ]; then
     echo "📍 IP serveur (depuis .env): $SERVER_IP"
 else
     echo "  Fichier .env non trouvé, utilisation IP par défaut"
-    SERVER_IP="192.168.10.150"
+    SERVER_IP="192.168.10.139"
 fi
 
 echo ""

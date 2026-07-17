@@ -48,7 +48,8 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const connectingAnim = useRef(new Animated.Value(0)).current;
   const isInitialized = useRef(false);
-  // ✅ FIX: State (pas ref) pour déclencher le useEffect de pendingOffer
+  // Guard : empêche la double navigation (handleEnd + useEffect)
+  const isEndingRef = useRef(false);
   const [webrtcReady, setWebrtcReady] = useState(false);
 
   // Animation connexion
@@ -78,6 +79,21 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     };
   }, [status]);
+
+  // Surveiller si l'appel est annulé par l'autre côté
+  useEffect(() => {
+    if (!activeCall && status === 'idle') {
+      // N'agir que si handleEnd n'a pas déjà navigué
+      if (isEndingRef.current) return;
+      isEndingRef.current = true;
+      webrtcService.endCall();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+      navigation.replace('Tabs');
+    }
+  }, [activeCall, status]);
 
   // Initialiser WebRTC — une seule fois par montage du composant
   useEffect(() => {
@@ -206,10 +222,12 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
   useWebRTCEvents(handleAnswer, handleIceCandidate);
 
   const handleEnd = () => {
-    if (!activeCall) return;
+    if (!activeCall || isEndingRef.current) return;
+    isEndingRef.current = true;
     socketService.endCall(activeCall.callId);
     webrtcService.endCall();
     storeEndCall();
+    // Naviguer vers Tabs — le useEffect ne renaviguera pas grâce à isEndingRef
     navigation.replace('Tabs');
   };
 

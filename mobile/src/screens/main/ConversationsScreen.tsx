@@ -7,6 +7,7 @@ import {
 import { useChatStore, Conversation } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
 import { Avatar, Badge, EmptyState } from '../../components/common';
+import { LoadingScreen, OfflineScreen } from '../../components/common/NetworkStatus';
 import { COLORS, SIZES } from '../../utils/constants';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -27,9 +28,10 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuthStore();
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    loadConversations();
+    loadConversations().catch(() => setLoadError(true));
   }, []);
 
   // ✅ Recharger les conversations si le socket se reconnecte pendant qu'on est sur cet écran
@@ -42,7 +44,8 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadConversations();
+    setLoadError(false);
+    await loadConversations().catch(() => setLoadError(true));
     setRefreshing(false);
   }, [loadConversations]);
 
@@ -159,58 +162,65 @@ const ConversationsScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Icon name="magnify" size={20} color={COLORS.gray400} style={{ marginRight: 8 }} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher une conversation..."
-          placeholderTextColor={COLORS.gray400}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="close" size={20} color={COLORS.gray400} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Liste */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary]}
-          />
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={
-          isLoadingConversations ? null : (
-            <EmptyState
-              title={search ? 'Aucun résultat' : 'Aucune conversation'}
-              subtitle={
-                search
-                  ? `Aucune conversation ne correspond à "${search}"`
-                  : 'Commencez une nouvelle conversation'
-              }
-              action={
-                !search
-                  ? {
-                      label: '+ Nouvelle conversation',
-                      onPress: () => navigation.navigate('NewConversation'),
-                    }
-                  : undefined
-              }
+      {/* Chargement initial plein écran */}
+      {isLoadingConversations && conversations.length === 0 ? (
+        <LoadingScreen text="Chargement des conversations..." />
+      ) : loadError && conversations.length === 0 ? (
+        <OfflineScreen onRetry={onRefresh} />
+      ) : (
+        <>
+          {/* Search */}
+          <View style={styles.searchBar}>
+            <Icon name="magnify" size={20} color={COLORS.gray400} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher une conversation..."
+              placeholderTextColor={COLORS.gray400}
+              value={search}
+              onChangeText={setSearch}
             />
-          )
-        }
-        contentContainerStyle={filtered.length === 0 ? { flex: 1 } : undefined}
-      />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Icon name="close" size={20} color={COLORS.gray400} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Liste */}
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[COLORS.primary]}
+              />
+            }
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={
+              <EmptyState
+                title={search ? 'Aucun résultat' : 'Aucune conversation'}
+                subtitle={
+                  search
+                    ? `Aucune conversation ne correspond à "${search}"`
+                    : 'Commencez une nouvelle conversation'
+                }
+                action={
+                  !search
+                    ? {
+                        label: '+ Nouvelle conversation',
+                        onPress: () => navigation.navigate('NewConversation'),
+                      }
+                    : undefined
+                }
+              />
+            }
+            contentContainerStyle={filtered.length === 0 ? { flex: 1 } : undefined}
+          />
+        </>
+      )}
     </View>
   );
 };

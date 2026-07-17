@@ -29,6 +29,10 @@ import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { audioRecorderService } from '../../services/audioRecorder';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { downloadAndOpenFile } from '../../utils/fileDownload';
+import {
+  requestStoragePermission,
+  requestMicrophonePermission,
+} from '../../services/permissionsService';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -253,31 +257,10 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch {}
   };
 
-  const requestStoragePermission = async (): Promise<boolean> => {
-    try {
-      if (Platform.OS === 'ios') {
-        const result = await request(PERMISSIONS.IOS.PHOTO_LIBRARY);
-        return result === RESULTS.GRANTED || result === RESULTS.LIMITED;
-      } else {
-        // Android 13+ (API 33+) utilise READ_MEDIA_IMAGES et READ_MEDIA_VIDEO
-        const androidVersion = Platform.Version;
-        
-        if (androidVersion >= 33) {
-          const imageResult = await request(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
-          const videoResult = await request(PERMISSIONS.ANDROID.READ_MEDIA_VIDEO);
-          return (
-            imageResult === RESULTS.GRANTED || 
-            videoResult === RESULTS.GRANTED
-          );
-        } else {
-          const result = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
-          return result === RESULTS.GRANTED;
-        }
-      }
-    } catch (err) {
-      console.warn('Permission error:', err);
-      return false;
-    }
+  // Déléguer au service centralisé (gère Android 14/15/16+)
+  const requestStoragePermission = () => {
+    const { requestStoragePermission: reqStorage } = require('../../services/permissionsService');
+    return reqStorage();
   };
 
   const handleImagePicker = async () => {
@@ -377,18 +360,9 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const requestAudioPermission = async (): Promise<boolean> => {
-    try {
-      const permission = Platform.OS === 'ios'
-        ? PERMISSIONS.IOS.MICROPHONE
-        : PERMISSIONS.ANDROID.RECORD_AUDIO;
-
-      const result = await request(permission);
-      return result === RESULTS.GRANTED;
-    } catch (err) {
-      console.warn('Audio permission error:', err);
-      return false;
-    }
+  const requestAudioPermission = () => {
+    const { requestMicrophonePermission } = require('../../services/permissionsService');
+    return requestMicrophonePermission();
   };
 
   const startAudioRecording = async () => {

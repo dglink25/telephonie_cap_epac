@@ -28,6 +28,7 @@ interface AuthState {
 
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  forceLogout: () => Promise<void>;
   loadFromStorage: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
   clearError: () => void;
@@ -80,6 +81,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try { await authAPI.logout(); } catch {}
+    socketService.disconnect();
+    await AsyncStorage.multiRemove(['accessToken', 'userId', 'user']);
+    set({ user: null, token: null, isAuthenticated: false, error: null });
+  },
+
+  // Déconnexion forcée sans appel API — utilisée quand le token est invalide
+  // et que tout appel API retournerait 401 (évite la boucle infinie)
+  forceLogout: async () => {
     socketService.disconnect();
     await AsyncStorage.multiRemove(['accessToken', 'userId', 'user']);
     set({ user: null, token: null, isAuthenticated: false, error: null });

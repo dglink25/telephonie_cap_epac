@@ -2,31 +2,55 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Vibration, Animated, Dimensions,
+  Vibration, Animated, Dimensions, Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import InCallManager from 'react-native-incall-manager';
 import { useCallStore } from '../../store/callStore';
 import { socketService } from '../../services/socket';
+import { stopNativeRingtone } from '../../services/callNotificationService';
 import { Avatar } from '../../components/common';
 import { COLORS, SIZES } from '../../utils/constants';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
+  route: RouteProp<{ IncomingCall: { openedFromNotification?: boolean } }, 'IncomingCall'>;
+  // openedFromNotification : vrai quand l'écran est ouvert depuis le bouton
+  // "Accepter" de la notification Android native — la sonnerie est déjà
+  // gérée par le service natif, pas besoin de la redémarrer.
+  openedFromNotification?: boolean;
 }
 
-const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
+const IncomingCallScreen: React.FC<Props> = ({ navigation, route }) => {
+  const openedFromNotification = route?.params?.openedFromNotification ?? false;
   const { activeCall, setStatus, endCall } = useCallStore();
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Indique si c'est CE composant qui a démarré la sonnerie
+  // (pour ne l'arrêter que s'il l'a démarrée)
+  const startedRingtone = useRef(false);
 
   useEffect(() => {
-    // Sonnerie : pattern vibration
-    const pattern = [0, 700, 500, 700, 500];
-    Vibration.vibrate(pattern, true);
+    // ── Anti-doublon sonnerie ──────────────────────────────────
+    // Si l'app vient d'être ouverte depuis la notification Android native,
+    // le service natif gère déjà la sonnerie → ne pas la redémarrer.
+    // On joue la sonnerie JS seulement si l'app était déjà ouverte en foreground.
+    const serviceAlreadyRinging = Platform.OS === 'android' && openedFromNotification;
 
-    // Animation pulse
+    if (!serviceAlreadyRinging) {
+      InCallManager.startRingtone('_BUNDLE_');
+      InCallManager.setKeepScreenOn(true);
+      Vibration.vibrate([0, 700, 500, 700, 500], true);
+      startedRingtone.current = true;
+    } else {
+      // L'écran s'ouvre via notification — juste garder l'écran allumé
+      InCallManager.setKeepScreenOn(true);
+      startedRingtone.current = false;
+    }
+
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, useNativeDriver: true }),
@@ -36,10 +60,16 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
     loop.start();
 
     return () => {
-      Vibration.cancel();
+      // N'arrêter la sonnerie JS que si c'est ce composant qui l'a démarrée
+      if (startedRingtone.current) {
+        InCallManager.stopRingtone();
+        Vibration.cancel();
+        startedRingtone.current = false;
+      }
+      InCallManager.setKeepScreenOn(false);
       loop.stop();
     };
-  }, []);
+  }, [openedFromNotification]);
 
   // ✅ FIX: Si l'appel se termine avant d'accepter → retour aux tabs
   useEffect(() => {
@@ -51,18 +81,29 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation }) => {
   if (!activeCall) return null;
 
   const handleAccept = () => {
-    Vibration.cancel();
-    // ✅ FIX: Envoyer call:accept au serveur — le serveur va notifier l'appelant
-    // L'appelant (OutgoingCallScreen) va alors naviguer vers ActiveCallScreen
-    // et créer l'offre WebRTC qui sera stockée dans le store (handleWebRTCOffer)
+    // Arrêter la sonnerie JS si ce composant l'a démarrée
+    if (startedRingtone.current) {
+      InCallManager.stopRingtone();
+      Vibration.cancel();
+      startedRingtone.current = false;
+    }
+    // Arrêter aussi la sonnerie du service natif Android (toujours, par sécurité)
+    stopNativeRingtone();
+    InCallManager.setKeepScreenOn(false);
     socketService.acceptCall(activeCall.callId);
     setStatus('connecting');
-    // Naviguer vers ActiveCallScreen comme appelé (isIncoming: true)
     navigation.replace('ActiveCall', { isIncoming: true });
   };
 
   const handleReject = () => {
-    Vibration.cancel();
+    if (startedRingtone.current) {
+      InCallManager.stopRingtone();
+      Vibration.cancel();
+      startedRingtone.current = false;
+    }
+    // Arrêter aussi la sonnerie du service natif Android
+    stopNativeRingtone();
+    InCallManager.setKeepScreenOn(false);
     socketService.rejectCall(activeCall.callId);
     endCall();
     navigation.replace('Tabs');
