@@ -1,9 +1,5 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════
-#  WireGuard VPN — Installation & Configuration automatique
-#  Pour : CAP-EPAC Téléphonie
-#  Serveur : Ubuntu, IP LAN 192.168.10.139
-# ═══════════════════════════════════════════════════════════════
+
 set -e
 
 # ── Couleurs ──────────────────────────────────────────────────
