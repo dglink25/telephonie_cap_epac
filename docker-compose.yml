@@ -81,6 +81,7 @@ services:
       SERVER_LAN_IP: ${SERVER_LAN_IP:-192.168.1.10}
       UPLOAD_MAX_SIZE: 104857600
       CORS_ORIGIN: ${CORS_ORIGIN:-https://192.168.1.10}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-cap-epac-webhook-secret-2025}
     volumes:
       - uploads-data:/app/uploads
       - logs-data:/app/logs
