@@ -373,9 +373,22 @@ export default function ChatPage() {
     mutationFn: (data) => api.post(`/conversations/${conversationId}/messages`, data, {
       headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
     }),
-    onSuccess: () => {
+    onSuccess: (resp) => {
       qc.invalidateQueries(['messages', conversationId]);
-      qc.invalidateQueries(['conversations']);
+      // Remonter la conversation en haut immédiatement après envoi
+      const sentMsg = resp?.data?.data?.message;
+      qc.setQueryData(['conversations'], (old) => {
+        if (!old) return old;
+        const now = sentMsg?.created_at || new Date().toISOString();
+        const updated = old.map((c) =>
+          c.id === conversationId
+            ? { ...c, lastMessage: sentMsg || c.lastMessage, updated_at: now, unreadCount: 0 }
+            : c
+        );
+        return [...updated].sort(
+          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      });
       setMessage('');
       setReplyTo(null);
       setEditingMsg(null);
@@ -461,12 +474,39 @@ export default function ChatPage() {
   useEffect(() => {
     if (!socket || !conversationId) return;
 
-    const onNew     = (data) => {
-      if (data.message.conversation_id === conversationId) {
+    const onNew = (data) => {
+      const msg = data.message;
+
+      // 1. Mettre à jour les messages si c'est la conversation active
+      if (msg.conversation_id === conversationId) {
         qc.invalidateQueries(['messages', conversationId]);
         api.post(`/conversations/${conversationId}/read`).catch(() => {});
       }
-      qc.invalidateQueries(['conversations']);
+
+      // 2. Remonter immédiatement la conversation en haut du cache local
+      //    sans attendre l'API (comme WhatsApp)
+      qc.setQueryData(['conversations'], (old) => {
+        if (!old) return old;
+        const convId = msg.conversation_id;
+        const now    = msg.created_at || new Date().toISOString();
+
+        // Mettre à jour la conversation avec le nouveau lastMessage + updated_at
+        const updated = old.map((c) =>
+          c.id === convId
+            ? {
+                ...c,
+                lastMessage: msg,
+                updated_at:  now,
+                unreadCount: c.id === conversationId ? 0 : (c.unreadCount || 0) + 1,
+              }
+            : c
+        );
+
+        // Trier par updated_at décroissant → conversation avec nouveau message en haut
+        return [...updated].sort(
+          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      });
     };
     const onEdited  = () => qc.invalidateQueries(['messages', conversationId]);
     const onDeleted = () => qc.invalidateQueries(['messages', conversationId]);

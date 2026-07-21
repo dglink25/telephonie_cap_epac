@@ -131,20 +131,19 @@ const incomingMessage = async (req, res, next) => {
     const conv = await getOrCreateWebhookConversation(bot, t);
 
     // 2. Stocker le message entrant dans la conversation
-    //    On encode callback_url + metadata dans le champ content en JSON
-    //    pour pouvoir les récupérer lors de la réponse
-    const msgContent = JSON.stringify({
-      text:         message.trim(),
-      callback_url,
-      metadata,
-      direction:    'incoming',   // 'incoming' = vient du service externe
-    });
-
+    //    Le texte va dans content, les métadonnées dans file_url (encodé JSON)
+    //    pour pouvoir récupérer callback_url lors de la réponse
     const dbMessage = await Message.create({
       conversation_id: conv.id,
       sender_id:       bot.id,
-      content:         msgContent,
+      content:         message.trim(),          // ← texte brut, lisible directement
       type:            'text',
+      file_url:        JSON.stringify({          // ← métadonnées cachées dans file_url
+        callback_url,
+        metadata,
+        direction: 'incoming',
+        is_webhook: true,
+      }),
     }, { transaction: t });
 
     await Conversation.update(
@@ -251,12 +250,12 @@ const replyToMessage = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Accès refusé' });
     }
 
-    // Parser le message original pour récupérer callback_url
+    // Parser le message original pour récupérer callback_url (stocké dans file_url)
     let parsedOriginal;
     try {
-      parsedOriginal = JSON.parse(original.content);
+      parsedOriginal = JSON.parse(original.file_url);
     } catch {
-      return res.status(400).json({ success: false, message: 'Message original invalide' });
+      return res.status(400).json({ success: false, message: 'Message original invalide — pas de métadonnées webhook' });
     }
 
     const { callback_url, metadata } = parsedOriginal;
@@ -264,22 +263,22 @@ const replyToMessage = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Pas de callback_url dans le message original' });
     }
 
-    // Stocker la réponse dans la conversation
+    // Stocker la réponse dans la conversation (texte brut dans content)
     const replier    = await User.findByPk(userId, { attributes: ['id', 'display_name', 'username'] });
-    const replyContent = JSON.stringify({
-      text:         reply.trim(),
-      callback_url,
-      metadata,
-      direction:    'outgoing',   // 'outgoing' = réponse d'un agent
-      replied_by:   replier?.display_name || 'Agent',
-    });
 
     const replyMsg = await Message.create({
       conversation_id: original.conversation_id,
       sender_id:       userId,
-      content:         replyContent,
+      content:         reply.trim(),             // ← texte brut
       type:            'text',
       reply_to_id:     messageId,
+      file_url:        JSON.stringify({           // ← métadonnées
+        callback_url,
+        metadata,
+        direction:  'outgoing',
+        is_webhook: true,
+        replied_by: replier?.display_name || 'Agent',
+      }),
     });
 
     await Conversation.update(

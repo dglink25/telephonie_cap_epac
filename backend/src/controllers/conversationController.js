@@ -246,7 +246,7 @@ const sendMessage = async (req, res, next) => {
 
     await Conversation.update({ updated_at: new Date() }, { where: { id } });
 
-    // ── Vérifier si les destinataires sont en ligne pour marquer comme délivré ──
+    // ── Charger la conversation une seule fois (réutilisée pour livraison + notifications) ──
     const { isUserOnline } = require('../socket');
     const conversation = await Conversation.findByPk(id, {
       include: [{ model: User, as: 'members', through: { attributes: [] } }],
@@ -254,10 +254,8 @@ const sendMessage = async (req, res, next) => {
 
     let isDelivered = false;
     if (conversation) {
-      // Vérifier si au moins un destinataire (autre que l'expéditeur) est en ligne
       const otherMembers = conversation.members.filter(m => m.id !== userId);
       isDelivered = otherMembers.some(m => isUserOnline(m.id));
-      
       if (isDelivered) {
         message.delivered_at = new Date();
         await message.save();
@@ -279,11 +277,7 @@ const sendMessage = async (req, res, next) => {
 
       // ── Envoyer des notifications aux autres membres ──────────
       try {
-        // Récupérer la conversation et ses membres
-        const conversation = await Conversation.findByPk(id, {
-          include: [{ model: User, as: 'members', through: { attributes: [] } }],
-        });
-
+        // Réutiliser la conversation déjà chargée (pas de double requête)
         if (conversation) {
           const conversationName = conversation.name || 'Conversation';
           const senderName = req.user.display_name || req.user.username;
