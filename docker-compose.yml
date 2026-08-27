@@ -34,7 +34,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "3307:3306"
+      - "3317:3306"
 
   # ─────────────────────────────────────────
   # Cache Redis
@@ -92,6 +92,10 @@ services:
         condition: service_healthy
     networks:
       - cap-epac-network
+    # extra_hosts permet au conteneur d'accéder aux IPs du réseau LAN
+    # pour les callbacks webhook vers d'autres machines (ex: 192.168.10.116)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 15s
@@ -106,8 +110,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://${SERVER_LAN_IP:-192.168.1.10}/api
-        VITE_SOCKET_URL: https://${SERVER_LAN_IP:-192.168.1.10}
+        VITE_API_URL: https://${SERVER_LAN_IP:-192.168.1.10}:${HTTPS_PORT:-9443}/api
+        VITE_SOCKET_URL: https://${SERVER_LAN_IP:-192.168.1.10}:${HTTPS_PORT:-9443}
         VITE_COTURN_HOST: ${SERVER_LAN_IP:-192.168.1.10}
     container_name: cap-epac-frontend
     restart: unless-stopped
@@ -134,8 +138,9 @@ services:
     container_name: cap-epac-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-9080}:80"
+      - "${HTTPS_PORT:-9443}:443"
+      - "${MOBILE_PORT:-8282}:8080"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro

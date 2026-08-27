@@ -1,11 +1,10 @@
+# docker-compose.override.yml
+# Les ports sont maintenant configurés dans docker-compose.yml via variables .env
+# HTTP_PORT, HTTPS_PORT, MOBILE_PORT
 
 services:
   nginx:
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"   # Port HTTP pour distribuer le certificat CA
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/html:/usr/share/nginx/html/cap-epac:ro  # guide HTML
+      - ./nginx/html:/usr/share/nginx/html/cap-epac:ro

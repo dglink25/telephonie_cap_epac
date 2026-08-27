@@ -327,8 +327,57 @@ const sendMessage = async (req, res, next) => {
         }
       } catch (notifError) {
         logger.error('Erreur envoi notifications:', notifError.message);
-        // Ne pas bloquer l'envoi du message si les notifications échouent
       }
+    }
+
+    // ── Callback webhook automatique ──────────────────────────
+    // Si la conversation contient des messages webhook entrants non répondus,
+    // envoyer automatiquement la réponse de l'agent vers le callback_url
+    // L'utilisateur répond normalement dans le chat — pas besoin d'API spéciale
+    try {
+      const BOT_USERNAME = 'assistant_site_vitrine';
+      const bot = await User.findOne({ where: { username: BOT_USERNAME } });
+
+      if (bot && conversation && conversation.created_by === bot.id && userId !== bot.id) {
+        // C'est bien la conversation webhook ET c'est un agent qui répond (pas le bot)
+        // Chercher le dernier message entrant non encore traité
+        const lastIncoming = await Message.findOne({
+          where: {
+            conversation_id: id,
+            sender_id: bot.id,
+            is_deleted: false,
+          },
+          order: [['created_at', 'DESC']],
+        });
+
+        if (lastIncoming && lastIncoming.file_url) {
+          let webhookMeta;
+          try { webhookMeta = JSON.parse(lastIncoming.file_url); } catch {}
+
+          if (webhookMeta && webhookMeta.callback_url && webhookMeta.direction === 'incoming') {
+            const { callback_url, metadata } = webhookMeta;
+            const replyText = content || (fileData.file_name ? `[${fileData.file_name}]` : '');
+
+            if (replyText) {
+              // Envoyer le callback de façon asynchrone (ne bloque pas la réponse)
+              const { postWebhookCallback } = require('./webhookController');
+              postWebhookCallback(callback_url, { message: replyText, metadata })
+                .then((httpCode) => {
+                  logger.info(`[Webhook Auto] Callback envoyé → ${callback_url} HTTP ${httpCode}`);
+                  // Marquer le message entrant comme traité pour éviter les doublons
+                  Message.update(
+                    { file_url: JSON.stringify({ ...webhookMeta, direction: 'replied' }) },
+                    { where: { id: lastIncoming.id } }
+                  ).catch(() => {});
+                })
+                .catch((err) => logger.error(`[Webhook Auto] Erreur callback : ${err.message}`));
+            }
+          }
+        }
+      }
+    } catch (webhookErr) {
+      logger.error('Erreur webhook auto:', webhookErr.message);
+      // Ne jamais bloquer l'envoi du message
     }
 
     return res.status(201).json({ success: true, data: { message: msgJson } });

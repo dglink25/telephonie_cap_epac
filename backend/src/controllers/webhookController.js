@@ -298,36 +298,40 @@ const replyToMessage = async (req, res, next) => {
     }
 
     // Envoyer la réponse au service externe (callback)
+    // Format attendu par le service : { message, metadata }
     let callbackStatus = 'sent';
+    let callbackHttpCode = null;
     try {
-      await postCallback(callback_url, {
-        reply:      reply.trim(),
-        replied_by: replier?.display_name || 'Agent',
+      logger.info(`[Webhook] Envoi callback vers : ${callback_url}`);
+      logger.info(`[Webhook] Payload : ${JSON.stringify({ message: reply.trim(), metadata })}`);
+      callbackHttpCode = await postCallback(callback_url, {
+        message:  reply.trim(),
         metadata,
-        replied_at: new Date().toISOString(),
-        message_id: replyMsg.id,
       });
-      logger.info(`[Webhook] Réponse envoyée à ${callback_url}`);
+      logger.info(`[Webhook] Callback répondu avec HTTP ${callbackHttpCode}`);
+      if (callbackHttpCode >= 200 && callbackHttpCode < 300) {
+        callbackStatus = 'sent';
+      } else {
+        callbackStatus = `callback_http_${callbackHttpCode}`;
+        logger.warn(`[Webhook] Callback retourné HTTP ${callbackHttpCode} — considéré comme échec`);
+      }
     } catch (callbackErr) {
       callbackStatus = 'callback_failed';
       logger.error(`[Webhook] Erreur callback ${callback_url} : ${callbackErr.message}`);
-      // On ne rejette pas — la réponse est quand même stockée
     }
 
     return res.status(201).json({
-      success:         true,
-      message_id:      replyMsg.id,
-      callback_status: callbackStatus,
+      success:          true,
+      message_id:       replyMsg.id,
+      callback_status:  callbackStatus,
+      callback_http:    callbackHttpCode,
+      callback_url,
     });
   } catch (err) {
     next(err);
   }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
-// GET /api/webhook/conversation
-// Retourne les infos de la conversation webhook (pour l'UI)
-// ────────────────────────────────────────────────────────────────────────────
 
 const getWebhookConversation = async (req, res, next) => {
   try {
@@ -346,4 +350,4 @@ const getWebhookConversation = async (req, res, next) => {
   }
 };
 
-module.exports = { incomingMessage, replyToMessage, getWebhookConversation };
+module.exports = { incomingMessage, replyToMessage, getWebhookConversation, postWebhookCallback: postCallback };
