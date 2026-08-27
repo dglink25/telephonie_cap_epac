@@ -14,6 +14,7 @@ import DirectoryPage from './pages/DirectoryPage';
 import ProfilePage   from './pages/ProfilePage';
 import AdminPage     from './pages/AdminPage';
 import NotificationsPage from './pages/NotificationsPage';
+import MeetingPage       from './pages/MeetingPage';
 
 import IncomingCallModal from './components/calls/IncomingCallModal';
 import OutgoingCallModal from './components/calls/OutgoingCallModal';
@@ -81,6 +82,9 @@ export default function App() {
           <Route path="profile"              element={<ProfilePage />} />
           <Route path="admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         </Route>
+
+        {/* Visioconférence — hors MainLayout (plein écran) */}
+        <Route path="/meeting/:roomName" element={<PrivateRoute><MeetingPage /></PrivateRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

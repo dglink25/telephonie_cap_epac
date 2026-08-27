@@ -82,6 +82,9 @@ services:
       UPLOAD_MAX_SIZE: 104857600
       CORS_ORIGIN: ${CORS_ORIGIN:-https://192.168.1.10}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-cap-epac-webhook-secret-2025}
+      JITSI_URL: ${JITSI_URL:-https://192.168.10.139:8443}
+      JITSI_APP_ID: ${JITSI_APP_ID:-cap-epac}
+      JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
     volumes:
       - uploads-data:/app/uploads
       - logs-data:/app/logs

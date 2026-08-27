@@ -47,6 +47,7 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-video": "^6.19.2",
     "react-native-webrtc": "^124.0.4",
+    "react-native-webview": "^14.0.1",
     "socket.io-client": "^4.7.5",
     "zustand": "^4.5.5"
   },

@@ -46,6 +46,10 @@ import IncomingCallScreen from '../screens/calls/IncomingCallScreen';
 import OutgoingCallScreen from '../screens/calls/OutgoingCallScreen';
 import ActiveCallScreen from '../screens/calls/ActiveCallScreen';
 
+// Meeting — visioconférence
+import MeetingScreen    from '../screens/meeting/MeetingScreen';
+import NewMeetingScreen from '../screens/meeting/NewMeetingScreen';
+
 // Admin
 import AdminScreen from '../screens/admin/AdminScreen';
 
@@ -279,6 +283,16 @@ const AppContent = () => {
             name="ActiveCall"
             component={ActiveCallScreen}
             options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="NewMeeting"
+            component={NewMeetingScreen}
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="Meeting"
+            component={MeetingScreen}
+            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
           />
           <Stack.Screen
             name="Admin"

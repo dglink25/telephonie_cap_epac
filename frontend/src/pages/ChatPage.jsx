@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Send, Paperclip, Phone, Video, Search, Plus, ArrowLeft,
   Edit2, Trash2, Reply, MessageSquare, Loader2, X, Mic,
-  Image, Film, FileText, Music, Settings, Smile,
+  Image, Film, FileText, Music, Settings, Smile, Users,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -19,6 +19,7 @@ import MentionPicker from '../components/chat/MentionPicker';
 import EmojiPickerPanel from '../components/chat/EmojiPicker';
 import { useMention } from '../hooks/useMention';
 import { useFeedback } from '../components/ui/FeedbackModal';
+import MeetingModal from '../components/meeting/MeetingModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -322,6 +323,7 @@ export default function ChatPage() {
   const [showNewConv, setShowNewConv] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showMeeting, setShowMeeting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   // Paste / drag-over indicator
   const [pasteHover, setPasteHover] = useState(false);
@@ -753,6 +755,13 @@ export default function ChatPage() {
             <div className="flex items-center gap-1">
               <button onClick={() => handleCall('audio')} className="btn-icon text-primary-600 hover:bg-primary-50"><Phone className="w-5 h-5" /></button>
               <button onClick={() => handleCall('video')} className="btn-icon text-primary-600 hover:bg-primary-50"><Video className="w-5 h-5" /></button>
+              <button
+                onClick={() => setShowMeeting(true)}
+                className="btn-icon text-primary-600 hover:bg-primary-50"
+                title="Démarrer une visioconférence"
+              >
+                <Users className="w-5 h-5" />
+              </button>
               {activeConv?.type === 'group' && (
                 <button onClick={() => setShowGroupSettings(true)} className="btn-icon text-slate-500 hover:bg-slate-100 hover:text-primary-600" title="Paramètres du groupe">
                   <Settings className="w-5 h-5" />
@@ -962,6 +971,14 @@ export default function ChatPage() {
           conversationId={conversationId}
           onClose={() => setShowGroupSettings(false)}
           onLeft={() => { setShowGroupSettings(false); navigate('/chat'); qc.invalidateQueries(['conversations']); }}
+        />
+      )}
+
+      {/* Modal visioconférence */}
+      {showMeeting && (
+        <MeetingModal
+          onClose={() => setShowMeeting(false)}
+          conversationName={activeConv?.name || otherMember?.display_name || ''}
         />
       )}
 

@@ -959,6 +959,14 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
               <Icon name="information" size={22} color={COLORS.white} />
             </TouchableOpacity>
           )}
+
+          {/* Bouton visioconférence */}
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => navigation.navigate('NewMeeting')}
+          >
+            <Icon name="video-plus" size={22} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
       </View>
 
