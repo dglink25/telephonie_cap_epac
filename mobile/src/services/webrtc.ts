@@ -21,7 +21,7 @@ const ICE_SERVERS = {
       username: 'cap-epac',
       credential: 'CapEpacTurn2025',
     },
-    { urls: 'stun:192.168.100.195:3478' },
+    { urls: 'stun:192.168.18.113:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
   ],

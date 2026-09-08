@@ -69,10 +69,10 @@ if ! echo "$SERVER_IP" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,
 fi
 
 # ── Ports (configurables via arguments ou valeurs par défaut) ─────────────────
-HTTPS_PORT="${HTTPS_PORT:-9443}"
-HTTP_PORT="${HTTP_PORT:-9080}"
-MOBILE_PORT="${MOBILE_PORT:-8282}"
-JITSI_PORT="${JITSI_PORT:-8443}"
+HTTPS_PORT="${HTTPS_PORT:-19443}"
+HTTP_PORT="${HTTP_PORT:-19080}"
+MOBILE_PORT="${MOBILE_PORT:-18282}"
+JITSI_PORT="${JITSI_PORT:-19444}"
 
 # ── Bannière ──────────────────────────────────────────────────────────────────
 echo ""
@@ -137,6 +137,7 @@ else
   update_env "HTTP_PORT"      "$HTTP_PORT"
   update_env "HTTPS_PORT"     "$HTTPS_PORT"
   update_env "MOBILE_PORT"    "$MOBILE_PORT"
+  update_env "MYSQL_PORT"     "${MYSQL_PORT:-13307}"
   update_env "JITSI_URL"      "https://${SERVER_IP}:${JITSI_PORT}"
   update_env "VITE_API_URL"   "https://${SERVER_IP}:${HTTPS_PORT}/api"
   update_env "VITE_SOCKET_URL" "https://${SERVER_IP}:${HTTPS_PORT}"
@@ -187,7 +188,6 @@ export function getMediaUrl(path: string): string {
 }
 EOF
 ok "mobile/src/config.ts → http://${SERVER_IP}:${MOBILE_PORT}"
-
 # webrtc.ts — TURN/STUN servers
 WEBRTC_FILE="mobile/src/services/webrtc.ts"
 if [ -f "$WEBRTC_FILE" ]; then
