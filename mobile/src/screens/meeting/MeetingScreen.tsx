@@ -29,7 +29,7 @@ const MeetingScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // URL Jitsi : depuis les params ou dérivée du SERVER_BASE
   const jitsiUrl = routeJitsiUrl ||
-    SERVER_BASE.replace(':8282', ':8443').replace(/:\d+$/, ':8443');
+    SERVER_BASE.replace(':8282', ':8443').replace(':18282', ':19444').replace(/:\d+$/, ':19444');
 
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');

@@ -15,8 +15,8 @@ const ICE_SERVERS = {
   iceServers: [
     {
       urls: [
-        'turn:192.168.100.195:3478?transport=udp',
-        'turn:192.168.100.195:3478?transport=tcp',
+        'turn:192.168.18.103:3478?transport=udp',
+        'turn:192.168.18.103:3478?transport=tcp',
       ],
       username: 'cap-epac',
       credential: 'CapEpacTurn2025',

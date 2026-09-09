@@ -311,6 +311,31 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
   echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
     sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || true
 
+  # Détecter et configurer le SDK Android automatiquement
+  ANDROID_SDK=""
+  for candidate in \
+    "$ANDROID_HOME" \
+    "$HOME/Android/Sdk" \
+    "$HOME/snap/android-studio/common/Android/Sdk" \
+    "/opt/android-sdk" \
+    "/usr/lib/android-sdk"; do
+    [ -d "$candidate/platform-tools" ] && ANDROID_SDK="$candidate" && break
+  done
+
+  # Fallback : chercher adb
+  if [ -z "$ANDROID_SDK" ]; then
+    ADB_PATH=$(find /home -name "adb" -type f 2>/dev/null | head -1)
+    [ -n "$ADB_PATH" ] && ANDROID_SDK=$(dirname "$(dirname "$ADB_PATH")")
+  fi
+
+  if [ -n "$ANDROID_SDK" ]; then
+    echo "sdk.dir=${ANDROID_SDK}" > mobile/android/local.properties
+    ok "SDK Android : ${ANDROID_SDK}"
+  else
+    warn "SDK Android non trouvé — créer mobile/android/local.properties manuellement"
+    warn "  echo 'sdk.dir=/chemin/vers/sdk' > mobile/android/local.properties"
+  fi
+
   info "Build APK Release en cours..."
   if cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -3; then
     cd "$SCRIPT_DIR"

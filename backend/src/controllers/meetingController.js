@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 const logger = require('../utils/logger');
 
-const JITSI_URL        = process.env.JITSI_URL || 'https://192.168.10.139:8443';
+const JITSI_URL        = process.env.JITSI_URL || 'https://meet.jit.si';
 const JITSI_APP_ID     = process.env.JITSI_APP_ID || 'cap-epac';
 const JITSI_APP_SECRET = process.env.JITSI_APP_SECRET || null; // optionnel
 

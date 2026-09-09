@@ -25,7 +25,10 @@ export default function MeetingPage() {
   useEffect(() => {
     api.get('/meetings/config').then((resp) => {
       setJitsiUrl(resp.data.data.jitsiUrl);
-    }).catch(() => setError('Impossible de charger la configuration Jitsi'));
+    }).catch(() => {
+      // Fallback vers meet.jit.si public si Jitsi local non disponible
+      setJitsiUrl('https://meet.jit.si');
+    });
   }, []);
 
   // ── Initialiser Jitsi quand l'URL est prête ───────────────────
