@@ -246,8 +246,10 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   info "Arrêt des anciens conteneurs..."
   docker compose down 2>/dev/null || true
 
-  # Build frontend (rapide — utilise le dist/ local)
+  # Build frontend — forcer le rechargement du dist/ local
   info "Build image frontend..."
+  # Toucher un fichier pour forcer Docker à invalider le cache du contexte
+  touch frontend/dist/index.html
   docker compose build --no-cache frontend 2>&1 | grep -E "FINISHED|ERROR|error" | head -3
 
   # Démarrer tout
