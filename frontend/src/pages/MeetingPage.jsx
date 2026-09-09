@@ -23,16 +23,15 @@ export default function MeetingPage() {
 
   // ── Charger la config Jitsi ───────────────────────────────────
   useEffect(() => {
-    // Priorité 1 : variable VITE_JITSI_URL dans le build (définie par deploy.sh)
     const envUrl = import.meta.env.VITE_JITSI_URL;
-    if (envUrl) { setJitsiUrl(envUrl); return; }
-    // Priorité 2 : API backend
-    api.get('/meetings/config').then((resp) => {
-      setJitsiUrl(resp.data.data.jitsiUrl || 'https://meet.jit.si');
-    }).catch(() => {
-      setJitsiUrl('https://meet.jit.si');
-    });
+    setJitsiUrl(envUrl || 'https://meet.jit.si');
+    setLoading(false);
   }, []);
+
+  // ── Construire l'URL iframe Jitsi ─────────────────────────────
+  const iframeUrl = jitsiUrl && roomName
+    ? `${jitsiUrl}/${roomName.toUpperCase()}#userInfo.displayName="${encodeURIComponent(user?.display_name || 'Participant')}"&config.startWithAudioMuted=false&config.startWithVideoMuted=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.APP_NAME=CAP-EPAC`
+    : null;
 
   // ── Initialiser Jitsi quand l'URL est prête ───────────────────
   useEffect(() => {
@@ -247,7 +246,17 @@ export default function MeetingPage() {
           </div>
         )}
 
-        <div ref={jitsiContainerRef} className="w-full h-full" />
+        <div ref={jitsiContainerRef} className="w-full h-full">
+          {iframeUrl && (
+            <iframe
+              src={iframeUrl}
+              allow="camera; microphone; display-capture; fullscreen; autoplay"
+              style={{ width: '100%', height: '100%', border: 'none' }}
+              title="CAP-EPAC Visioconférence"
+              onLoad={() => setLoading(false)}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
