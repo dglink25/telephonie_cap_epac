@@ -67,6 +67,9 @@ HTTP_PORT="${HTTP_PORT:-19080}"
 MOBILE_PORT="${MOBILE_PORT:-18282}"
 JITSI_PORT="${JITSI_PORT:-19444}"
 MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
+# Jitsi : utiliser meet.jit.si public par défaut (fonctionne sans installation)
+# Pour utiliser Jitsi local : JITSI_URL=https://<IP>:19444 bash deploy.sh <IP>
+JITSI_URL="${JITSI_URL:-https://meet.jit.si}"
 
 # ── Bannière ──────────────────────────────────────────────────────────────────
 echo ""
@@ -137,13 +140,13 @@ cat > frontend/.env << EOF
 VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
 VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
 VITE_COTURN_HOST=${SERVER_IP}
-VITE_JITSI_URL=https://${SERVER_IP}:${JITSI_PORT}
+VITE_JITSI_URL=${JITSI_URL}
 EOF
 cat > frontend/.env.production << EOF
 VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
 VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
 VITE_COTURN_HOST=${SERVER_IP}
-VITE_JITSI_URL=https://${SERVER_IP}:${JITSI_PORT}
+VITE_JITSI_URL=${JITSI_URL}
 EOF
 ok "frontend/.env → ${SERVER_IP}:${HTTPS_PORT}"
 

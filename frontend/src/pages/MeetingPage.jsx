@@ -23,10 +23,13 @@ export default function MeetingPage() {
 
   // ── Charger la config Jitsi ───────────────────────────────────
   useEffect(() => {
+    // Priorité 1 : variable VITE_JITSI_URL dans le build (définie par deploy.sh)
+    const envUrl = import.meta.env.VITE_JITSI_URL;
+    if (envUrl) { setJitsiUrl(envUrl); return; }
+    // Priorité 2 : API backend
     api.get('/meetings/config').then((resp) => {
-      setJitsiUrl(resp.data.data.jitsiUrl);
+      setJitsiUrl(resp.data.data.jitsiUrl || 'https://meet.jit.si');
     }).catch(() => {
-      // Fallback vers meet.jit.si public si Jitsi local non disponible
       setJitsiUrl('https://meet.jit.si');
     });
   }, []);
@@ -228,7 +231,7 @@ export default function MeetingPage() {
 
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10 p-8">
-            <X className="w-16 h-16 text-red-500 mb-4" />
+            
             <p className="text-white font-semibold text-lg mb-2">Erreur de connexion</p>
             <p className="text-gray-400 text-sm text-center mb-6 max-w-md">{error}</p>
             <p className="text-gray-500 text-xs mb-4">
