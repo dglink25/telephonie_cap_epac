@@ -168,6 +168,16 @@ EOF
 
 ok "frontend/.env → ${SERVER_IP}:${HTTPS_PORT}"
 
+# ── Build Vite automatique ────────────────────────────────────────
+info "Build du frontend avec la nouvelle IP..."
+if [ -d "frontend/node_modules" ]; then
+  npm run build --prefix frontend 2>&1 | tail -3
+  ok "Frontend buildé avec IP ${SERVER_IP}"
+else
+  warn "node_modules absent — installer d'abord : npm install --prefix frontend"
+  warn "Le build Docker utilisera le dist/ existant s'il est présent"
+fi
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. MISE À JOUR MOBILE (config.ts, webrtc.ts, network_security_config.xml)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -271,15 +281,18 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
     fi
   done
 
-  # Rebuilder si nécessaire
-  if docker image inspect telephonie-cap-epac-backend:latest >/dev/null 2>&1 && \
-     docker image inspect telephonie-cap-epac-frontend:latest >/dev/null 2>&1; then
-    info "Images existantes — rebuild du frontend uniquement (IP a peut-être changé)..."
-    docker compose build frontend
-    docker compose up -d
+  # Rebuilder le frontend obligatoirement si l'IP a changé
+  CURRENT_IP=$(grep '^SERVER_LAN_IP=' .env 2>/dev/null | cut -d'=' -f2)
+  CACHED_IP=$(docker inspect telephonie-cap-epac-frontend 2>/dev/null | \
+    grep -o 'VITE_API_URL=[^"]*' | head -1 | grep -oP '(?<=https://)[^:/]+' | head -1)
+
+  if [ "$CACHED_IP" != "$CURRENT_IP" ] || [ "$CACHED_IP" = "" ]; then
+    info "IP changée ($CACHED_IP → $CURRENT_IP) — rebuild complet obligatoire..."
+    docker compose build --no-cache frontend
+    docker compose up -d --force-recreate
   else
-    info "Premier déploiement — build complet..."
-    docker compose up -d --build
+    info "Même IP — démarrage sans rebuild..."
+    docker compose up -d
   fi
 
   # Attendre la disponibilité

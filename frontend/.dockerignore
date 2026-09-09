@@ -1,9 +1,9 @@
-# Dépendances (seront installées dans l'image)
+# Dépendances (seront installées en local, pas dans l'image)
 node_modules/
 npm-debug.log
 
-# Build précédent (sera regénéré dans l'image)
-dist/
+# NE PAS exclure dist/ — il est buildé localement et copié dans l'image
+# dist/
 
 # Fichiers d'environnement locaux
 .env
