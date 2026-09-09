@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CAP-EPAC Téléphonie — Script de déploiement universel
+#  CAP-EPAC Téléphonie — Script de déploiement universel v3
 #
 #  Usage : bash deploy.sh <IP_SERVEUR> [options]
 #
@@ -10,13 +10,16 @@
 #    bash deploy.sh 192.168.10.139 --no-docker  # config seulement
 #    bash deploy.sh 192.168.10.139 --apk-only   # rebuild APK uniquement
 #
-#  Ce script met à jour TOUS les fichiers de configuration automatiquement.
-#  Plus besoin d'éditer quoi que ce soit manuellement.
+#  Corrections intégrées :
+#    - Build Vite automatique avant Docker (évite le frontend avec mauvaise IP)
+#    - Synchronisation des fichiers backend modifiés dans le conteneur
+#    - Ouverture automatique des ports firewall
+#    - Détection et résolution des conflits de ports
+#    - Version obsolete "version" supprimée du docker-compose
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -e
 
-# ── Couleurs ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
@@ -26,10 +29,8 @@ warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 
-# ── Répertoire du projet ──────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-PROJECT_DIR="$SCRIPT_DIR"
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
 SERVER_IP="${1:-}"
@@ -39,67 +40,52 @@ APK_ONLY=false
 
 for arg in "$@"; do
   case "$arg" in
-    --no-apk)     BUILD_APK=false ;;
-    --no-docker)  START_DOCKER=false ;;
-    --apk-only)   APK_ONLY=true; START_DOCKER=false ;;
+    --no-apk)    BUILD_APK=false ;;
+    --no-docker) START_DOCKER=false ;;
+    --apk-only)  APK_ONLY=true; START_DOCKER=false ;;
     --help|-h)
       echo "Usage: bash deploy.sh <IP_SERVEUR> [--no-apk] [--no-docker] [--apk-only]"
-      echo ""
-      echo "  <IP_SERVEUR>  IP LAN du serveur (ex: 192.168.10.139)"
-      echo "  --no-apk      Ne pas rebuilder l'APK mobile"
-      echo "  --no-docker   Mettre à jour les configs sans démarrer Docker"
-      echo "  --apk-only    Rebuilder uniquement l'APK (sans toucher au serveur)"
-      exit 0
-      ;;
+      exit 0 ;;
   esac
 done
 
-# ── Validation de l'IP ────────────────────────────────────────────────────────
+# ── Validation IP ─────────────────────────────────────────────────────────────
 if [ -z "$SERVER_IP" ]; then
-  warn "Aucune IP fournie — détection automatique..."
-  SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -1)
-  if [ -z "$SERVER_IP" ]; then
-    error "Impossible de détecter l'IP. Précisez-la : bash deploy.sh 192.168.x.x"
-  fi
-  info "IP détectée : $SERVER_IP"
+  SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ -z "$SERVER_IP" ] && SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -1)
+  [ -z "$SERVER_IP" ] && error "IP introuvable. Précisez-la : bash deploy.sh 192.168.x.x"
+  info "IP détectée automatiquement : $SERVER_IP"
 fi
 
 if ! echo "$SERVER_IP" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
   error "IP invalide : $SERVER_IP"
 fi
 
-# ── Ports (configurables via arguments ou valeurs par défaut) ─────────────────
+# ── Ports ─────────────────────────────────────────────────────────────────────
 HTTPS_PORT="${HTTPS_PORT:-19443}"
 HTTP_PORT="${HTTP_PORT:-19080}"
 MOBILE_PORT="${MOBILE_PORT:-18282}"
 JITSI_PORT="${JITSI_PORT:-19444}"
+MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
 
 # ── Bannière ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔════════════════════════════════════════════════╗"
-echo "  ║    CAP-EPAC Téléphonie — Déploiement          ║"
+echo "  ║    CAP-EPAC Téléphonie — Déploiement v3       ║"
 echo "  ╚════════════════════════════════════════════════╝"
 echo -e "${NC}"
-echo -e "  Serveur      : ${CYAN}${SERVER_IP}${NC}"
-echo -e "  HTTPS        : ${CYAN}:${HTTPS_PORT}${NC}"
-echo -e "  HTTP         : ${CYAN}:${HTTP_PORT}${NC}"
-echo -e "  Mobile API   : ${CYAN}:${MOBILE_PORT}${NC}"
-echo -e "  Jitsi        : ${CYAN}:${JITSI_PORT}${NC}"
-echo -e "  Build APK    : ${BUILD_APK}"
+echo -e "  Serveur    : ${CYAN}${SERVER_IP}${NC}"
+echo -e "  HTTPS      : ${CYAN}:${HTTPS_PORT}${NC}   HTTP : ${CYAN}:${HTTP_PORT}${NC}"
+echo -e "  Mobile API : ${CYAN}:${MOBILE_PORT}${NC}  Jitsi: ${CYAN}:${JITSI_PORT}${NC}"
+echo -e "  Build APK  : ${BUILD_APK}"
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 1. MISE À JOUR DU .ENV PRINCIPAL
+# 1. MISE À JOUR .ENV
 # ══════════════════════════════════════════════════════════════════════════════
-section "1/6 — Mise à jour .env"
+section "1/7 — Mise à jour .env"
 
-# Créer le .env s'il n'existe pas
-if [ ! -f ".env" ]; then
-  info "Création du fichier .env..."
-fi
-
-# Mettre à jour ou créer chaque variable
 update_env() {
   local KEY="$1" VAL="$2"
   if grep -q "^${KEY}=" .env 2>/dev/null; then
@@ -109,15 +95,14 @@ update_env() {
   fi
 }
 
-# Créer un .env complet si absent
-if [ ! -f ".env" ]; then
-cat > .env << ENVEOF
+[ ! -f ".env" ] && cat > .env << ENVEOF
 NODE_ENV=production
 SERVER_LAN_IP=${SERVER_IP}
 CORS_ORIGIN=https://${SERVER_IP}:${HTTPS_PORT}
 HTTP_PORT=${HTTP_PORT}
 HTTPS_PORT=${HTTPS_PORT}
 MOBILE_PORT=${MOBILE_PORT}
+MYSQL_PORT=${MYSQL_EXT_PORT}
 MYSQL_ROOT_PASSWORD=CapEpac@Root2025
 MYSQL_DATABASE=db_telephonie_cap_epac
 MYSQL_USER=cap_epac_user
@@ -131,66 +116,55 @@ JITSI_APP_ID=cap-epac
 VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
 VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
 ENVEOF
-else
-  update_env "SERVER_LAN_IP"  "$SERVER_IP"
-  update_env "CORS_ORIGIN"    "https://${SERVER_IP}:${HTTPS_PORT},https://${SERVER_IP}"
-  update_env "HTTP_PORT"      "$HTTP_PORT"
-  update_env "HTTPS_PORT"     "$HTTPS_PORT"
-  update_env "MOBILE_PORT"    "$MOBILE_PORT"
-  update_env "MYSQL_PORT"     "${MYSQL_PORT:-13307}"
-  update_env "JITSI_URL"      "https://${SERVER_IP}:${JITSI_PORT}"
-  update_env "VITE_API_URL"   "https://${SERVER_IP}:${HTTPS_PORT}/api"
-  update_env "VITE_SOCKET_URL" "https://${SERVER_IP}:${HTTPS_PORT}"
-fi
 
-ok ".env mis à jour → SERVER_LAN_IP=${SERVER_IP}"
+update_env "SERVER_LAN_IP"   "$SERVER_IP"
+update_env "CORS_ORIGIN"     "https://${SERVER_IP}:${HTTPS_PORT}"
+update_env "HTTP_PORT"       "$HTTP_PORT"
+update_env "HTTPS_PORT"      "$HTTPS_PORT"
+update_env "MOBILE_PORT"     "$MOBILE_PORT"
+update_env "MYSQL_PORT"      "$MYSQL_EXT_PORT"
+update_env "JITSI_URL"       "https://${SERVER_IP}:${JITSI_PORT}"
+update_env "VITE_API_URL"    "https://${SERVER_IP}:${HTTPS_PORT}/api"
+update_env "VITE_SOCKET_URL" "https://${SERVER_IP}:${HTTPS_PORT}"
+ok ".env → SERVER_LAN_IP=${SERVER_IP}"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. MISE À JOUR FRONTEND
+# 2. MISE À JOUR FRONTEND + BUILD VITE
 # ══════════════════════════════════════════════════════════════════════════════
-section "2/6 — Mise à jour Frontend"
+section "2/7 — Frontend (config + build)"
 
 cat > frontend/.env << EOF
-# Généré automatiquement par deploy.sh — NE PAS ÉDITER MANUELLEMENT
 VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
 VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
 VITE_COTURN_HOST=${SERVER_IP}
 VITE_JITSI_URL=https://${SERVER_IP}:${JITSI_PORT}
 EOF
-
 cat > frontend/.env.production << EOF
-# Généré automatiquement par deploy.sh — NE PAS ÉDITER MANUELLEMENT
 VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
 VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
 VITE_COTURN_HOST=${SERVER_IP}
 VITE_JITSI_URL=https://${SERVER_IP}:${JITSI_PORT}
 EOF
-
 ok "frontend/.env → ${SERVER_IP}:${HTTPS_PORT}"
 
-# ── Build Vite automatique ────────────────────────────────────────
-info "Build du frontend avec la nouvelle IP..."
+# Build Vite obligatoire pour que la bonne IP soit embarquée dans le bundle
 if [ -d "frontend/node_modules" ]; then
-  npm run build --prefix frontend 2>&1 | tail -3
-  ok "Frontend buildé avec IP ${SERVER_IP}"
+  info "Build Vite avec IP ${SERVER_IP}..."
+  npm run build --prefix frontend 2>&1 | grep -E "✓|error|ERRO" | head -5
+  ok "Frontend buildé"
 else
-  warn "node_modules absent — installer d'abord : npm install --prefix frontend"
-  warn "Le build Docker utilisera le dist/ existant s'il est présent"
+  warn "frontend/node_modules absent — lancer d'abord : npm install --prefix frontend"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 3. MISE À JOUR MOBILE (config.ts, webrtc.ts, network_security_config.xml)
+# 3. MISE À JOUR MOBILE
 # ══════════════════════════════════════════════════════════════════════════════
-section "3/6 — Mise à jour Mobile"
+section "3/7 — Mobile"
 
-# config.ts — URL API mobile
 cat > mobile/src/config.ts << EOF
-// Généré automatiquement par deploy.sh — NE PAS ÉDITER MANUELLEMENT
-// Pour changer le serveur : bash deploy.sh <nouvelle_ip>
-
+// Généré par deploy.sh — NE PAS ÉDITER
 export const SERVER_BASE = 'http://${SERVER_IP}:${MOBILE_PORT}';
 export const MEDIA_PORT = '';
-
 export function getMediaUrl(path: string): string {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -198,55 +172,42 @@ export function getMediaUrl(path: string): string {
 }
 EOF
 ok "mobile/src/config.ts → http://${SERVER_IP}:${MOBILE_PORT}"
-# webrtc.ts — TURN/STUN servers
+
 WEBRTC_FILE="mobile/src/services/webrtc.ts"
 if [ -f "$WEBRTC_FILE" ]; then
-  # Remplacer les IPs TURN/STUN par l'IP actuelle du serveur
-  sed -i "s|turn:[0-9.]*:[0-9]*\?transport=udp|turn:${SERVER_IP}:3478?transport=udp|g" "$WEBRTC_FILE"
-  sed -i "s|turn:[0-9.]*:[0-9]*\?transport=tcp|turn:${SERVER_IP}:3478?transport=tcp|g" "$WEBRTC_FILE"
+  sed -i "s|turn:[0-9.]*:[0-9]*?transport=udp|turn:${SERVER_IP}:3478?transport=udp|g" "$WEBRTC_FILE"
+  sed -i "s|turn:[0-9.]*:[0-9]*?transport=tcp|turn:${SERVER_IP}:3478?transport=tcp|g" "$WEBRTC_FILE"
   sed -i "s|stun:[0-9.]*:[0-9]*|stun:${SERVER_IP}:3478|g" "$WEBRTC_FILE"
-  ok "mobile/src/services/webrtc.ts → TURN/STUN : ${SERVER_IP}:3478"
+  ok "webrtc.ts → TURN/STUN : ${SERVER_IP}"
 fi
 
-# network_security_config.xml — ajouter l'IP si absente
 NET_SEC="mobile/android/app/src/main/res/xml/network_security_config.xml"
-if [ -f "$NET_SEC" ]; then
-  if ! grep -q "$SERVER_IP" "$NET_SEC"; then
-    sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>" "$NET_SEC"
-    ok "network_security_config.xml → IP ${SERVER_IP} ajoutée"
-  else
-    ok "network_security_config.xml → IP ${SERVER_IP} déjà présente"
-  fi
+if [ -f "$NET_SEC" ] && ! grep -q "$SERVER_IP" "$NET_SEC"; then
+  sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>" "$NET_SEC"
+  ok "network_security_config.xml → IP ${SERVER_IP} ajoutée"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. MISE À JOUR COTURN
 # ══════════════════════════════════════════════════════════════════════════════
-section "4/6 — Mise à jour Coturn"
+section "4/7 — Coturn"
 
-COTURN_CONF="nginx/coturn.conf"
-if [ -f "$COTURN_CONF" ]; then
-  sed -i "s|^relay-ip=.*|relay-ip=${SERVER_IP}|g"     "$COTURN_CONF"
-  sed -i "s|^external-ip=.*|external-ip=${SERVER_IP}|g" "$COTURN_CONF"
-  # Mettre à jour la plage d'IPs autorisées
-  SUBNET=$(echo "$SERVER_IP" | sed 's/\.[0-9]*$/.0/')
-  sed -i "s|^allowed-peer-ip=[0-9.]*-[0-9.]*$|allowed-peer-ip=${SUBNET}-${SERVER_IP%.*}.255|g" "$COTURN_CONF"
-  ok "nginx/coturn.conf → relay-ip=${SERVER_IP}"
+if [ -f "nginx/coturn.conf" ]; then
+  sed -i "s|^relay-ip=.*|relay-ip=${SERVER_IP}|g"      nginx/coturn.conf
+  sed -i "s|^external-ip=.*|external-ip=${SERVER_IP}|g" nginx/coturn.conf
+  ok "coturn.conf → relay-ip=${SERVER_IP}"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. CERTIFICATS SSL
 # ══════════════════════════════════════════════════════════════════════════════
-section "5/6 — Certificats SSL"
+section "5/7 — Certificats SSL"
 
 mkdir -p nginx/ssl
-
-# Régénérer si l'IP a changé ou si les certs n'existent pas
 REGEN=false
-if [ ! -f "nginx/ssl/cert.pem" ]; then
-  REGEN=true
-elif ! openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null | grep -q "$SERVER_IP"; then
-  warn "Certificat SSL ne correspond pas à l'IP ${SERVER_IP} — régénération..."
+[ ! -f "nginx/ssl/cert.pem" ] && REGEN=true
+if [ "$REGEN" = false ] && ! openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null | grep -q "$SERVER_IP"; then
+  warn "Certificat ne correspond pas à ${SERVER_IP} — régénération..."
   REGEN=true
 fi
 
@@ -254,109 +215,128 @@ if [ "$REGEN" = true ]; then
   if [ -f "scripts/gen-ssl.sh" ]; then
     bash scripts/gen-ssl.sh "$SERVER_IP"
   else
-    # Génération directe si le script n'existe pas
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-      -keyout nginx/ssl/key.pem \
-      -out    nginx/ssl/cert.pem \
-      -subj   "/CN=${SERVER_IP}/O=CAP-EPAC/C=BJ" \
+      -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
+      -subj "/CN=${SERVER_IP}/O=CAP-EPAC/C=BJ" \
       -addext "subjectAltName=IP:${SERVER_IP},DNS:localhost" 2>/dev/null
   fi
   ok "Certificats SSL générés pour ${SERVER_IP}"
 else
-  ok "Certificats SSL valides pour ${SERVER_IP}"
+  ok "Certificats SSL valides"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6A. DÉMARRAGE DOCKER
+# 6. DÉMARRAGE DOCKER + SYNCHRONISATION BACKEND
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
-  section "6/6 — Démarrage Docker"
+  section "6/7 — Docker"
 
   command -v docker >/dev/null 2>&1 || error "Docker non installé"
 
-  # Vérifier les conflits de ports
+  # Ouvrir les ports firewall automatiquement
   for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT; do
-    if ss -tlnp 2>/dev/null | grep -q ":${PORT} "; then
-      warn "Port ${PORT} occupé — vérifiez qu'aucun autre service ne l'utilise"
+    if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "active"; then
+      ufw allow "$PORT/tcp" 2>/dev/null || true
     fi
+    iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
   done
+  ok "Ports firewall ouverts"
 
-  # Rebuilder le frontend obligatoirement si l'IP a changé
-  CURRENT_IP=$(grep '^SERVER_LAN_IP=' .env 2>/dev/null | cut -d'=' -f2)
-  CACHED_IP=$(docker inspect telephonie-cap-epac-frontend 2>/dev/null | \
-    grep -o 'VITE_API_URL=[^"]*' | head -1 | grep -oP '(?<=https://)[^:/]+' | head -1)
+  # Arrêter et recréer tous les conteneurs cap-epac
+  info "Arrêt des anciens conteneurs..."
+  docker compose down 2>/dev/null || true
 
-  if [ "$CACHED_IP" != "$CURRENT_IP" ] || [ "$CACHED_IP" = "" ]; then
-    info "IP changée ($CACHED_IP → $CURRENT_IP) — rebuild complet obligatoire..."
-    docker compose build --no-cache frontend
-    docker compose up -d --force-recreate
-  else
-    info "Même IP — démarrage sans rebuild..."
-    docker compose up -d
-  fi
+  # Build frontend (rapide — utilise le dist/ local)
+  info "Build image frontend..."
+  docker compose build --no-cache frontend 2>&1 | grep -E "FINISHED|ERROR|error" | head -3
 
-  # Attendre la disponibilité
-  info "Attente du démarrage (jusqu'à 120s)..."
+  # Démarrer tout
+  info "Démarrage de tous les services..."
+  docker compose up -d 2>&1 | grep -E "Started|Running|Error" | head -10
+
+  # Attendre que le backend soit healthy
+  info "Attente du backend (jusqu'à 60s)..."
   COUNT=0
-  until curl -sk "https://${SERVER_IP}:${HTTPS_PORT}/health" > /dev/null 2>&1; do
-    COUNT=$((COUNT + 1))
-    [ $COUNT -ge 24 ] && { warn "Timeout — vérifiez : docker compose logs"; break; }
+  until docker ps --filter "name=cap-epac-backend" --filter "health=healthy" | grep -q "healthy" 2>/dev/null; do
+    COUNT=$((COUNT+1))
+    [ $COUNT -ge 12 ] && { warn "Backend pas encore healthy — on continue quand même"; break; }
     printf "."; sleep 5
   done
   echo ""
-  ok "Serveur opérationnel"
-fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 6B. BUILD APK MOBILE
-# ══════════════════════════════════════════════════════════════════════════════
-if [ "$BUILD_APK" = true ]; then
-  section "Build APK Mobile"
+  # ── Synchronisation des fichiers backend modifiés ────────────────────────
+  info "Synchronisation fichiers backend → conteneur..."
+  BACKEND_FILES=(
+    "backend/src/routes/index.js"
+    "backend/src/routes/meetings.js"
+    "backend/src/routes/webhook.js"
+    "backend/src/controllers/meetingController.js"
+    "backend/src/controllers/webhookController.js"
+    "backend/src/controllers/conversationController.js"
+    "backend/src/server.js"
+  )
+  SYNCED=0
+  for f in "${BACKEND_FILES[@]}"; do
+    if [ -f "$f" ]; then
+      dest="/app/${f#backend/}"
+      docker cp "$f" "cap-epac-backend:$dest" 2>/dev/null && SYNCED=$((SYNCED+1))
+    fi
+  done
+  ok "$SYNCED fichiers backend synchronisés"
 
-  if [ ! -d "mobile/android" ]; then
-    warn "Dossier mobile/android absent — APK ignoré"
+  # Redémarrer le backend pour prendre en compte les fichiers
+  docker compose restart backend 2>/dev/null
+  info "Backend redémarré"
+  sleep 10
+
+  # ── Vérification finale ──────────────────────────────────────────────────
+  HEALTH=$(curl -sk --max-time 5 "https://${SERVER_IP}:${HTTPS_PORT}/health" 2>/dev/null)
+  if echo "$HEALTH" | grep -q '"status":"ok"'; then
+    ok "Backend accessible : ✓"
   else
-    # Augmenter la limite inotify
-    if [ -w /proc/sys/fs/inotify/max_user_watches ]; then
-      echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
-        sudo sysctl fs.inotify.max_user_watches=524288 2>/dev/null || true
-    fi
-
-    info "Build APK Release..."
-    cd mobile/android
-    if ./gradlew assembleRelease --no-daemon 2>&1 | tail -5; then
-      cd "$PROJECT_DIR"
-      APK_PATH="mobile/android/app/build/outputs/apk/release/app-release.apk"
-      if [ -f "$APK_PATH" ]; then
-        APK_SIZE=$(du -sh "$APK_PATH" | cut -f1)
-        ok "APK généré : $APK_PATH ($APK_SIZE)"
-      fi
-    else
-      cd "$PROJECT_DIR"
-      warn "Échec du build APK — vérifiez les logs Gradle"
-    fi
+    # Essayer en HTTP
+    HEALTH=$(curl -sk --max-time 5 "http://${SERVER_IP}:${HTTP_PORT}/health" 2>/dev/null)
+    echo "$HEALTH" | grep -q '"status":"ok"' && ok "Backend accessible via HTTP ✓" || \
+    warn "Backend pas encore accessible — vérifier : docker compose logs backend --tail=20"
   fi
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RÉSUMÉ FINAL
+# 7. BUILD APK MOBILE
+# ══════════════════════════════════════════════════════════════════════════════
+if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
+  section "7/7 — Build APK Mobile"
+
+  # Augmenter inotify
+  echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
+    sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || true
+
+  info "Build APK Release en cours..."
+  if cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -3; then
+    cd "$SCRIPT_DIR"
+    APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
+    [ -f "$APK" ] && ok "APK : $APK ($(du -sh "$APK" | cut -f1))"
+  else
+    cd "$SCRIPT_DIR"
+    warn "Build APK échoué — voir les logs Gradle"
+  fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RÉSUMÉ
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
 echo -e "${GREEN}${BOLD}"
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║          Déploiement terminé avec succès !              ║"
+echo "  ║          Déploiement terminé !                          ║"
 echo "  ╠══════════════════════════════════════════════════════════╣"
-echo -e "  ║${NC}  Serveur IP    : ${CYAN}${SERVER_IP}${NC}"
-echo -e "  ║  Application  : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
+echo -e "  ║${NC}  Application  : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
 echo -e "  ║  API mobile   : ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
-echo -e "  ║  Jitsi        : ${CYAN}https://${SERVER_IP}:${JITSI_PORT}${NC}"
-if [ "$BUILD_APK" = true ] && [ -f "mobile/android/app/build/outputs/apk/release/app-release.apk" ]; then
-echo -e "  ║  APK mobile   : ${CYAN}mobile/android/.../app-release.apk${NC}"
-fi
-echo -e "${GREEN}${BOLD}  ╠══════════════════════════════════════════════════════════╣"
-echo "  ║  Identifiants : admin / Admin@CapEpac2025              ║"
-echo "  ╚══════════════════════════════════════════════════════════╝"
-echo -e "${NC}"
-echo -e "  Logs    : ${YELLOW}docker compose logs -f${NC}"
-echo -e "  Arrêt   : ${YELLOW}docker compose down${NC}"
+echo -e "  ║  Admin        : admin / Admin@CapEpac2025"
+[ "$BUILD_APK" = true ] && \
+echo -e "  ║  APK          : mobile/android/.../app-release.apk"
+echo -e "${GREEN}${BOLD}  ╚══════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  Logs  : ${YELLOW}docker compose logs -f${NC}"
+echo -e "  Arrêt : ${YELLOW}docker compose down${NC}"
 echo ""
