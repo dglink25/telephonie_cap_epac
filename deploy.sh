@@ -402,7 +402,8 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
   section "8/8 — Build APK Mobile"
 
   echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
-    sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || true
+    sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || \
+    sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || true
 
   # Détecter SDK Android
   ANDROID_SDK=""
@@ -431,7 +432,9 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
       warn "Build APK échoué — relancer : bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
     fi
   else
-    warn "SDK Android non trouvé — APK ignoré"
+    warn "SDK Android non trouvé sur ce serveur"
+    warn "  → Pour builder l'APK, lancez depuis votre machine de dev :"
+    warn "    bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
   fi
 fi
 
