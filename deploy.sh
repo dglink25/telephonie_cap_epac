@@ -272,14 +272,39 @@ fi
 
 NET_SEC="mobile/android/app/src/main/res/xml/network_security_config.xml"
 if [ -f "$NET_SEC" ]; then
-  if ! grep -q "$SERVER_IP" "$NET_SEC"; then
-    sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>" "$NET_SEC"
-  fi
-  if [ -n "$DOMAIN" ] && ! grep -q "$DOMAIN" "$NET_SEC"; then
-    sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${DOMAIN}</domain>" "$NET_SEC"
-    ok "network_security_config.xml → domaine ${DOMAIN} ajouté"
-  fi
-  ok "network_security_config.xml mis à jour"
+  # Collecter les IPs/domaines existants + le nouveau
+  EXTRA_DOMAINS=""
+  [ -n "$DOMAIN" ] && EXTRA_DOMAINS="        <domain includeSubdomains=\"true\">${DOMAIN}</domain>"
+
+  # Réécrire proprement le fichier (évite les doublons à chaque déploiement)
+  cat > "$NET_SEC" << XMLEOF
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Généré par deploy.sh — NE PAS ÉDITER MANUELLEMENT -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">${SERVER_IP}</domain>
+${EXTRA_DOMAINS:+$EXTRA_DOMAINS$'\n'}        <domain includeSubdomains="true">*.cap-epac.local</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+XMLEOF
+  ok "network_security_config.xml → ${SERVER_IP}${DOMAIN:+, $DOMAIN}"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════

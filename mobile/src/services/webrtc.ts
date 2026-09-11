@@ -15,13 +15,13 @@ const ICE_SERVERS = {
   iceServers: [
     {
       urls: [
-        'turn:192.168.18.103:3478?transport=udp',
-        'turn:192.168.18.103:3478?transport=tcp',
+        'turn:192.168.10.139:3478?transport=udp',
+        'turn:192.168.10.139:3478?transport=tcp',
       ],
       username: 'cap-epac',
       credential: 'CapEpacTurn2025',
     },
-    { urls: 'stun:192.168.18.103:3478' },
+    { urls: 'stun:192.168.10.139:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
   ],
