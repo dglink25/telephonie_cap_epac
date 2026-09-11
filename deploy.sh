@@ -340,6 +340,8 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
     iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
   done
   iptables -I INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+  # Autoriser le trafic entre conteneurs Docker (évite ETIMEDOUT entre backend et MySQL)
+  iptables -I DOCKER-USER 1 -i br-+ -o br-+ -j ACCEPT 2>/dev/null || true
   ok "Ports firewall ouverts"
 
   info "Arrêt des anciens conteneurs..."
