@@ -345,6 +345,12 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   info "Arrêt des anciens conteneurs..."
   docker compose down 2>/dev/null || true
 
+  # Réparer le fichier AOF Redis si corrompu (évite le crash au démarrage)
+  info "Vérification intégrité Redis AOF..."
+  docker compose run --rm --no-deps redis sh -c \
+    'for f in /data/appendonlydir/*.incr.aof; do [ -f "$f" ] && redis-check-aof --fix "$f" < /dev/null 2>/dev/null || rm -f "$f"; done; echo "AOF OK"' \
+    2>/dev/null || true
+
   info "Build image frontend..."
   touch frontend/dist/index.html 2>/dev/null || true
   docker compose build --no-cache frontend 2>&1 | grep -E "FINISHED|ERROR" | head -2
