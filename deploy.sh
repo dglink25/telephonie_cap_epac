@@ -1,21 +1,21 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CAP-EPAC Téléphonie — Script de déploiement universel v3
+#  CAP-EPAC Téléphonie — Script de déploiement universel v4
 #
-#  Usage : bash deploy.sh <IP_SERVEUR> [options]
+#  Usage :
+#    bash deploy.sh <IP>                          # IP seulement
+#    bash deploy.sh <IP> <domaine>                # IP + domaine DNS local
+#    bash deploy.sh <IP> <domaine> --no-apk       # sans APK
+#    bash deploy.sh <IP> <domaine> --no-docker    # config seulement
+#    bash deploy.sh <IP> <domaine> --apk-only     # APK seulement
 #
 #  Exemples :
-#    bash deploy.sh 192.168.10.139              # déploiement complet
-#    bash deploy.sh 192.168.10.139 --no-apk     # sans rebuild APK
-#    bash deploy.sh 192.168.10.139 --no-docker  # config seulement
-#    bash deploy.sh 192.168.10.139 --apk-only   # rebuild APK uniquement
+#    bash deploy.sh 192.168.18.103
+#    bash deploy.sh 192.168.18.103 telephonie-cap.bj
+#    bash deploy.sh 192.168.10.139 cap-epac.local --no-apk
 #
-#  Corrections intégrées :
-#    - Build Vite automatique avant Docker (évite le frontend avec mauvaise IP)
-#    - Synchronisation des fichiers backend modifiés dans le conteneur
-#    - Ouverture automatique des ports firewall
-#    - Détection et résolution des conflits de ports
-#    - Version obsolete "version" supprimée du docker-compose
+#  Le domaine DNS local permet d'accéder via https://telephonie-cap.bj
+#  depuis n'importe quel appareil du LAN (configure dnsmasq automatiquement)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -e
@@ -32,8 +32,9 @@ section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# ── Arguments ─────────────────────────────────────────────────────────────────
-SERVER_IP="${1:-}"
+# ── Parsing des arguments ──────────────────────────────────────────────────────
+SERVER_IP=""
+DOMAIN=""
 BUILD_APK=true
 START_DOCKER=true
 APK_ONLY=false
@@ -44,12 +45,18 @@ for arg in "$@"; do
     --no-docker) START_DOCKER=false ;;
     --apk-only)  APK_ONLY=true; START_DOCKER=false ;;
     --help|-h)
-      echo "Usage: bash deploy.sh <IP_SERVEUR> [--no-apk] [--no-docker] [--apk-only]"
+      echo "Usage: bash deploy.sh <IP> [domaine] [--no-apk] [--no-docker] [--apk-only]"
+      echo ""
+      echo "  bash deploy.sh 192.168.18.103"
+      echo "  bash deploy.sh 192.168.18.103 telephonie-cap.bj"
+      echo "  bash deploy.sh 192.168.18.103 telephonie-cap.bj --no-apk"
       exit 0 ;;
+    *.*.*.*) SERVER_IP="$arg" ;;   # IP détectée
+    *.*)     DOMAIN="$arg" ;;      # domaine détecté (contient un point mais pas 4 octets)
   esac
 done
 
-# ── Validation IP ─────────────────────────────────────────────────────────────
+# ── Validation/détection IP ────────────────────────────────────────────────────
 if [ -z "$SERVER_IP" ]; then
   SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   [ -z "$SERVER_IP" ] && SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -1)
@@ -67,27 +74,39 @@ HTTP_PORT="${HTTP_PORT:-19080}"
 MOBILE_PORT="${MOBILE_PORT:-18282}"
 JITSI_PORT="${JITSI_PORT:-19444}"
 MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
-# Jitsi : utiliser meet.jit.si public par défaut (fonctionne sans installation)
-# Pour utiliser Jitsi local : JITSI_URL=https://<IP>:19444 bash deploy.sh <IP>
 JITSI_URL="${JITSI_URL:-https://meet.jit.si}"
+
+# ── URLs d'accès (domaine prioritaire sur IP si fourni) ───────────────────────
+if [ -n "$DOMAIN" ]; then
+  ACCESS_URL="https://${DOMAIN}"
+  API_URL="https://${DOMAIN}/api"
+  SOCKET_URL="https://${DOMAIN}"
+  CORS_ORIGINS="https://${DOMAIN},https://${SERVER_IP}:${HTTPS_PORT}"
+else
+  ACCESS_URL="https://${SERVER_IP}:${HTTPS_PORT}"
+  API_URL="https://${SERVER_IP}:${HTTPS_PORT}/api"
+  SOCKET_URL="https://${SERVER_IP}:${HTTPS_PORT}"
+  CORS_ORIGINS="https://${SERVER_IP}:${HTTPS_PORT}"
+fi
 
 # ── Bannière ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔════════════════════════════════════════════════╗"
-echo "  ║    CAP-EPAC Téléphonie — Déploiement v3       ║"
+echo "  ║    CAP-EPAC Téléphonie — Déploiement v4       ║"
 echo "  ╚════════════════════════════════════════════════╝"
 echo -e "${NC}"
-echo -e "  Serveur    : ${CYAN}${SERVER_IP}${NC}"
-echo -e "  HTTPS      : ${CYAN}:${HTTPS_PORT}${NC}   HTTP : ${CYAN}:${HTTP_PORT}${NC}"
-echo -e "  Mobile API : ${CYAN}:${MOBILE_PORT}${NC}  Jitsi: ${CYAN}:${JITSI_PORT}${NC}"
-echo -e "  Build APK  : ${BUILD_APK}"
+echo -e "  Serveur  : ${CYAN}${SERVER_IP}${NC}"
+[ -n "$DOMAIN" ] && echo -e "  Domaine  : ${CYAN}${DOMAIN}${NC}"
+echo -e "  URL      : ${CYAN}${ACCESS_URL}${NC}"
+echo -e "  Mobile   : ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
+echo -e "  Build APK: ${BUILD_APK}"
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. MISE À JOUR .ENV
 # ══════════════════════════════════════════════════════════════════════════════
-section "1/7 — Mise à jour .env"
+section "1/8 — Mise à jour .env"
 
 update_env() {
   local KEY="$1" VAL="$2"
@@ -101,7 +120,8 @@ update_env() {
 [ ! -f ".env" ] && cat > .env << ENVEOF
 NODE_ENV=production
 SERVER_LAN_IP=${SERVER_IP}
-CORS_ORIGIN=https://${SERVER_IP}:${HTTPS_PORT}
+DOMAIN=${DOMAIN}
+CORS_ORIGIN=${CORS_ORIGINS}
 HTTP_PORT=${HTTP_PORT}
 HTTPS_PORT=${HTTPS_PORT}
 MOBILE_PORT=${MOBILE_PORT}
@@ -114,55 +134,121 @@ REDIS_PASSWORD=CapEpacRedis2025
 JWT_SECRET=abNgsP6YAaxeFPkjcY5CNQXQulGabKbMkdHdcUkmmfcGg0kMKSA4OeCohypsASNhfmWZEDUtyiXwldBtahlZ0A==
 JWT_REFRESH_SECRET=dcS4SicATkXy6DU5CdnmiyesfgZ64f/3a2ZsF8jz9Nh+FQHh8Qcoe1aQKOe7dKVGCpB6p+KUcPZYDXZumq2aGQ==
 WEBHOOK_SECRET=CapEpacWebhook@Secret2025
-JITSI_URL=https://${SERVER_IP}:${JITSI_PORT}
+JITSI_URL=${JITSI_URL}
 JITSI_APP_ID=cap-epac
-VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
-VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
+VITE_API_URL=${API_URL}
+VITE_SOCKET_URL=${SOCKET_URL}
 ENVEOF
 
 update_env "SERVER_LAN_IP"   "$SERVER_IP"
-update_env "CORS_ORIGIN"     "https://${SERVER_IP}:${HTTPS_PORT}"
+update_env "DOMAIN"          "${DOMAIN:-}"
+update_env "CORS_ORIGIN"     "$CORS_ORIGINS"
 update_env "HTTP_PORT"       "$HTTP_PORT"
 update_env "HTTPS_PORT"      "$HTTPS_PORT"
 update_env "MOBILE_PORT"     "$MOBILE_PORT"
 update_env "MYSQL_PORT"      "$MYSQL_EXT_PORT"
-update_env "JITSI_URL"       "https://${SERVER_IP}:${JITSI_PORT}"
-update_env "VITE_API_URL"    "https://${SERVER_IP}:${HTTPS_PORT}/api"
-update_env "VITE_SOCKET_URL" "https://${SERVER_IP}:${HTTPS_PORT}"
-ok ".env → SERVER_LAN_IP=${SERVER_IP}"
+update_env "JITSI_URL"       "$JITSI_URL"
+update_env "VITE_API_URL"    "$API_URL"
+update_env "VITE_SOCKET_URL" "$SOCKET_URL"
+
+ok ".env mis à jour"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. MISE À JOUR FRONTEND + BUILD VITE
+# 2. DNS LOCAL (dnsmasq) — seulement si domaine fourni
 # ══════════════════════════════════════════════════════════════════════════════
-section "2/7 — Frontend (config + build)"
+if [ -n "$DOMAIN" ]; then
+  section "2/8 — Configuration DNS local (${DOMAIN})"
 
-cat > frontend/.env << EOF
-VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
-VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
-VITE_COTURN_HOST=${SERVER_IP}
-VITE_JITSI_URL=${JITSI_URL}
-EOF
-cat > frontend/.env.production << EOF
-VITE_API_URL=https://${SERVER_IP}:${HTTPS_PORT}/api
-VITE_SOCKET_URL=https://${SERVER_IP}:${HTTPS_PORT}
-VITE_COTURN_HOST=${SERVER_IP}
-VITE_JITSI_URL=${JITSI_URL}
-EOF
-ok "frontend/.env → ${SERVER_IP}:${HTTPS_PORT}"
+  if ! command -v dnsmasq >/dev/null 2>&1; then
+    info "Installation de dnsmasq..."
+    apt-get install -y dnsmasq 2>/dev/null || \
+    sudo apt-get install -y dnsmasq 2>/dev/null || \
+    warn "Impossible d'installer dnsmasq — DNS non configuré"
+  fi
 
-# Build Vite obligatoire pour que la bonne IP soit embarquée dans le bundle
-if [ -d "frontend/node_modules" ]; then
-  info "Build Vite avec IP ${SERVER_IP}..."
-  npm run build --prefix frontend 2>&1 | grep -E "✓|error|ERRO" | head -5
-  ok "Frontend buildé"
+  if command -v dnsmasq >/dev/null 2>&1; then
+    # Fichier de config dnsmasq pour CAP-EPAC
+    DNS_CONF="/etc/dnsmasq.d/cap-epac.conf"
+    sudo tee "$DNS_CONF" > /dev/null << DNSEOF
+# CAP-EPAC — DNS local généré par deploy.sh
+# Tous les appareils du LAN qui utilisent ce serveur comme DNS
+# résoudront ${DOMAIN} vers ${SERVER_IP}
+
+address=/${DOMAIN}/${SERVER_IP}
+
+# Interface réseau (écouter sur toutes les interfaces LAN)
+interface=lo
+bind-interfaces
+
+# Cache DNS
+cache-size=1000
+log-queries=no
+DNSEOF
+
+    # Redémarrer dnsmasq
+    sudo systemctl enable dnsmasq 2>/dev/null || true
+    sudo systemctl restart dnsmasq 2>/dev/null && \
+      ok "dnsmasq redémarré → ${DOMAIN} pointe vers ${SERVER_IP}" || \
+      warn "dnsmasq n'a pas pu redémarrer — vérifier : sudo systemctl status dnsmasq"
+
+    # Ajouter au /etc/hosts du serveur lui-même
+    if ! grep -q "$DOMAIN" /etc/hosts 2>/dev/null; then
+      echo "${SERVER_IP}  ${DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
+      ok "/etc/hosts → ${SERVER_IP} ${DOMAIN}"
+    else
+      sudo sed -i "s|^.*${DOMAIN}.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts
+      ok "/etc/hosts mis à jour"
+    fi
+
+    # Afficher l'IP du serveur DNS pour configuration des appareils clients
+    echo ""
+    echo -e "  ${YELLOW}┌─ Configuration DNS sur les appareils clients ──────────────┐${NC}"
+    echo -e "  ${YELLOW}│${NC} Dans les paramètres WiFi/réseau de chaque appareil,"
+    echo -e "  ${YELLOW}│${NC} configurer le DNS manuel vers : ${CYAN}${SERVER_IP}${NC}"
+    echo -e "  ${YELLOW}│${NC} ou configurer le routeur pour distribuer ce DNS via DHCP"
+    echo -e "  ${YELLOW}│${NC}"
+    echo -e "  ${YELLOW}│${NC} Accès après configuration : ${CYAN}https://${DOMAIN}${NC}"
+    echo -e "  ${YELLOW}└────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+  fi
 else
-  warn "frontend/node_modules absent — lancer d'abord : npm install --prefix frontend"
+  section "2/8 — DNS (ignoré — pas de domaine fourni)"
+  info "Pour activer le DNS : bash deploy.sh ${SERVER_IP} mon-domaine.local"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 3. MISE À JOUR MOBILE
+# 3. FRONTEND + BUILD VITE
 # ══════════════════════════════════════════════════════════════════════════════
-section "3/7 — Mobile"
+section "3/8 — Frontend (config + build)"
+
+cat > frontend/.env << EOF
+VITE_API_URL=${API_URL}
+VITE_SOCKET_URL=${SOCKET_URL}
+VITE_COTURN_HOST=${SERVER_IP}
+VITE_JITSI_URL=${JITSI_URL}
+VITE_DOMAIN=${DOMAIN}
+EOF
+cat > frontend/.env.production << EOF
+VITE_API_URL=${API_URL}
+VITE_SOCKET_URL=${SOCKET_URL}
+VITE_COTURN_HOST=${SERVER_IP}
+VITE_JITSI_URL=${JITSI_URL}
+VITE_DOMAIN=${DOMAIN}
+EOF
+ok "frontend/.env → ${ACCESS_URL}"
+
+if [ -d "frontend/node_modules" ]; then
+  info "Build Vite..."
+  npm run build --prefix frontend 2>&1 | grep -E "✓ built|error|ERRO" | head -3
+  ok "Frontend buildé"
+else
+  warn "frontend/node_modules absent — npm install --prefix frontend requis"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. MOBILE
+# ══════════════════════════════════════════════════════════════════════════════
+section "4/8 — Mobile"
 
 cat > mobile/src/config.ts << EOF
 // Généré par deploy.sh — NE PAS ÉDITER
@@ -174,7 +260,7 @@ export function getMediaUrl(path: string): string {
   return \`\${SERVER_BASE}\${path.startsWith('/') ? path : '/' + path}\`;
 }
 EOF
-ok "mobile/src/config.ts → http://${SERVER_IP}:${MOBILE_PORT}"
+ok "config.ts → http://${SERVER_IP}:${MOBILE_PORT}"
 
 WEBRTC_FILE="mobile/src/services/webrtc.ts"
 if [ -f "$WEBRTC_FILE" ]; then
@@ -185,170 +271,154 @@ if [ -f "$WEBRTC_FILE" ]; then
 fi
 
 NET_SEC="mobile/android/app/src/main/res/xml/network_security_config.xml"
-if [ -f "$NET_SEC" ] && ! grep -q "$SERVER_IP" "$NET_SEC"; then
-  sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>" "$NET_SEC"
-  ok "network_security_config.xml → IP ${SERVER_IP} ajoutée"
+if [ -f "$NET_SEC" ]; then
+  if ! grep -q "$SERVER_IP" "$NET_SEC"; then
+    sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>" "$NET_SEC"
+  fi
+  if [ -n "$DOMAIN" ] && ! grep -q "$DOMAIN" "$NET_SEC"; then
+    sed -i "/<domain-config cleartextTrafficPermitted=\"true\">/a\\        <domain includeSubdomains=\"true\">${DOMAIN}</domain>" "$NET_SEC"
+    ok "network_security_config.xml → domaine ${DOMAIN} ajouté"
+  fi
+  ok "network_security_config.xml mis à jour"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. MISE À JOUR COTURN
+# 5. COTURN
 # ══════════════════════════════════════════════════════════════════════════════
-section "4/7 — Coturn"
+section "5/8 — Coturn"
 
 if [ -f "nginx/coturn.conf" ]; then
-  sed -i "s|^relay-ip=.*|relay-ip=${SERVER_IP}|g"      nginx/coturn.conf
+  sed -i "s|^relay-ip=.*|relay-ip=${SERVER_IP}|g"       nginx/coturn.conf
   sed -i "s|^external-ip=.*|external-ip=${SERVER_IP}|g" nginx/coturn.conf
   ok "coturn.conf → relay-ip=${SERVER_IP}"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 5. CERTIFICATS SSL
+# 6. CERTIFICATS SSL
 # ══════════════════════════════════════════════════════════════════════════════
-section "5/7 — Certificats SSL"
+section "6/8 — Certificats SSL"
 
 mkdir -p nginx/ssl
 REGEN=false
 [ ! -f "nginx/ssl/cert.pem" ] && REGEN=true
-if [ "$REGEN" = false ] && ! openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null | grep -q "$SERVER_IP"; then
-  warn "Certificat ne correspond pas à ${SERVER_IP} — régénération..."
-  REGEN=true
+
+# Vérifier si le cert couvre l'IP et éventuellement le domaine
+if [ "$REGEN" = false ]; then
+  CERT_TEXT=$(openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null)
+  ! echo "$CERT_TEXT" | grep -q "$SERVER_IP" && REGEN=true
+  [ -n "$DOMAIN" ] && ! echo "$CERT_TEXT" | grep -qi "$DOMAIN" && REGEN=true
+  [ "$REGEN" = true ] && warn "Certificat SSL ne couvre pas l'IP/domaine — régénération..."
 fi
 
 if [ "$REGEN" = true ]; then
+  SAN="IP:${SERVER_IP},DNS:localhost"
+  [ -n "$DOMAIN" ] && SAN="${SAN},DNS:${DOMAIN},DNS:*.${DOMAIN}"
+
   if [ -f "scripts/gen-ssl.sh" ]; then
-    bash scripts/gen-ssl.sh "$SERVER_IP"
+    bash scripts/gen-ssl.sh "$SERVER_IP" "$DOMAIN"
   else
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
       -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
-      -subj "/CN=${SERVER_IP}/O=CAP-EPAC/C=BJ" \
-      -addext "subjectAltName=IP:${SERVER_IP},DNS:localhost" 2>/dev/null
+      -subj "/CN=${DOMAIN:-$SERVER_IP}/O=CAP-EPAC/C=BJ" \
+      -addext "subjectAltName=${SAN}" 2>/dev/null
   fi
-  ok "Certificats SSL générés pour ${SERVER_IP}"
+  ok "Certificats SSL générés (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
 else
   ok "Certificats SSL valides"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6. DÉMARRAGE DOCKER + SYNCHRONISATION BACKEND
+# 7. DOCKER
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
-  section "6/7 — Docker"
+  section "7/8 — Docker"
 
   command -v docker >/dev/null 2>&1 || error "Docker non installé"
 
-  # Ouvrir les ports firewall automatiquement
-  for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT; do
-    if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "active"; then
-      ufw allow "$PORT/tcp" 2>/dev/null || true
-    fi
+  # Ouvrir ports firewall
+  for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT 53; do
     iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
   done
+  iptables -I INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || true
   ok "Ports firewall ouverts"
 
-  # Arrêter et recréer tous les conteneurs cap-epac
   info "Arrêt des anciens conteneurs..."
   docker compose down 2>/dev/null || true
 
-  # Build frontend — forcer le rechargement du dist/ local
   info "Build image frontend..."
-  # Toucher un fichier pour forcer Docker à invalider le cache du contexte
-  touch frontend/dist/index.html
-  docker compose build --no-cache frontend 2>&1 | grep -E "FINISHED|ERROR|error" | head -3
+  touch frontend/dist/index.html 2>/dev/null || true
+  docker compose build --no-cache frontend 2>&1 | grep -E "FINISHED|ERROR" | head -2
 
-  # Démarrer tout
-  info "Démarrage de tous les services..."
-  docker compose up -d 2>&1 | grep -E "Started|Running|Error" | head -10
+  info "Démarrage des services..."
+  docker compose up -d 2>&1 | grep -E "Started|Running|Error" | head -8
 
-  # Attendre que le backend soit healthy
-  info "Attente du backend (jusqu'à 60s)..."
+  info "Attente du backend..."
   COUNT=0
   until docker ps --filter "name=cap-epac-backend" --filter "health=healthy" | grep -q "healthy" 2>/dev/null; do
-    COUNT=$((COUNT+1))
-    [ $COUNT -ge 12 ] && { warn "Backend pas encore healthy — on continue quand même"; break; }
-    printf "."; sleep 5
+    COUNT=$((COUNT+1)); [ $COUNT -ge 12 ] && break; printf "."; sleep 5
   done
   echo ""
 
-  # ── Synchronisation des fichiers backend modifiés ────────────────────────
-  info "Synchronisation fichiers backend → conteneur..."
-  BACKEND_FILES=(
-    "backend/src/routes/index.js"
-    "backend/src/routes/meetings.js"
-    "backend/src/routes/webhook.js"
-    "backend/src/controllers/meetingController.js"
-    "backend/src/controllers/webhookController.js"
-    "backend/src/controllers/conversationController.js"
-    "backend/src/server.js"
-  )
+  # Synchronisation backend
+  info "Synchronisation backend..."
   SYNCED=0
-  for f in "${BACKEND_FILES[@]}"; do
-    if [ -f "$f" ]; then
-      dest="/app/${f#backend/}"
-      docker cp "$f" "cap-epac-backend:$dest" 2>/dev/null && SYNCED=$((SYNCED+1))
-    fi
+  for f in \
+    backend/src/routes/index.js \
+    backend/src/routes/meetings.js \
+    backend/src/routes/webhook.js \
+    backend/src/controllers/meetingController.js \
+    backend/src/controllers/webhookController.js \
+    backend/src/controllers/conversationController.js \
+    backend/src/server.js; do
+    [ -f "$f" ] && docker cp "$f" "cap-epac-backend:/app/${f#backend/}" 2>/dev/null && SYNCED=$((SYNCED+1))
   done
   ok "$SYNCED fichiers backend synchronisés"
+  docker compose restart backend 2>/dev/null; sleep 10
 
-  # Redémarrer le backend pour prendre en compte les fichiers
-  docker compose restart backend 2>/dev/null
-  info "Backend redémarré"
-  sleep 10
-
-  # ── Vérification finale ──────────────────────────────────────────────────
-  HEALTH=$(curl -sk --max-time 5 "https://${SERVER_IP}:${HTTPS_PORT}/health" 2>/dev/null)
-  if echo "$HEALTH" | grep -q '"status":"ok"'; then
-    ok "Backend accessible : ✓"
-  else
-    # Essayer en HTTP
-    HEALTH=$(curl -sk --max-time 5 "http://${SERVER_IP}:${HTTP_PORT}/health" 2>/dev/null)
-    echo "$HEALTH" | grep -q '"status":"ok"' && ok "Backend accessible via HTTP ✓" || \
-    warn "Backend pas encore accessible — vérifier : docker compose logs backend --tail=20"
-  fi
+  # Vérification
+  for URL in "https://${SERVER_IP}:${HTTPS_PORT}/health" "http://${SERVER_IP}:${HTTP_PORT}/health"; do
+    HEALTH=$(curl -sk --max-time 5 "$URL" 2>/dev/null)
+    echo "$HEALTH" | grep -q '"status":"ok"' && ok "Backend accessible ✓" && break
+  done
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 7. BUILD APK MOBILE
+# 8. APK MOBILE
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
-  section "7/7 — Build APK Mobile"
+  section "8/8 — Build APK Mobile"
 
-  # Augmenter inotify
   echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
     sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || true
 
-  # Détecter et configurer le SDK Android automatiquement
+  # Détecter SDK Android
   ANDROID_SDK=""
-  for candidate in \
-    "$ANDROID_HOME" \
-    "$HOME/Android/Sdk" \
-    "$HOME/snap/android-studio/common/Android/Sdk" \
-    "/opt/android-sdk" \
-    "/usr/lib/android-sdk"; do
-    [ -d "$candidate/platform-tools" ] && ANDROID_SDK="$candidate" && break
+  for c in "$ANDROID_HOME" "$HOME/Android/Sdk" "$HOME/snap/android-studio/common/Android/Sdk" "/opt/android-sdk"; do
+    [ -d "$c/platform-tools" ] && ANDROID_SDK="$c" && break
   done
-
-  # Fallback : chercher adb
   if [ -z "$ANDROID_SDK" ]; then
-    ADB_PATH=$(find /home -name "adb" -type f 2>/dev/null | head -1)
-    [ -n "$ADB_PATH" ] && ANDROID_SDK=$(dirname "$(dirname "$ADB_PATH")")
+    ADB=$(find /home -name "adb" -type f 2>/dev/null | head -1)
+    [ -n "$ADB" ] && ANDROID_SDK=$(dirname "$(dirname "$ADB")")
   fi
 
   if [ -n "$ANDROID_SDK" ]; then
     echo "sdk.dir=${ANDROID_SDK}" > mobile/android/local.properties
     ok "SDK Android : ${ANDROID_SDK}"
-  else
-    warn "SDK Android non trouvé — créer mobile/android/local.properties manuellement"
-    warn "  echo 'sdk.dir=/chemin/vers/sdk' > mobile/android/local.properties"
-  fi
 
-  info "Build APK Release en cours..."
-  if cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -3; then
-    cd "$SCRIPT_DIR"
-    APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-    [ -f "$APK" ] && ok "APK : $APK ($(du -sh "$APK" | cut -f1))"
+    info "Build APK Release..."
+    if cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -3; then
+      cd "$SCRIPT_DIR"
+      for APK in \
+        "mobile/android/app/build/outputs/apk/release/app-release.apk" \
+        mobile/android/app/build/outputs/apk/release/*.apk; do
+        [ -f "$APK" ] && ok "APK généré : $(basename "$APK") ($(du -sh "$APK" | cut -f1))" && break
+      done
+    else
+      cd "$SCRIPT_DIR"
+      warn "Build APK échoué — relancer : bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
+    fi
   else
-    cd "$SCRIPT_DIR"
-    warn "Build APK échoué — voir les logs Gradle"
+    warn "SDK Android non trouvé — APK ignoré"
   fi
 fi
 
@@ -357,15 +427,20 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
 echo -e "${GREEN}${BOLD}"
-echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║          Déploiement terminé !                          ║"
-echo "  ╠══════════════════════════════════════════════════════════╣"
-echo -e "  ║${NC}  Application  : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
+echo "  ╔══════════════════════════════════════════════════════════════╗"
+echo "  ║           Déploiement terminé !                             ║"
+echo "  ╠══════════════════════════════════════════════════════════════╣"
+echo -e "  ║${NC}  Application  : ${CYAN}${ACCESS_URL}${NC}"
+[ -n "$DOMAIN" ] && \
+echo -e "  ║  Alt URL      : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
 echo -e "  ║  API mobile   : ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
 echo -e "  ║  Admin        : admin / Admin@CapEpac2025"
-[ "$BUILD_APK" = true ] && \
-echo -e "  ║  APK          : mobile/android/.../app-release.apk"
-echo -e "${GREEN}${BOLD}  ╚══════════════════════════════════════════════════════════╝${NC}"
+if [ -n "$DOMAIN" ]; then
+echo -e "  ╠══════════════════════════════════════════════════════════════╣"
+echo -e "  ║  DNS local    : configurez les appareils avec DNS=${CYAN}${SERVER_IP}${NC}"
+echo -e "  ║  Accès domaine: ${CYAN}https://${DOMAIN}${NC} (après config DNS)"
+fi
+echo -e "${GREEN}${BOLD}  ╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  Logs  : ${YELLOW}docker compose logs -f${NC}"
 echo -e "  Arrêt : ${YELLOW}docker compose down${NC}"
