@@ -1,6 +1,43 @@
+# ── Secrets et config serveur ────────────────────────────────────
 .env
+.env.local
+.env.production
+
+# ── Certificats SSL (générés par deploy.sh) ───────────────────────
+nginx/ssl/
+*.pem
+*.crt
+*.key
+
+# ── Fichiers générés automatiquement par deploy.sh ───────────────
+mobile/src/config.ts
+mobile/android/local.properties
+mobile/android/app/src/main/res/xml/network_security_config.xml
+frontend/.env
+frontend/.env.production
 nginx/coturn.conf
-src/services/socket.ts
-src/services/api.ts
-quick-rebuild.sh
-android/app/src/main/res/xml/network_security_config.xml
+
+# ── Build artifacts ───────────────────────────────────────────────
+# NE PAS ignorer frontend/dist — il doit être dans git pour le build Docker
+node_modules/
+mobile/node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# ── APK généré ────────────────────────────────────────────────────
+mobile/android/app/build/
+mobile/android/.gradle/
+*.apk
+*.aab
+
+# ── Logs ─────────────────────────────────────────────────────────
+backend/logs/*.log
+*.log
+
+# ── OS ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
