@@ -420,6 +420,12 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   if [ "$BACKEND_OK" = false ]; then
     warn "Backend pas encore prêt — vérifier : docker compose logs backend --tail=20"
     warn "Si ETIMEDOUT MySQL : sudo iptables -t raw -F PREROUTING && docker compose restart backend"
+  else
+    # Redémarrer nginx en dernier pour forcer la re-résolution DNS interne Docker
+    # (évite le 504 dû à nginx qui cache une mauvaise IP au démarrage)
+    docker compose restart nginx 2>/dev/null || true
+    sleep 3
+    ok "Nginx rechargé — résolution DNS Docker rafraîchie"
   fi
   set -e   # Remettre le mode strict
 fi
