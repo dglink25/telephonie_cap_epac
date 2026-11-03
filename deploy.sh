@@ -397,7 +397,7 @@ _push_certs_to_server() {
 
   local REMOTE_DIR
   REMOTE_DIR=$(ssh -o ConnectTimeout=5 "${SSH_USER}@${SERVER_IP}" \
-    "find /mnt /home /opt -maxdepth 4 -name 'docker-compose.yml' 2>/dev/null | head -1 | xargs dirname" 2>/dev/null)
+    "find /mnt /home /opt -maxdepth 4 -name 'docker-compose.yml' 2>/dev/null | xargs grep -l 'cap-epac' 2>/dev/null | head -1 | xargs dirname 2>/dev/null" 2>/dev/null)
   [ -z "$REMOTE_DIR" ] && REMOTE_DIR="/mnt/CAP_Data/telephonie_cap_epac"
 
   info "Copie des certificats SSL vers ${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/ ..."
@@ -652,6 +652,29 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
   if [ -n "$ANDROID_SDK" ]; then
     echo "sdk.dir=${ANDROID_SDK}" > mobile/android/local.properties
     ok "SDK Android : ${ANDROID_SDK}"
+
+    # Détecter Java 17 ou 21 (éviter Java 25-ea qui plante le plugin React Native)
+    JAVA_HOME_BUILD=""
+    for JV in 21 17 11; do
+      for JD in \
+        "/usr/lib/jvm/java-${JV}-openjdk-amd64" \
+        "/usr/lib/jvm/java-${JV}-openjdk" \
+        "/usr/lib/jvm/temurin-${JV}" \
+        "/usr/local/lib/jvm/java-${JV}"; do
+        if [ -x "${JD}/bin/java" ]; then
+          JAVA_HOME_BUILD="$JD"
+          break 2
+        fi
+      done
+    done
+
+    if [ -n "$JAVA_HOME_BUILD" ]; then
+      ok "Java : ${JAVA_HOME_BUILD} (évite Java EA qui plante Kotlin)"
+      export JAVA_HOME="$JAVA_HOME_BUILD"
+      export PATH="${JAVA_HOME_BUILD}/bin:$PATH"
+    else
+      warn "Java 17/21 non trouvé — utilisation du Java par défaut (peut échouer si EA)"
+    fi
 
     info "Build APK Release..."
     BUILD_OK=false
