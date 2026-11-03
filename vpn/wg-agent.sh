@@ -16,7 +16,10 @@ HOST="0.0.0.0"
 
 # ── Installer comme service systemd ───────────────────────────
 if [ "$1" = "--install" ]; then
-  SCRIPT_PATH="$(realpath "$0")"
+  SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+  NODE_BIN=$(command -v node || command -v nodejs)
+  [ -z "$NODE_BIN" ] && echo "Node.js requis — sudo apt install nodejs -y" && exit 1
+
   cat > /etc/systemd/system/wg-agent.service << EOF
 [Unit]
 Description=CAP-EPAC WireGuard Agent
@@ -24,7 +27,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash ${SCRIPT_PATH}
+ExecStart=${NODE_BIN} ${SCRIPT_DIR}/wg-agent.js
 Restart=always
 RestartSec=3
 User=root
@@ -35,7 +38,8 @@ EOF
   systemctl daemon-reload
   systemctl enable wg-agent
   systemctl restart wg-agent
-  echo "[✓] wg-agent installé et démarré"
+  sleep 2
+  systemctl is-active wg-agent && echo "[✓] wg-agent installé et démarré" || echo "[✗] Échec démarrage"
   exit 0
 fi
 
