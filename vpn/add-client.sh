@@ -25,7 +25,8 @@ mkdir -p "$CLIENT_DIR"
 
 # ── Récupérer infos serveur ────────────────────────────────────
 SERVER_PUB=$(cat /etc/wireguard/server_public.key)
-SERVER_IP=$(ip route | grep default | awk '{print $9}' | head -1)
+WAN_IF=$(ip route | grep default | awk '{print $5}' | head -1)
+SERVER_IP=$(ip -4 addr show "$WAN_IF" 2>/dev/null | grep -oP '(?<=inet\s)\d+\.\d+\.\d+\.\d+' | head -1)
 [ -z "$SERVER_IP" ] && SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # ── Trouver une IP libre dans 10.8.0.x ───────────────────────

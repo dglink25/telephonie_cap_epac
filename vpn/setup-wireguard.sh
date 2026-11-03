@@ -19,7 +19,7 @@ warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
 
 # ── Détecter l'interface réseau principale ─────────────────────
 WAN_IF=$(ip route | grep default | awk '{print $5}' | head -1)
-SERVER_IP=$(ip route | grep default | awk '{print $9}' | head -1)
+SERVER_IP=$(ip -4 addr show "$WAN_IF" 2>/dev/null | grep -oP '(?<=inet\s)\d+\.\d+\.\d+\.\d+' | head -1)
 [ -z "$SERVER_IP" ] && SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo ""
