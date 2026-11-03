@@ -12,7 +12,7 @@ WG_CONF="/etc/wireguard/wg0.conf"
 CLIENT_DIR="/etc/wireguard/clients"
 VPN_SUBNET="10.8.0"
 PORT=51821
-HOST="127.0.0.1"
+HOST="0.0.0.0"
 
 # ── Installer comme service systemd ───────────────────────────
 if [ "$1" = "--install" ]; then
