@@ -252,38 +252,35 @@ fi
 
 NET_SEC="mobile/android/app/src/main/res/xml/network_security_config.xml"
 if [ -f "$NET_SEC" ]; then
-  # Collecter les IPs/domaines existants + le nouveau
-  EXTRA_DOMAINS=""
-  [ -n "$DOMAIN" ] && EXTRA_DOMAINS="        <domain includeSubdomains=\"true\">${DOMAIN}</domain>"
-
   # Réécrire proprement le fichier (évite les doublons à chaque déploiement)
-  cat > "$NET_SEC" << XMLEOF
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Généré par deploy.sh — NE PAS ÉDITER MANUELLEMENT -->
-<network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">${SERVER_IP}</domain>
-${EXTRA_DOMAINS:+$EXTRA_DOMAINS$'\n'}        <domain includeSubdomains="true">*.cap-epac.local</domain>
-        <trust-anchors>
-            <certificates src="system"/>
-            <certificates src="user"/>
-        </trust-anchors>
-    </domain-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">10.0.2.2</domain>
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <trust-anchors>
-            <certificates src="system"/>
-        </trust-anchors>
-    </domain-config>
-    <base-config cleartextTrafficPermitted="false">
-        <trust-anchors>
-            <certificates src="system"/>
-        </trust-anchors>
-    </base-config>
-</network-security-config>
-XMLEOF
+  {
+    echo '<?xml version="1.0" encoding="utf-8"?>'
+    echo '<!-- Généré par deploy.sh — NE PAS ÉDITER MANUELLEMENT -->'
+    echo '<network-security-config>'
+    echo '    <domain-config cleartextTrafficPermitted="true">'
+    echo "        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>"
+    [ -n "$DOMAIN" ] && echo "        <domain includeSubdomains=\"true\">${DOMAIN}</domain>"
+    echo '        <domain includeSubdomains="true">*.cap-epac.local</domain>'
+    echo '        <trust-anchors>'
+    echo '            <certificates src="system"/>'
+    echo '            <certificates src="user"/>'
+    echo '        </trust-anchors>'
+    echo '    </domain-config>'
+    echo '    <domain-config cleartextTrafficPermitted="true">'
+    echo '        <domain includeSubdomains="false">localhost</domain>'
+    echo '        <domain includeSubdomains="false">10.0.2.2</domain>'
+    echo '        <domain includeSubdomains="false">127.0.0.1</domain>'
+    echo '        <trust-anchors>'
+    echo '            <certificates src="system"/>'
+    echo '        </trust-anchors>'
+    echo '    </domain-config>'
+    echo '    <base-config cleartextTrafficPermitted="false">'
+    echo '        <trust-anchors>'
+    echo '            <certificates src="system"/>'
+    echo '        </trust-anchors>'
+    echo '    </base-config>'
+    echo '</network-security-config>'
+  } > "$NET_SEC"
   ok "network_security_config.xml → ${SERVER_IP}${DOMAIN:+, $DOMAIN}"
 fi
 
