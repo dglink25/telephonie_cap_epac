@@ -309,35 +309,109 @@ fi
 section "6/8 — Certificats SSL"
 
 mkdir -p nginx/ssl
-REGEN=false
-[ ! -f "nginx/ssl/cert.pem" ] && REGEN=true
 
-# Vérifier si le cert couvre l'IP et éventuellement le domaine
-if [ "$REGEN" = false ]; then
+# ── Fonction : vérifier si le cert actuel est encore valide pour IP+domaine ──
+_cert_needs_regen() {
+  [ ! -f "nginx/ssl/cert.pem" ] && return 0   # pas de cert → régénérer
+  [ ! -f "nginx/ssl/key.pem"  ] && return 0   # pas de clé  → régénérer
+
+  # Cert expiré ou expire dans moins de 30 jours ?
+  if ! openssl x509 -in nginx/ssl/cert.pem -checkend 2592000 -noout 2>/dev/null; then
+    warn "Certificat SSL expiré ou expire dans < 30 jours"
+    return 0
+  fi
+
+  local CERT_TEXT
   CERT_TEXT=$(openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null)
-  CERT_IP=$(echo "$CERT_TEXT" | grep -oE 'IP Address:[0-9.]+' | grep -oE '[0-9.]+' | head -1)
-  CERT_DNS=$(echo "$CERT_TEXT" | grep -oE 'DNS:[^,]+' | head -1)
-  # Régénérer seulement si l'IP OU le domaine a changé
-  [ "$CERT_IP" != "$SERVER_IP" ] && REGEN=true
-  [ -n "$DOMAIN" ] && ! echo "$CERT_TEXT" | grep -qi "$DOMAIN" && REGEN=true
-  [ "$REGEN" = true ] && warn "Certificat SSL obsolète — régénération..."
-fi
 
-if [ "$REGEN" = true ]; then
-  SAN="IP:${SERVER_IP},DNS:localhost"
+  # L'IP du serveur est dans le SAN ?
+  echo "$CERT_TEXT" | grep -q "IP Address:${SERVER_IP}" || { warn "IP ${SERVER_IP} absente du cert"; return 0; }
+
+  # Le domaine est dans le SAN (si fourni) ?
+  if [ -n "$DOMAIN" ]; then
+    echo "$CERT_TEXT" | grep -qi "${DOMAIN}" || { warn "Domaine ${DOMAIN} absent du cert"; return 0; }
+  fi
+
+  return 1   # cert OK, pas besoin de régénérer
+}
+
+# ── Fonction : générer avec mkcert (cert de confiance) ────────────────────────
+_gen_cert_mkcert() {
+  local MKCERT_BIN
+  MKCERT_BIN=$(command -v mkcert 2>/dev/null)
+  [ -z "$MKCERT_BIN" ] && return 1
+
+  info "mkcert détecté — génération certificat de confiance..."
+
+  # Installer la CA locale si pas encore fait
+  CAROOT=$("$MKCERT_BIN" -CAROOT 2>/dev/null)
+  "$MKCERT_BIN" -install 2>/dev/null || true
+
+  # Construire la liste des domaines/IPs
+  local DOMAINS="${SERVER_IP} localhost"
+  [ -n "$DOMAIN" ] && DOMAINS="${DOMAIN} *.${DOMAIN} ${DOMAINS}"
+
+  # Générer dans un dossier temp puis déplacer
+  local TMPDIR
+  TMPDIR=$(mktemp -d)
+  (
+    cd "$TMPDIR"
+    # shellcheck disable=SC2086
+    "$MKCERT_BIN" -key-file key.pem -cert-file cert.pem $DOMAINS 2>/dev/null
+  )
+
+  if [ -f "$TMPDIR/cert.pem" ] && [ -f "$TMPDIR/key.pem" ]; then
+    mv "$TMPDIR/cert.pem" nginx/ssl/cert.pem
+    mv "$TMPDIR/key.pem"  nginx/ssl/key.pem
+    rm -rf "$TMPDIR"
+
+    # Copier la CA racine pour distribution aux clients
+    if [ -n "$CAROOT" ] && [ -f "${CAROOT}/rootCA.pem" ]; then
+      cp "${CAROOT}/rootCA.pem" nginx/ssl/rootCA.pem
+      ok "CA racine copiée → nginx/ssl/rootCA.pem (à distribuer aux clients)"
+    fi
+    ok "Certificat mkcert généré (navigateurs accepteront sans avertissement sur les machines avec la CA installée)"
+    return 0
+  fi
+
+  rm -rf "$TMPDIR"
+  return 1
+}
+
+# ── Fonction : générer avec openssl (fallback auto-signé) ─────────────────────
+_gen_cert_openssl() {
+  local SAN="IP:${SERVER_IP},DNS:localhost"
   [ -n "$DOMAIN" ] && SAN="${SAN},DNS:${DOMAIN},DNS:*.${DOMAIN}"
 
-  if [ -f "scripts/gen-ssl.sh" ]; then
-    bash scripts/gen-ssl.sh "$SERVER_IP" "$DOMAIN"
-  else
-    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-      -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
-      -subj "/CN=${DOMAIN:-$SERVER_IP}/O=CAP-EPAC/C=BJ" \
-      -addext "subjectAltName=${SAN}" 2>/dev/null
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
+    -subj "/CN=${DOMAIN:-$SERVER_IP}/O=CAP-EPAC/C=BJ" \
+    -addext "subjectAltName=${SAN}" 2>/dev/null
+
+  warn "Certificat auto-signé généré (les navigateurs afficheront un avertissement)"
+  warn "  → Importer nginx/ssl/rootCA.pem dans le navigateur pour supprimer l'avertissement"
+  warn "  → Ou installer mkcert sur cette machine pour un cert de confiance automatique"
+}
+
+# ── Vérifier et régénérer si nécessaire ───────────────────────────────────────
+if _cert_needs_regen; then
+  info "Génération du certificat SSL..."
+  # Supprimer les anciens certs
+  rm -f nginx/ssl/cert.pem nginx/ssl/key.pem
+
+  # Essayer mkcert en premier, fallback openssl
+  if ! _gen_cert_mkcert; then
+    _gen_cert_openssl
   fi
-  ok "Certificats SSL générés (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
+
+  ok "Certificats SSL → nginx/ssl/cert.pem + key.pem (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
 else
-  ok "Certificats SSL valides"
+  ok "Certificats SSL valides (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN} — aucune régénération nécessaire)"
+fi
+
+# ── Page de téléchargement de la CA (accessible depuis tout le LAN) ───────────
+if [ -f "nginx/ssl/rootCA.pem" ]; then
+  info "CA racine disponible sur : http://${SERVER_IP}:${HTTP_PORT:-19080}/rootCA.pem"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -481,23 +555,27 @@ echo -e "${GREEN}${BOLD}"
 echo "  ╔══════════════════════════════════════════════════════════════╗"
 echo "  ║           Déploiement terminé !                             ║"
 echo "  ╠══════════════════════════════════════════════════════════════╣"
-echo -e "  ║${NC}  Web (LAN)    : ${CYAN}${ACCESS_URL}${NC}"
+echo -e "  ║${NC}  Web (domaine): ${CYAN}${ACCESS_URL}${NC}"
 echo -e "  ║  Web (IP)    : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
 echo -e "  ║  Mobile (LAN): ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
 echo -e "  ║  Admin       : admin / Admin@CapEpac2025"
 echo -e "${GREEN}${BOLD}  ╠══════════════════════════════════════════════════════════════╣${NC}"
 if [ -n "$DOMAIN" ]; then
 echo -e "  ${YELLOW}┌─ DNS LAN — Pour accéder via https://${DOMAIN} ─────────┐${NC}"
-echo -e "  ${YELLOW}│${NC}  Configurez le routeur DHCP pour distribuer ce DNS :"
-echo -e "  ${YELLOW}│${NC}  → DNS primaire : ${CYAN}${SERVER_IP}${NC}"
-echo -e "  ${YELLOW}│${NC}  Ou manuellement sur chaque appareil :"
-echo -e "  ${YELLOW}│${NC}  → WiFi → DNS manuel → ${CYAN}${SERVER_IP}${NC}"
+echo -e "  ${YELLOW}│${NC}  Routeur DHCP → DNS primaire : ${CYAN}${SERVER_IP}${NC}"
+echo -e "  ${YELLOW}│${NC}  Ou manuellement : WiFi → DNS manuel → ${CYAN}${SERVER_IP}${NC}"
+echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
+fi
+if [ -f "nginx/ssl/rootCA.pem" ]; then
+echo -e "  ${YELLOW}┌─ Certificat SSL — supprimer l'avertissement navigateur ┐${NC}"
+echo -e "  ${YELLOW}│${NC}  Télécharger la CA : ${CYAN}http://${SERVER_IP}:${HTTP_PORT}/rootCA.pem${NC}"
+echo -e "  ${YELLOW}│${NC}  Chrome : Paramètres → Confidentialité → Certificats → Autorités → Importer"
+echo -e "  ${YELLOW}│${NC}  Android: Paramètres → Sécurité → Installer certificat → CA"
+echo -e "  ${YELLOW}│${NC}  Windows: Double-clic rootCA.pem → Autorités racines de confiance"
 echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
 fi
 echo -e "  ${YELLOW}┌─ Mobile hors réseau (VPN WireGuard) ───────────────────┐${NC}"
-echo -e "  ${YELLOW}│${NC}  1. Connecter le VPN WireGuard sur le téléphone"
-echo -e "  ${YELLOW}│${NC}  2. L'app CAP-EPAC se connecte via ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
-echo -e "  ${YELLOW}│${NC}  3. Même expérience que dans le réseau local"
+echo -e "  ${YELLOW}│${NC}  Connecter WireGuard → accès via ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
 echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
 echo -e "${GREEN}${BOLD}  ╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
