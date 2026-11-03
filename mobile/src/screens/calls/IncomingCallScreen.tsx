@@ -20,7 +20,7 @@ interface Props {
   navigation: NativeStackNavigationProp<any>;
   route: RouteProp<{ IncomingCall: { openedFromNotification?: boolean } }, 'IncomingCall'>;
   // openedFromNotification : vrai quand l'écran est ouvert depuis le bouton
-  // "Accepter" de la notification Android native — la sonnerie est déjà
+  // "Accepter" de la notification Android native - la sonnerie est déjà
   // gérée par le service natif, pas besoin de la redémarrer.
   openedFromNotification?: boolean;
 }
@@ -46,7 +46,7 @@ const IncomingCallScreen: React.FC<Props> = ({ navigation, route }) => {
       Vibration.vibrate([0, 700, 500, 700, 500], true);
       startedRingtone.current = true;
     } else {
-      // L'écran s'ouvre via notification — juste garder l'écran allumé
+      // L'écran s'ouvre via notification - juste garder l'écran allumé
       InCallManager.setKeepScreenOn(true);
       startedRingtone.current = false;
     }

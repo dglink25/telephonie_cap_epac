@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Rebuild complet sans cache
+# Téléphonie CAP-EPAC - Rebuild complet sans cache
 # ═══════════════════════════════════════════════════════════════
 set -e
 
@@ -13,7 +13,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║     CAP-EPAC — Rebuild complet (sans cache)         ║${NC}"
+echo -e "${GREEN}║     CAP-EPAC - Rebuild complet (sans cache)         ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -28,7 +28,7 @@ docker rmi telephonie-cap-epac-frontend telephonie-cap-epac-backend 2>/dev/null 
 # 3. Vérifier les fichiers audio et logo
 info "Vérification des assets..."
 if [ ! -f "frontend/public/sounds/ringtone.wav" ]; then
-    warn "Sons manquants — génération..."
+    warn "Sons manquants - génération..."
     mkdir -p frontend/public/sounds
     node - << 'JSEOF'
 const fs = require('fs');
@@ -56,7 +56,7 @@ JSEOF
 fi
 
 if [ ! -f "frontend/public/logo.svg" ]; then
-    warn "Logo manquant — création..."
+    warn "Logo manquant - création..."
     cat > frontend/public/logo.svg << 'SVGEOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <rect width="64" height="64" rx="16" fill="#16a34a"/>
@@ -82,7 +82,7 @@ MAX=24; COUNT=0
 until curl -sk "https://localhost/health" > /dev/null 2>&1; do
     COUNT=$((COUNT+1))
     if [ $COUNT -ge $MAX ]; then
-        warn "Timeout — vérifiez: docker compose logs backend"
+        warn "Timeout - vérifiez: docker compose logs backend"
         break
     fi
     printf "."
@@ -100,7 +100,7 @@ SERVER_IP="${SERVER_IP:-192.168.10.150}"
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║           CAP-EPAC — Rebuild terminé !              ║${NC}"
+echo -e "${GREEN}║           CAP-EPAC - Rebuild terminé !              ║${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║${NC}  Application : https://$SERVER_IP"
 echo -e "${GREEN}║${NC}  Backend     : https://$SERVER_IP/api/docs"

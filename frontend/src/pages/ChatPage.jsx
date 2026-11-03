@@ -410,7 +410,7 @@ export default function ChatPage() {
     onError: (err) => {
       const code = err.response?.data?.code;
       if (code === 'EDIT_WINDOW_EXPIRED') {
-        showFeedback('error', '⏱ Délai de 15 minutes dépassé — modification impossible.');
+        showFeedback('error', '⏱ Délai de 15 minutes dépassé - modification impossible.');
       } else {
         showFeedback('error', err.response?.data?.message || 'Erreur lors de la modification.');
       }
@@ -1002,7 +1002,7 @@ export default function ChatPage() {
         />
       )}
 
-      {/* Feedback modal — au-dessus de tout */}
+      {/* Feedback modal - au-dessus de tout */}
       {feedbackNode}
     </div>
   );

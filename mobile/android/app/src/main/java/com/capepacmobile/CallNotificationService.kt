@@ -22,7 +22,7 @@ import org.json.JSONObject
 import java.net.URI
 
 /**
- * CallNotificationService — Foreground Service Android
+ * CallNotificationService - Foreground Service Android
  *
  * Corrections v2 :
  * - Sonnerie s'arrête sur TOUS les événements de fin (ended, rejected, cancelled)
@@ -216,7 +216,7 @@ class CallNotificationService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Intent bouton Accepter — passe toutes les données
+        // Intent bouton Accepter - passe toutes les données
         val acceptIntent = Intent(this, CallNotificationService::class.java).apply {
             action = ACTION_ACCEPT_CALL
             putExtra(EXTRA_CALL_ID,      callId)
@@ -263,7 +263,7 @@ class CallNotificationService : Service() {
             startRingtone()
             startVibration()
         } else {
-            Log.d(TAG, "Sonnerie déjà active — pas de doublon")
+            Log.d(TAG, "Sonnerie déjà active - pas de doublon")
         }
     }
 
@@ -318,7 +318,7 @@ class CallNotificationService : Service() {
     private fun connectSocket(url: String, token: String) {
         // Si déjà connecté avec ce token → ne pas reconnecter
         if (socket?.connected() == true) {
-            Log.d(TAG, "Socket déjà connecté — skip reconnexion")
+            Log.d(TAG, "Socket déjà connecté - skip reconnexion")
             return
         }
 
@@ -343,7 +343,7 @@ class CallNotificationService : Service() {
             socket?.on(Socket.EVENT_CONNECT) {
                 Log.d(TAG, "Socket connecté")
                 Handler(Looper.getMainLooper()).post {
-                    updateForegroundNotification("Connecté — en attente d'appels")
+                    updateForegroundNotification("Connecté - en attente d'appels")
                 }
             }
 
@@ -413,7 +413,7 @@ class CallNotificationService : Service() {
             val callId = data.optString("callId", "")
             Log.d(TAG, "Événement $event reçu callId=$callId currentCallId=$currentCallId")
 
-            // Arrêter la sonnerie DANS TOUS LES CAS — même si callId ne correspond pas
+            // Arrêter la sonnerie DANS TOUS LES CAS - même si callId ne correspond pas
             // (cas edge: double connexion ou callId mal transmis)
             Handler(Looper.getMainLooper()).post {
                 stopRingtoneAndVibration()

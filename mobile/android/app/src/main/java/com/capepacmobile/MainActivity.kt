@@ -85,7 +85,7 @@ class MainActivity : ReactActivity() {
                 sendEventWhenReady(callId, callerName, callerAvatar, callerId, callType, isGroup, retries + 1)
             }, 200)
         } else {
-            Log.w("MainActivity", "React context non disponible après 6s — abandon")
+            Log.w("MainActivity", "React context non disponible après 6s - abandon")
         }
     }
 }

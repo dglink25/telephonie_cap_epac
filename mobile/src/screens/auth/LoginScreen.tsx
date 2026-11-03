@@ -39,7 +39,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await login(trimmedUsername, password);
       // La navigation vers l'app principale est gérée par AppNavigator
-      // via isAuthenticated — pas besoin de navigate() ici
+      // via isAuthenticated - pas besoin de navigate() ici
     } catch {
       // L'erreur est déjà dans le store
     }
@@ -137,7 +137,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>CAP-EPAC © 2026 — Réseau LAN interne</Text>
+        <Text style={styles.footer}>CAP-EPAC © 2026 - Réseau LAN interne</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# CAP-EPAC Mobile — Fixer ANDROID_HOME et lancer l'app
+# CAP-EPAC Mobile - Fixer ANDROID_HOME et lancer l'app
 # ═══════════════════════════════════════════════════════════════
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -10,7 +10,7 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║    CAP-EPAC Mobile — Configuration Android          ║${NC}"
+echo -e "${GREEN}║    CAP-EPAC Mobile - Configuration Android          ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -54,7 +54,7 @@ BASHRC="$HOME/.bashrc"
 if ! grep -q "ANDROID_HOME" "$BASHRC" 2>/dev/null; then
     cat >> "$BASHRC" << ENVEOF
 
-# Android SDK — CAP-EPAC Mobile
+# Android SDK - CAP-EPAC Mobile
 export ANDROID_HOME=$FOUND_SDK
 export PATH=\$PATH:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/emulator:\$ANDROID_HOME/tools
 ENVEOF
@@ -88,7 +88,7 @@ if [ -f "android/gradlew" ]; then
     chmod +x android/gradlew
     info "android/gradlew → exécutable ✅"
 else
-    error "android/gradlew introuvable — êtes-vous dans le dossier mobile ?"
+    error "android/gradlew introuvable - êtes-vous dans le dossier mobile ?"
 fi
 
 # ── 6. Vérifier l'appareil branché ───────────────────────────

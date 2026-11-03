@@ -95,7 +95,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [activeCall, status]);
 
-  // Initialiser WebRTC — une seule fois par montage du composant
+  // Initialiser WebRTC - une seule fois par montage du composant
   useEffect(() => {
     if (!activeCall || isInitialized.current) return;
 
@@ -163,7 +163,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
         remoteUserId,
       });
 
-      // ✅ WebRTC est prêt — déclenche le useEffect de pendingOffer via state
+      // ✅ WebRTC est prêt - déclenche le useEffect de pendingOffer via state
       setWebrtcReady(true);
       setIsSpeakerOn(isVideo);
 
@@ -171,7 +171,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
       if (!isInitiator) {
         const currentPending = useCallStore.getState().pendingOffer;
         if (currentPending && currentPending.callId === activeCall.callId) {
-          console.log('[ActiveCall] Offre déjà en attente — traitement immédiat');
+          console.log('[ActiveCall] Offre déjà en attente - traitement immédiat');
           setPendingOffer(null);
           await webrtcService.handleOffer(currentPending.sdp);
         }
@@ -227,7 +227,7 @@ const ActiveCallScreen: React.FC<Props> = ({ navigation, route }) => {
     socketService.endCall(activeCall.callId);
     webrtcService.endCall();
     storeEndCall();
-    // Naviguer vers Tabs — le useEffect ne renaviguera pas grâce à isEndingRef
+    // Naviguer vers Tabs - le useEffect ne renaviguera pas grâce à isEndingRef
     navigation.replace('Tabs');
   };
 

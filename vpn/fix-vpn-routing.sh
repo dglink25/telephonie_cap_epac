@@ -20,7 +20,7 @@ echo -e "\n${GREEN}══ Correction du routage VPN ══${NC}\n"
 sysctl -w net.ipv4.ip_forward=1 > /dev/null
 ok "IP forwarding activé"
 
-# 2. Règles iptables (idempotentes — ne s'ajoutent pas en double)
+# 2. Règles iptables (idempotentes - ne s'ajoutent pas en double)
 # FORWARD wg0 → LAN
 iptables -C FORWARD -i $WG_IFACE -j ACCEPT 2>/dev/null || \
     iptables -A FORWARD -i $WG_IFACE -j ACCEPT
@@ -72,7 +72,7 @@ RESULT=$(curl -s --max-time 5 http://192.168.10.139:8282/api/health 2>/dev/null)
 if [[ -n "$RESULT" ]]; then
     echo -e "${GREEN}[✓]${NC} Backend accessible : $RESULT"
 else
-    echo -e "${YELLOW}[!]${NC} Backend non accessible sur 8282 — vérifier que Docker tourne"
+    echo -e "${YELLOW}[!]${NC} Backend non accessible sur 8282 - vérifier que Docker tourne"
     echo "    docker compose ps"
 fi
 

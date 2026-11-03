@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  Installation DDNS Dynu — mise à jour automatique IP publique
+#  Installation DDNS Dynu - mise à jour automatique IP publique
 #  Usage : sudo bash setup-ddns.sh <domaine> <client_id> <secret>
 #  Ex    : sudo bash setup-ddns.sh dondiegue.giize.com abc123 xyz789
 # ═══════════════════════════════════════════════════════════════
@@ -40,7 +40,7 @@ fi
 # Comparer avec la dernière IP connue
 LAST_IP=$(cat "$LAST_IP_FILE" 2>/dev/null)
 if [[ "$CURRENT_IP" == "$LAST_IP" ]]; then
-    exit 0  # IP n'a pas changé — rien à faire
+    exit 0  # IP n'a pas changé - rien à faire
 fi
 
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')

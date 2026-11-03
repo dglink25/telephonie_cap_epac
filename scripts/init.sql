@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- Téléphonie CAP-EPAC — Initialisation Base MySQL
+-- Téléphonie CAP-EPAC - Initialisation Base MySQL
 -- ═══════════════════════════════════════════════════════════════
 
 SET NAMES utf8mb4;

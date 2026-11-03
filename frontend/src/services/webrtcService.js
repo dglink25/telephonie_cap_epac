@@ -1,6 +1,6 @@
 // src/services/webrtcService.js
 /**
- * Service WebRTC — Flux correct :
+ * Service WebRTC - Flux correct :
  *
  * APPELANT :
  *  1. call:initiate  → serveur → appele reçoit call:incoming
@@ -20,7 +20,7 @@ import useCallStore from '../store/callStore';
 import useSocketStore from '../store/socketStore';
 
 const ICE_SERVERS = [
-  // ✅ FIX: TURN LAN en priorité — plus fiable sur réseau local
+  // ✅ FIX: TURN LAN en priorité - plus fiable sur réseau local
   {
     urls: [
       `turn:${import.meta.env.VITE_COTURN_HOST || window.location.hostname}:3478?transport=udp`,
@@ -100,7 +100,7 @@ export const createPeerConnection = (targetUserId, callId) => {
 };
 
 /**
- * APPELANT — Étape 1 : initier l'appel (sans créer la PeerConnection encore)
+ * APPELANT - Étape 1 : initier l'appel (sans créer la PeerConnection encore)
  * La PeerConnection sera créée quand l'appelé accepte (call:accepted)
  */
 export const initiateOutgoingCall = (calleeId, type = 'audio') => {
@@ -109,7 +109,7 @@ export const initiateOutgoingCall = (calleeId, type = 'audio') => {
 };
 
 /**
- * APPELANT — Étape 2 : l'appelé a accepté, créer l'offre SDP
+ * APPELANT - Étape 2 : l'appelé a accepté, créer l'offre SDP
  */
 export const createAndSendOffer = async (calleeId, callId, type = 'audio') => {
   const video = type === 'video';
@@ -138,7 +138,7 @@ export const createAndSendOffer = async (calleeId, callId, type = 'audio') => {
 };
 
 /**
- * APPELÉ — Étape 3 : recevoir l'offre et créer la réponse SDP
+ * APPELÉ - Étape 3 : recevoir l'offre et créer la réponse SDP
  */
 export const answerIncomingCall = async (callerId, sdpOffer, callId, type = 'audio') => {
   const video = type === 'video';
@@ -172,7 +172,7 @@ export const answerIncomingCall = async (callerId, sdpOffer, callId, type = 'aud
 };
 
 /**
- * APPELANT — Étape 4 : recevoir la réponse SDP
+ * APPELANT - Étape 4 : recevoir la réponse SDP
  */
 export const handleAnswer = async (sdpAnswer) => {
   const { peerConnection } = useCallStore.getState();

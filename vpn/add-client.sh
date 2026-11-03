@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  CAP-EPAC — Ajouter un client WireGuard VPN
+#  CAP-EPAC - Ajouter un client WireGuard VPN
 #
 #  Usage : sudo bash add-client.sh <nom_utilisateur>
 #  Exemple: sudo bash add-client.sh alice
@@ -59,7 +59,7 @@ chmod 600 "${CLIENT_DIR}/${CLIENT_NAME}.conf"
 # ── Ajouter le client dans la config serveur ──────────────────
 cat >> /etc/wireguard/wg0.conf << EOF
 
-# Client: ${CLIENT_NAME} — ${CLIENT_IP}
+# Client: ${CLIENT_NAME} - ${CLIENT_IP}
 [Peer]
 PublicKey = ${CLIENT_PUB}
 PresharedKey = ${CLIENT_PSK}
@@ -96,7 +96,7 @@ if command -v qrencode >/dev/null 2>&1; then
   echo ""
   ok "Scanner ce QR code avec l'app WireGuard (Android/iOS)"
 else
-  warn "qrencode non installé — installer avec : sudo apt install qrencode -y"
+  warn "qrencode non installé - installer avec : sudo apt install qrencode -y"
   info "Puis relancer : sudo bash add-client.sh ${CLIENT_NAME}"
 fi
 

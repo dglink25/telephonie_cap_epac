@@ -7,7 +7,7 @@ info() { echo -e "${GREEN}[INFO]${NC}  $1"; }
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  CAP-EPAC — Fix settings.gradle pour RN 0.76        ${NC}"
+echo -e "${GREEN}  CAP-EPAC - Fix settings.gradle pour RN 0.76        ${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -97,7 +97,7 @@ allprojects {
 }
 GRADLE
 else
-    # RN 0.76 — le plugin rootproject est géré via pluginManagement
+    # RN 0.76 - le plugin rootproject est géré via pluginManagement
     cat > android/build.gradle << 'GRADLE'
 buildscript {
     ext {

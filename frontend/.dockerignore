@@ -2,7 +2,7 @@
 node_modules/
 npm-debug.log
 
-# NE PAS exclure dist/ — il est buildé localement et copié dans l'image
+# NE PAS exclure dist/ - il est buildé localement et copié dans l'image
 # dist/
 
 # Fichiers d'environnement locaux

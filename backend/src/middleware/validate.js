@@ -38,7 +38,7 @@ const schemas = {
       .min(3, 'Minimum 3 caractères')
       .max(50)
       .regex(/^[a-zA-Z0-9._-]+$/, 'Caractères alphanumériques, points, tirets uniquement'),
-    // email composé automatiquement côté serveur — ne pas exiger ici
+    // email composé automatiquement côté serveur - ne pas exiger ici
     password: z
       .string()
       .min(8, 'Minimum 8 caractères')

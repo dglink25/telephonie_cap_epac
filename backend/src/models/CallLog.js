@@ -14,7 +14,7 @@ const CallLog = sequelize.define(
     started_at:       { type: DataTypes.DATE, allowNull: true },
     ended_at:         { type: DataTypes.DATE, allowNull: true },
     duration_seconds: { type: DataTypes.INTEGER, defaultValue: 0 },
-    // ⚠️ recording_path supprimé — colonne absente de la BDD existante
+    // ⚠️ recording_path supprimé - colonne absente de la BDD existante
   },
   {
     tableName: 'call_logs',

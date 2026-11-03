@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 CONTAINER="cap-epac-backend"
 
 if ! docker ps --format "{{.Names}}" | grep -q "$CONTAINER"; then
-  echo "Conteneur $CONTAINER non trouvé — démarrage..."
+  echo "Conteneur $CONTAINER non trouvé - démarrage..."
   docker compose up -d backend
   sleep 15
 fi

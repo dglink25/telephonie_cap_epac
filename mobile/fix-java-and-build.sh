@@ -6,13 +6,13 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 error() { echo -e "${RED}[ERREUR]${NC} $1"; exit 1; }
 
 echo -e "\n${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   CAP-EPAC Mobile — Fix Java + Gradle               ║${NC}"
+echo -e "${GREEN}║   CAP-EPAC Mobile - Fix Java + Gradle               ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}\n"
 
 [ -f "package.json" ] || error "Lancer depuis le dossier mobile/"
 [ -d "node_modules/react-native" ] || error "Lancer npm install d'abord"
 
-# ── 1. Corriger JAVA_HOME — Java 21 est installé, pas Java 17 ──
+# ── 1. Corriger JAVA_HOME - Java 21 est installé, pas Java 17 ──
 info "Correction de JAVA_HOME..."
 
 JAVA21="/usr/lib/jvm/java-21-openjdk-amd64"
@@ -285,7 +285,7 @@ info "Test de gradlew..."
 cd android
 JAVA_HOME="$JAVA_HOME" ./gradlew --version 2>&1 | grep -E "Gradle|JVM" | head -3
 if [ $? -ne 0 ]; then
-    error "gradlew toujours en erreur — voir message ci-dessus"
+    error "gradlew toujours en erreur - voir message ci-dessus"
 fi
 cd ..
 info "gradlew fonctionne ✅"
@@ -297,7 +297,7 @@ adb devices
 
 DEVICES=$(adb devices 2>/dev/null | grep -v "List of" | grep "device$" | wc -l)
 if [ "$DEVICES" -eq 0 ]; then
-    warn "Aucun appareil détecté — brancher le TECNO KI5k et autoriser le débogage"
+    warn "Aucun appareil détecté - brancher le TECNO KI5k et autoriser le débogage"
     warn "Puis relancer : JAVA_HOME=$JAVA_HOME npx react-native run-android"
     exit 0
 fi
@@ -305,7 +305,7 @@ fi
 # ── 14. Lancer l'app ────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║  Tout est prêt — Compilation en cours...            ║${NC}"
+echo -e "${GREEN}║  Tout est prêt - Compilation en cours...            ║${NC}"
 echo -e "${GREEN}║  (première fois : 5-15 min selon connexion)         ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""

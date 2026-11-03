@@ -56,7 +56,7 @@ const useSocketStore = create((set, get) => ({
       // ✅ FIX: Laisser Socket.IO gérer la reconnexion automatique
       // Ne pas tenter de reconnecter manuellement sauf si serveur force la déconnexion
       if (reason === 'io server disconnect') {
-        console.log('[Socket] Déconnexion serveur forcée — reconnexion manuelle après refresh token');
+        console.log('[Socket] Déconnexion serveur forcée - reconnexion manuelle après refresh token');
         setTimeout(() => {
           socket.connect();
         }, 2000);
@@ -100,7 +100,7 @@ const useSocketStore = create((set, get) => ({
     if (socket?.connected) {
       socket.emit(event, data);
     } else {
-      console.warn('[Socket] emit ignoré — socket non connecté:', event);
+      console.warn('[Socket] emit ignoré - socket non connecté:', event);
     }
   },
 

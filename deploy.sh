@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CAP-EPAC Téléphonie — Script de déploiement universel v4
+#  CAP-EPAC Téléphonie - Script de déploiement universel v4
 #
 #  Usage :
 #    bash deploy.sh <IP>                          # IP seulement
@@ -32,7 +32,7 @@ section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 # Garantir que le résumé s'affiche même en cas d'erreur inattendue
 _show_summary() {
   local EXIT_CODE=$?
-  [ $EXIT_CODE -ne 0 ] && echo -e "\n${YELLOW}[!] Script interrompu (code $EXIT_CODE) — état Docker :${NC}"
+  [ $EXIT_CODE -ne 0 ] && echo -e "\n${YELLOW}[!] Script interrompu (code $EXIT_CODE) - état Docker :${NC}"
   [ $EXIT_CODE -ne 0 ] && docker compose ps 2>/dev/null || true
 }
 trap _show_summary EXIT
@@ -85,7 +85,7 @@ MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
 JITSI_URL="${JITSI_URL:-https://meet.jit.si}"
 
 # ── URLs d'accès ──────────────────────────────────────────────────────────────
-# Toujours HTTPS — WebRTC (micro/caméra/appels) l'exige
+# Toujours HTTPS - WebRTC (micro/caméra/appels) l'exige
 if [ -n "$DOMAIN" ]; then
   ACCESS_URL="https://${DOMAIN}"
   API_URL="https://${DOMAIN}/api"
@@ -102,7 +102,7 @@ fi
 echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔════════════════════════════════════════════════╗"
-echo "  ║    CAP-EPAC Téléphonie — Déploiement v4       ║"
+echo "  ║    CAP-EPAC Téléphonie - Déploiement v4       ║"
 echo "  ╚════════════════════════════════════════════════╝"
 echo -e "${NC}"
 echo -e "  Serveur  : ${CYAN}${SERVER_IP}${NC}"
@@ -115,7 +115,7 @@ echo ""
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. MISE À JOUR .ENV
 # ══════════════════════════════════════════════════════════════════════════════
-section "1/8 — Mise à jour .env"
+section "1/8 - Mise à jour .env"
 
 update_env() {
   local KEY="$1" VAL="$2"
@@ -163,17 +163,17 @@ update_env "VITE_SOCKET_URL" "$SOCKET_URL"
 ok ".env mis à jour"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. DNS LOCAL (dnsmasq) — seulement si domaine fourni
+# 2. DNS LOCAL (dnsmasq) - seulement si domaine fourni
 # ══════════════════════════════════════════════════════════════════════════════
 if [ -n "$DOMAIN" ]; then
-  section "2/8 — Configuration DNS local (${DOMAIN})"
+  section "2/8 - Configuration DNS local (${DOMAIN})"
 
   # Tenter dnsmasq uniquement si on a les droits sudo (serveur) et pas sur machine de dev
   DNS_CONFIGURED=false
   if command -v dnsmasq >/dev/null 2>&1 || sudo apt-get install -y dnsmasq -qq 2>/dev/null; then
     DNS_CONF="/etc/dnsmasq.d/cap-epac.conf"
     if sudo tee "$DNS_CONF" > /dev/null 2>&1 << DNSEOF
-# CAP-EPAC — DNS local généré par deploy.sh
+# CAP-EPAC - DNS local généré par deploy.sh
 address=/${DOMAIN}/${SERVER_IP}
 interface=lo
 bind-interfaces
@@ -191,7 +191,7 @@ DNSEOF
     fi
   fi
 
-  # /etc/hosts — fonctionne sur TOUTES les machines (serveur ET dev)
+  # /etc/hosts - fonctionne sur TOUTES les machines (serveur ET dev)
   if grep -q "$DOMAIN" /etc/hosts 2>/dev/null; then
     sudo sed -i "s|^.*\b${DOMAIN}\b.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts 2>/dev/null || \
       sed -i "s|^.*\b${DOMAIN}\b.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts 2>/dev/null || true
@@ -201,14 +201,14 @@ DNSEOF
   fi
   ok "/etc/hosts → ${SERVER_IP}  ${DOMAIN}"
 else
-  section "2/8 — DNS (ignoré — pas de domaine fourni)"
+  section "2/8 - DNS (ignoré - pas de domaine fourni)"
   info "Pour activer le DNS : bash deploy.sh ${SERVER_IP} mon-domaine.local"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. FRONTEND + BUILD VITE
 # ══════════════════════════════════════════════════════════════════════════════
-section "3/8 — Frontend (config + build)"
+section "3/8 - Frontend (config + build)"
 
 cat > frontend/.env << EOF
 VITE_API_URL=${API_URL}
@@ -231,16 +231,16 @@ if [ -d "frontend/node_modules" ]; then
   npm run build --prefix frontend 2>&1 | grep -E "✓ built|error|ERRO" | head -3
   ok "Frontend buildé"
 else
-  warn "frontend/node_modules absent — npm install --prefix frontend requis"
+  warn "frontend/node_modules absent - npm install --prefix frontend requis"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. MOBILE
 # ══════════════════════════════════════════════════════════════════════════════
-section "4/8 — Mobile"
+section "4/8 - Mobile"
 
 cat > mobile/src/config.ts << EOF
-// Généré par deploy.sh — NE PAS ÉDITER
+// Généré par deploy.sh - NE PAS ÉDITER
 export const SERVER_BASE = 'http://${SERVER_IP}:${MOBILE_PORT}';
 export const MEDIA_PORT = '';
 export function getMediaUrl(path: string): string {
@@ -264,7 +264,7 @@ if [ -f "$NET_SEC" ]; then
   # Réécrire proprement le fichier (évite les doublons à chaque déploiement)
   {
     echo '<?xml version="1.0" encoding="utf-8"?>'
-    echo '<!-- Généré par deploy.sh — NE PAS ÉDITER MANUELLEMENT -->'
+    echo '<!-- Généré par deploy.sh - NE PAS ÉDITER MANUELLEMENT -->'
     echo '<network-security-config>'
     echo '    <domain-config cleartextTrafficPermitted="true">'
     echo "        <domain includeSubdomains=\"true\">${SERVER_IP}</domain>"
@@ -296,7 +296,7 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. COTURN
 # ══════════════════════════════════════════════════════════════════════════════
-section "5/8 — Coturn"
+section "5/8 - Coturn"
 
 if [ -f "nginx/coturn.conf" ]; then
   sed -i "s|^relay-ip=.*|relay-ip=${SERVER_IP}|g"       nginx/coturn.conf
@@ -307,7 +307,7 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 # 6. CERTIFICATS SSL
 # ══════════════════════════════════════════════════════════════════════════════
-section "6/8 — Certificats SSL"
+section "6/8 - Certificats SSL"
 
 mkdir -p nginx/ssl
 
@@ -342,7 +342,7 @@ _gen_cert_mkcert() {
   MKCERT_BIN=$(command -v mkcert 2>/dev/null)
   [ -z "$MKCERT_BIN" ] && return 1
 
-  info "mkcert détecté — génération certificat de confiance LAN..."
+  info "mkcert détecté - génération certificat de confiance LAN..."
   local CAROOT
   CAROOT=$("$MKCERT_BIN" -CAROOT 2>/dev/null)
   "$MKCERT_BIN" -install 2>/dev/null || true
@@ -389,7 +389,7 @@ _push_certs_to_server() {
   done
 
   if [ -z "$SSH_USER" ]; then
-    warn "SSH vers ${SERVER_IP} impossible (clé SSH non configurée) — copie manuelle requise"
+    warn "SSH vers ${SERVER_IP} impossible (clé SSH non configurée) - copie manuelle requise"
     warn "  Pour configurer SSH sans mot de passe :"
     warn "  ssh-copy-id lab1503@${SERVER_IP}"
     return 0
@@ -404,8 +404,8 @@ _push_certs_to_server() {
   ssh "${SSH_USER}@${SERVER_IP}" "mkdir -p ${REMOTE_DIR}/nginx/ssl" 2>/dev/null
   scp -q nginx/ssl/cert.pem nginx/ssl/key.pem \
       "${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/" 2>/dev/null && \
-    ok "Certificats copiés sur le serveur — plus d'avertissement SSL sur le LAN" || \
-    warn "Copie SSH échouée — relancer : scp nginx/ssl/cert.pem nginx/ssl/key.pem ${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/"
+    ok "Certificats copiés sur le serveur - plus d'avertissement SSL sur le LAN" || \
+    warn "Copie SSH échouée - relancer : scp nginx/ssl/cert.pem nginx/ssl/key.pem ${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/"
 
   if [ -f "nginx/ssl/rootCA.pem" ]; then
     scp -q nginx/ssl/rootCA.pem \
@@ -444,7 +444,7 @@ _gen_install_ca_page() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAP-EPAC — Installer le certificat SSL</title>
+<title>CAP-EPAC - Installer le certificat SSL</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
@@ -467,7 +467,7 @@ _gen_install_ca_page() {
 </head>
 <body>
 <div class="card">
-  <h1>📱 CAP-EPAC — Installer le certificat de confiance</h1>
+  <h1>📱 CAP-EPAC - Installer le certificat de confiance</h1>
   <p>Cette étape est nécessaire <strong>une seule fois</strong> par appareil
      pour accéder à <strong>${APP_URL}</strong> sans avertissement.</p>
 
@@ -543,7 +543,7 @@ _gen_install_ca_page
 # 7. DOCKER
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
-  section "7/8 — Docker"
+  section "7/8 - Docker"
   set +e   # Les commandes Docker peuvent retourner non-zéro sans être fatales
 
   command -v docker >/dev/null 2>&1 || { set -e; error "Docker non installé"; }
@@ -617,14 +617,14 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   done
   echo ""
   if [ "$BACKEND_OK" = false ]; then
-    warn "Backend pas encore prêt — vérifier : docker compose logs backend --tail=20"
+    warn "Backend pas encore prêt - vérifier : docker compose logs backend --tail=20"
     warn "Si ETIMEDOUT MySQL : sudo iptables -t raw -F PREROUTING && docker compose restart backend"
   else
     # Redémarrer nginx en dernier pour forcer la re-résolution DNS interne Docker
     # (évite le 504 dû à nginx qui cache une mauvaise IP au démarrage)
     docker compose restart nginx 2>/dev/null || true
     sleep 3
-    ok "Nginx rechargé — résolution DNS Docker rafraîchie"
+    ok "Nginx rechargé - résolution DNS Docker rafraîchie"
   fi
   set -e   # Remettre le mode strict
 fi
@@ -633,7 +633,7 @@ fi
 # 8. APK MOBILE
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
-  section "8/8 — Build APK Mobile"
+  section "8/8 - Build APK Mobile"
 
   echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null || \
     sudo sysctl -w fs.inotify.max_user_watches=524288 2>/dev/null || \
@@ -673,7 +673,7 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
       export JAVA_HOME="$JAVA_HOME_BUILD"
       export PATH="${JAVA_HOME_BUILD}/bin:$PATH"
     else
-      warn "Java 17/21 non trouvé — utilisation du Java par défaut (peut échouer si EA)"
+      warn "Java 17/21 non trouvé - utilisation du Java par défaut (peut échouer si EA)"
     fi
 
     info "Build APK Release..."
@@ -686,7 +686,7 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
         [ -f "$APK" ] && ok "APK généré : $(basename "$APK") ($(du -sh "$APK" | cut -f1))" && break
       done
     else
-      warn "Build APK échoué — relancer : bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
+      warn "Build APK échoué - relancer : bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
     fi
   else
     warn "SDK Android non trouvé sur ce serveur"
@@ -709,13 +709,13 @@ echo -e "  ║  Mobile (LAN): ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
 echo -e "  ║  Admin       : admin / Admin@CapEpac2025"
 echo -e "${GREEN}${BOLD}  ╠══════════════════════════════════════════════════════════════╣${NC}"
 if [ -n "$DOMAIN" ]; then
-echo -e "  ${YELLOW}┌─ DNS LAN — Pour accéder via https://${DOMAIN} ─────────┐${NC}"
+echo -e "  ${YELLOW}┌─ DNS LAN - Pour accéder via https://${DOMAIN} ─────────┐${NC}"
 echo -e "  ${YELLOW}│${NC}  Routeur DHCP → DNS primaire : ${CYAN}${SERVER_IP}${NC}"
 echo -e "  ${YELLOW}│${NC}  Ou manuellement : WiFi → DNS manuel → ${CYAN}${SERVER_IP}${NC}"
 echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
 fi
 if [ -f "nginx/ssl/rootCA.pem" ]; then
-echo -e "  ${YELLOW}┌─ Certificat SSL — supprimer l'avertissement navigateur ┐${NC}"
+echo -e "  ${YELLOW}┌─ Certificat SSL - supprimer l'avertissement navigateur ┐${NC}"
 echo -e "  ${YELLOW}│${NC}  Télécharger la CA : ${CYAN}http://${SERVER_IP}:${HTTP_PORT}/rootCA.pem${NC}"
 echo -e "  ${YELLOW}│${NC}  Chrome : Paramètres → Confidentialité → Certificats → Autorités → Importer"
 echo -e "  ${YELLOW}│${NC}  Android: Paramètres → Sécurité → Installer certificat → CA"

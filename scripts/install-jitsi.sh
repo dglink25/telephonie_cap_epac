@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  Installation Jitsi Meet — Visioconférence pour CAP-EPAC
+#  Installation Jitsi Meet - Visioconférence pour CAP-EPAC
 #  Serveur : Ubuntu, port 8443
 #  Usage   : sudo bash scripts/install-jitsi.sh
 # ═══════════════════════════════════════════════════════════════
@@ -105,7 +105,7 @@ if [ -f "$JITSI_CONFIG" ]; then
     sed -i "s|// lobbyRooms|lobbyRooms|g" "$JITSI_CONFIG" 2>/dev/null || true
 fi
 
-# JVB (videobridge) — IP publique pour les clients
+# JVB (videobridge) - IP publique pour les clients
 JVB_CONFIG="/etc/jitsi/videobridge/jvb.conf"
 if [ -f "$JVB_CONFIG" ]; then
     sed -i "s|//.*ice4j.harvester.NAT.*|nat-harvester { local-address = \"$LAN_IP\"; public-address = \"$LAN_IP\"; }|g" \

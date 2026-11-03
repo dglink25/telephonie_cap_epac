@@ -1,4 +1,4 @@
-# Migrations — CAP-EPAC
+# Migrations - CAP-EPAC
 
 ## ⚠️ Règle importante
 

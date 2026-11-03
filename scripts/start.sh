@@ -33,7 +33,7 @@ info "Docker Compose disponible"
 section "Configuration"
 
 if [ ! -f ".env" ]; then
-    warn ".env introuvable — copie depuis .env.example"
+    warn ".env introuvable - copie depuis .env.example"
     cp .env .env.bak 2>/dev/null || true
 fi
 
@@ -64,7 +64,7 @@ info "Ports → HTTPS:${HTTPS_PORT}  HTTP:${HTTP_PORT}  Mobile:${MOBILE_PORT}"
 for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT; do
     if ss -tlnp 2>/dev/null | grep -q ":${PORT} " || \
        netstat -tlnp 2>/dev/null | grep -q ":${PORT} "; then
-        warn "Port ${PORT} déjà utilisé — vérifiez les conflits dans .env"
+        warn "Port ${PORT} déjà utilisé - vérifiez les conflits dans .env"
     fi
 done
 
@@ -88,11 +88,11 @@ case "$MODE" in
     info "Démarrage en mode production..."
     if docker image inspect telephonie-cap-epac-backend:latest >/dev/null 2>&1 && \
        docker image inspect telephonie-cap-epac-frontend:latest >/dev/null 2>&1; then
-      info "Images existantes — démarrage rapide sans rebuild"
+      info "Images existantes - démarrage rapide sans rebuild"
       info "  → Pour forcer le rebuild : bash scripts/start.sh build"
       docker compose up -d
     else
-      info "Images absentes — premier build (peut prendre quelques minutes)..."
+      info "Images absentes - premier build (peut prendre quelques minutes)..."
       docker compose up -d --build
     fi
     ;;
@@ -131,7 +131,7 @@ MAX=50; COUNT=0
 until curl -sk "https://${SERVER_IP}:${HTTPS_PORT}/health" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
     if [ $COUNT -ge $MAX ]; then
-        warn "Timeout — vérifiez les logs: docker compose logs"
+        warn "Timeout - vérifiez les logs: docker compose logs"
         break
     fi
     printf "."

@@ -1,4 +1,4 @@
-// Généré par deploy.sh — NE PAS ÉDITER
+// Généré par deploy.sh - NE PAS ÉDITER
 export const SERVER_BASE = 'http://192.168.10.139:18282';
 export const MEDIA_PORT = '';
 export function getMediaUrl(path: string): string {

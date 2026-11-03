@@ -15,7 +15,7 @@ section() { echo -e "\n${BLUE}━━━ $1 ━━━${NC}"; }
 
 echo -e "
 ${GREEN}╔═══════════════════════════════════════════════════════════╗
-║   CAP-EPAC — Correction SSL + Micro (Windows/Android/Linux)  ║
+║   CAP-EPAC - Correction SSL + Micro (Windows/Android/Linux)  ║
 ╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -34,7 +34,7 @@ info "IP LAN détectée : $SERVER_IP"
 section "Installation mkcert (certificat de confiance LAN)"
 
 if ! command -v mkcert >/dev/null 2>&1; then
-    warn "mkcert non installé — installation en cours..."
+    warn "mkcert non installé - installation en cours..."
     
     # Dépendances
     apt-get update -qq 2>/dev/null || true
@@ -57,7 +57,7 @@ if ! command -v mkcert >/dev/null 2>&1; then
             mv /tmp/mkcert /usr/local/bin/mkcert
             info "mkcert $(mkcert --version) installé"
         else
-            warn "Téléchargement mkcert échoué — utilisation d'OpenSSL en fallback"
+            warn "Téléchargement mkcert échoué - utilisation d'OpenSSL en fallback"
         fi
     fi
 else
@@ -103,7 +103,7 @@ if command -v mkcert >/dev/null 2>&1; then
 
 else
     # Fallback OpenSSL avec SAN complet
-    warn "Utilisation OpenSSL (auto-signé) — les navigateurs afficheront un avertissement"
+    warn "Utilisation OpenSSL (auto-signé) - les navigateurs afficheront un avertissement"
     
     cat > /tmp/ssl-san.conf << SSLEOF
 [req]
@@ -158,7 +158,7 @@ if [ -f ".env" ]; then
     sed -i "s|VITE_SOCKET_URL=.*|VITE_SOCKET_URL=https://$SERVER_IP|g" .env
     info ".env mis à jour avec l'IP $SERVER_IP"
 else
-    warn ".env non trouvé — création d'un fichier minimal"
+    warn ".env non trouvé - création d'un fichier minimal"
     cat > .env << ENVEOF
 SERVER_LAN_IP=$SERVER_IP
 NODE_ENV=production
@@ -380,7 +380,7 @@ if command -v docker >/dev/null 2>&1; then
         fi
     fi
 else
-    warn "Docker non détecté — redémarrez nginx manuellement"
+    warn "Docker non détecté - redémarrez nginx manuellement"
 fi
 
 # ─── Instructions par appareil ────────────────────────────────────
@@ -471,7 +471,7 @@ border-radius:8px;text-decoration:none;margin:8px;font-size:16px}
 .os{margin:20px 0;padding:16px;background:#fff;border-radius:8px;border:1px solid #bbf7d0}
 code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:13px}</style></head>
 <body>
-<h1>🔒 CAP-EPAC — Certificat de confiance LAN</h1>
+<h1>🔒 CAP-EPAC - Certificat de confiance LAN</h1>
 <p>Installez ce certificat pour accéder à <strong>https://$SERVER_IP</strong> sans avertissement et avec le microphone activé.</p>
 <p>
   <a href="/rootCA.pem" class="btn">⬇Télécharger (Linux/Mac)</a>

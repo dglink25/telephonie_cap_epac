@@ -151,7 +151,7 @@ export default function LoginPage() {
       toast.success('Connexion réussie !');
       navigate('/');
     } else {
-      // result vient du store — on re-fetch l'erreur brute si dispo
+      // result vient du store - on re-fetch l'erreur brute si dispo
       // Si le store retourne déjà un message structuré on l'affiche
       setGlobalError(result.message || 'Identifiant ou mot de passe incorrect.');
     }
@@ -180,7 +180,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-5">
 
-            {/* Bannière d'erreur globale — reste jusqu'à dismiss */}
+            {/* Bannière d'erreur globale - reste jusqu'à dismiss */}
             <ErrorBanner
               message={globalError}
               onDismiss={() => { setGlobalError(''); setAttemptsLeft(null); }}
@@ -259,7 +259,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-primary-200 text-[10px] md:text-xs mt-4 md:mt-6">
-          Communication 100 % locale — Réseau LAN sécurisé
+          Communication 100 % locale - Réseau LAN sécurisé
         </p>
       </div>
     </div>

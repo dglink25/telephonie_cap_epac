@@ -86,7 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
 
-  // Déconnexion forcée sans appel API — utilisée quand le token est invalide
+  // Déconnexion forcée sans appel API - utilisée quand le token est invalide
   // et que tout appel API retournerait 401 (évite la boucle infinie)
   forceLogout: async () => {
     socketService.disconnect();
@@ -125,11 +125,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (meError: unknown) {
         const axiosError = meError as { response?: { status?: number } };
         if (axiosError.response?.status === 401) {
-          console.warn('[AuthStore] Token expiré — déconnexion');
+          console.warn('[AuthStore] Token expiré - déconnexion');
           await get().logout();
         } else if (!axiosError.response) {
-          // Pas de réseau — garder la session locale
-          console.warn('[AuthStore] Pas de réseau — session locale conservée');
+          // Pas de réseau - garder la session locale
+          console.warn('[AuthStore] Pas de réseau - session locale conservée');
           socketService.connect().catch(() => {});
           socketService.setupAppStateListener();
         }

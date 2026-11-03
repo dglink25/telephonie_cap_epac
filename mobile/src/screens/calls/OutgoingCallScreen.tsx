@@ -88,7 +88,7 @@ const OutgoingCallScreen: React.FC<Props> = ({ navigation, route }) => {
     });
 
     // ✅ FIX: call:accepted → naviguer vers ActiveCall (appelant, isIncoming: false)
-    // useSocket.ts gère aussi ce cas via handleCallAccepted — mais OutgoingCallScreen
+    // useSocket.ts gère aussi ce cas via handleCallAccepted - mais OutgoingCallScreen
     // peut être monté AVANT que useSocketEvents soit actif, donc on écoute localement aussi
     const unsubAccepted = socketService.on('call:accepted', (data: unknown) => {
       const { callId } = data as { callId: string };

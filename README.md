@@ -1,4 +1,4 @@
-# CAP-EPAC Téléphonie — Guide complet de déploiement
+# CAP-EPAC Téléphonie - Guide complet de déploiement
 
 ## Architecture générale
 
@@ -30,7 +30,7 @@
 
 ---
 
-## Déploiement — en une commande
+## Déploiement - en une commande
 
 ### Sur le serveur Ubuntu
 ```bash
@@ -89,7 +89,7 @@ Ils n'existent pas dans le dépôt git. **Ne jamais les éditer manuellement.**
 | `frontend/dist/` | Build frontend compilé |
 
 > **Sur un nouveau serveur ou après `git clone`** : ces fichiers n'existent pas.
-> Lance simplement `bash deploy.sh <IP> <domaine> --no-apk` — tout est créé automatiquement.
+> Lance simplement `bash deploy.sh <IP> <domaine> --no-apk` - tout est créé automatiquement.
 
 ---
 
@@ -104,12 +104,12 @@ Le but : accéder via `https://telephonie-cap-epac.bj` au lieu de l'IP.
 
 ### Ce que tu dois faire sur chaque appareil client
 
-**Option A — Routeur (recommandée, une seule fois pour tout le réseau)**  
+**Option A - Routeur (recommandée, une seule fois pour tout le réseau)**  
 Dans l'interface admin du routeur (ex: `192.168.100.1`) :
 - DHCP → DNS primaire → `192.168.10.139`
 - Tous les appareils du réseau résoudront automatiquement `telephonie-cap-epac.bj`
 
-**Option B — Manuellement sur chaque appareil**
+**Option B - Manuellement sur chaque appareil**
 - **Android/iOS** : Paramètres WiFi → Modifier réseau → DNS manuel → `192.168.10.139`
 - **Windows** : Panneau de config → Centre réseau → IPv4 → DNS préféré → `192.168.10.139`
 - **Linux** : `echo "nameserver 192.168.10.139" | sudo tee /etc/resolv.conf`
@@ -231,7 +231,7 @@ sudo iptables -I INPUT -p tcp --dport 18282 -j ACCEPT
 
 ## Résolution erreurs APK mobile
 
-### Build APK échoue — "SDK Android non trouvé"
+### Build APK échoue - "SDK Android non trouvé"
 Le build APK doit se faire sur la **machine de dev**, pas sur le serveur.
 ```bash
 # Sur ta machine de dev (Kali Linux)
@@ -241,15 +241,15 @@ bash deploy.sh 192.168.10.139 telephonie-cap-epac.bj --apk-only
 Le SDK Android est détecté automatiquement dans :
 `/home/houndokinnou/snap/android-studio/common/Android/Sdk`
 
-### Build APK échoue — lintVitalRelease FAILED (doublons XML)
+### Build APK échoue - lintVitalRelease FAILED (doublons XML)
 Le fichier `network_security_config.xml` contient des doublons.
 ```bash
-# Sur ta machine de dev — régénérer proprement
+# Sur ta machine de dev - régénérer proprement
 bash deploy.sh 192.168.10.139 telephonie-cap-epac.bj --apk-only
 # deploy.sh réécrit entièrement le fichier XML à chaque fois
 ```
 
-### Build APK échoue — NDK introuvable
+### Build APK échoue - NDK introuvable
 ```bash
 # Vérifier la version NDK dans mobile/android/build.gradle
 # Doit être : ndkVersion = "28.2.13676358"

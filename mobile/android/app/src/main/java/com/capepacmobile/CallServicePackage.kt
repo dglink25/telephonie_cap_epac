@@ -6,7 +6,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
 /**
- * CallServicePackage — Enregistre CallServiceModule auprès de React Native
+ * CallServicePackage - Enregistre CallServiceModule auprès de React Native
  */
 class CallServicePackage : ReactPackage {
 

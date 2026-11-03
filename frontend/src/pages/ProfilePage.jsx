@@ -243,7 +243,7 @@ function PasswordModal({ onClose, onSuccess, onError }) {
               <div>
                 <p style={{ fontWeight:700, color:C.white, fontSize:'0.95rem', margin:0 }}>Changer le mot de passe</p>
                 <p style={{ fontSize:'0.7rem', color:'rgba(255,255,255,0.7)', margin:0 }}>
-                  {step===1 ? 'Étape 1/2 — Vérification sécurité' : 'Étape 2/2 — Nouveau mot de passe'}
+                  {step===1 ? 'Étape 1/2 - Vérification sécurité' : 'Étape 2/2 - Nouveau mot de passe'}
                 </p>
               </div>
             </div>

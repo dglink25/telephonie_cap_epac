@@ -18,7 +18,7 @@ frontend/.env.production
 nginx/coturn.conf
 
 # ── Build artifacts ───────────────────────────────────────────────
-# NE PAS ignorer frontend/dist — il doit être dans git pour le build Docker
+# NE PAS ignorer frontend/dist - il doit être dans git pour le build Docker
 node_modules/
 mobile/node_modules/
 frontend/node_modules/

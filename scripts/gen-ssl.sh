@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Génération certificats SSL de confiance
+# Téléphonie CAP-EPAC - Génération certificats SSL de confiance
 # Utilise mkcert pour créer une CA locale reconnue par les navigateurs
 # ═══════════════════════════════════════════════════════════════
 set -e
@@ -18,7 +18,7 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║    CAP-EPAC — Génération Certificats SSL LAN        ║${NC}"
+echo -e "${GREEN}║    CAP-EPAC - Génération Certificats SSL LAN        ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 info "IP du serveur LAN : $SERVER_IP"
@@ -26,7 +26,7 @@ mkdir -p "$SSL_DIR"
 
 # ── Essayer mkcert en premier (certificat de confiance) ──────────
 if command -v mkcert >/dev/null 2>&1; then
-  info "mkcert détecté — génération d'un certificat de confiance..."
+  info "mkcert détecté - génération d'un certificat de confiance..."
 
   # Installer la CA locale dans le système
   mkcert -install 2>/dev/null || warn "Installation CA système ignorée (peut nécessiter sudo)"
@@ -58,7 +58,7 @@ if command -v mkcert >/dev/null 2>&1; then
   fi
 
 else
-  warn "mkcert non installé — utilisation d'OpenSSL auto-signé"
+  warn "mkcert non installé - utilisation d'OpenSSL auto-signé"
   warn "Les navigateurs afficheront un avertissement SSL."
   warn "Pour une meilleure expérience, installez mkcert :"
   warn "  sudo apt install libnss3-tools"

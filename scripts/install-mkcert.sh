@@ -11,7 +11,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║    CAP-EPAC — Installation mkcert                   ║${NC}"
+echo -e "${GREEN}║    CAP-EPAC - Installation mkcert                   ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 

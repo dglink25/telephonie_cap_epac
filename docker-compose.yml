@@ -1,7 +1,7 @@
 version: '3.9'
 
 # ═══════════════════════════════════════════════════════════════
-#  Ports utilisés — tous dans la plage 13000-19999 (non-conflictuels)
+#  Ports utilisés - tous dans la plage 13000-19999 (non-conflictuels)
 #
 #  13307 → MySQL     (interne: 3306)
 #  19080 → HTTP web  (interne nginx: 80)
@@ -24,7 +24,7 @@ volumes:
 services:
 
   # ─────────────────────────────────────────
-  # Base de données MySQL — port externe 13307
+  # Base de données MySQL - port externe 13307
   # ─────────────────────────────────────────
   mysql:
     image: mysql:8.0
@@ -49,7 +49,7 @@ services:
       - "${MYSQL_PORT:-13307}:3306"
 
   # ─────────────────────────────────────────
-  # Cache Redis — pas exposé à l'extérieur
+  # Cache Redis - pas exposé à l'extérieur
   # ─────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -67,7 +67,7 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────
-  # Backend Node.js — pas exposé directement (passe par nginx)
+  # Backend Node.js - pas exposé directement (passe par nginx)
   # ─────────────────────────────────────────
   backend:
     build:
@@ -116,7 +116,7 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────
-  # Frontend React — pas exposé directement (passe par nginx)
+  # Frontend React - pas exposé directement (passe par nginx)
   # ─────────────────────────────────────────
   frontend:
     build:
@@ -132,7 +132,7 @@ services:
       - cap-epac-network
 
   # ─────────────────────────────────────────
-  # Coturn TURN/STUN — réseau host (obligatoire pour WebRTC)
+  # Coturn TURN/STUN - réseau host (obligatoire pour WebRTC)
   # ─────────────────────────────────────────
   coturn:
     image: coturn/coturn:4.6
@@ -145,11 +145,11 @@ services:
 
   # ─────────────────────────────────────────
   # Nginx Reverse Proxy
-  #   80    → HTTP  (port standard — redirect HTTPS, domaine DNS)
-  #   443   → HTTPS (port standard — domaine DNS telephonie-cap-epac.bj)
+  #   80    → HTTP  (port standard - redirect HTTPS, domaine DNS)
+  #   443   → HTTPS (port standard - domaine DNS telephonie-cap-epac.bj)
   #   19080 → HTTP  (accès IP direct sans DNS)
   #   19443 → HTTPS (accès IP direct sans DNS)
-  #   18282 → HTTP  (app mobile API — port fixe dans l'APK)
+  #   18282 → HTTP  (app mobile API - port fixe dans l'APK)
   # ─────────────────────────────────────────
   nginx:
     image: nginx:1.26-alpine

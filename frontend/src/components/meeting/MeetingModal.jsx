@@ -132,7 +132,7 @@ export default function MeetingModal({ onClose, conversationName = '' }) {
             </div>
           )}
 
-          {/* Salle créée — afficher le lien */}
+          {/* Salle créée - afficher le lien */}
           {tab === 'create' && created && (
             <div className="space-y-4">
               <div className="p-4 bg-primary-50 border border-primary-200 rounded-xl">

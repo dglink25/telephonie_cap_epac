@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Patch Android — corrige tous les fichiers Gradle
+# Patch Android - corrige tous les fichiers Gradle
 # Exécuter depuis le dossier mobile : bash patch-android.sh
 # ═══════════════════════════════════════════════════════════════
 set -e
@@ -10,7 +10,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   CAP-EPAC Mobile — Patch Gradle Android            ║${NC}"
+echo -e "${GREEN}║   CAP-EPAC Mobile - Patch Gradle Android            ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -235,7 +235,7 @@ info "Cache nettoyé ✅"
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   Patch terminé — Lancement de l'app               ║${NC}"
+echo -e "${GREEN}║   Patch terminé - Lancement de l'app               ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 info "Compilation en cours (première fois ~5-10 min)..."

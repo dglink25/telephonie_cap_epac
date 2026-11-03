@@ -12106,7 +12106,7 @@
     // the whole set without doing extra work later, or storing addtional
     // information on the fiber.
     //
-    // That's why this function is separate from pushTreeId — it's called during
+    // That's why this function is separate from pushTreeId - it's called during
     // the render phase of the fork parent, not the child, which is where we push
     // the other context values.
     //
@@ -13536,7 +13536,7 @@
               break;
             }
 
-            error('Encountered two children with the same key, `%s`. ' + 'Keys should be unique so that components maintain their identity ' + 'across updates. Non-unique keys may cause children to be ' + 'duplicated and/or omitted — the behavior is unsupported and ' + 'could change in a future version.', key);
+            error('Encountered two children with the same key, `%s`. ' + 'Keys should be unique so that components maintain their identity ' + 'across updates. Non-unique keys may cause children to be ' + 'duplicated and/or omitted - the behavior is unsupported and ' + 'could change in a future version.', key);
 
             break;
 
@@ -19423,7 +19423,7 @@
         // would during a normal fiber bailout.
         //
         // We don't have strong guarantees that the props object is referentially
-        // equal during updates where we can't bail out anyway — like if the props
+        // equal during updates where we can't bail out anyway - like if the props
         // are shallowly equal, but there's a local state or context update in the
         // same batch.
         //
@@ -20685,7 +20685,7 @@
 
       if ((workInProgress.mode & ConcurrentMode) === NoMode) {
         return retrySuspenseComponentWithoutHydrating(current, workInProgress, renderLanes, // TODO: When we delete legacy mode, we should make this error argument
-        // required — every concurrent mode path that causes hydration to
+        // required - every concurrent mode path that causes hydration to
         // de-opt to client rendering should have an error message.
         null);
       }
@@ -22644,7 +22644,7 @@
             var _prevState = current.memoizedState;
             var prevIsHidden = _prevState !== null;
 
-            if (prevIsHidden !== nextIsHidden && ( // LegacyHidden doesn't do any hiding — it only pre-renders.
+            if (prevIsHidden !== nextIsHidden && ( // LegacyHidden doesn't do any hiding - it only pre-renders.
             !enableLegacyHidden )) {
               workInProgress.flags |= Visibility;
             }
@@ -23777,7 +23777,7 @@
       fiber.stateNode = null; // I'm intentionally not clearing the `return` field in this level. We
       // already disconnect the `return` pointer at the root of the deleted
       // subtree (in `detachFiberMutation`). Besides, `return` by itself is not
-      // cyclical — it's only cyclical when combined with `child`, `sibling`, and
+      // cyclical - it's only cyclical when combined with `child`, `sibling`, and
       // `alternate`. But we'll clear it in the next level anyway, just in case.
 
       {
@@ -25508,7 +25508,7 @@
 
   function requestRetryLane(fiber) {
     // This is a fork of `requestUpdateLane` designed specifically for Suspense
-    // "retries" — a special update that attempts to flip a Suspense boundary
+    // "retries" - a special update that attempts to flip a Suspense boundary
     // from its placeholder state to its primary/resolved state.
     // Special cases
     var mode = fiber.mode;
@@ -26914,7 +26914,7 @@
     // TODO: This is part of the `componentDidCatch` implementation. Its purpose
     // is to detect whether something might have called setState inside
     // `componentDidCatch`. The mechanism is known to be flawed because `setState`
-    // inside `componentDidCatch` is itself flawed — that's why we recommend
+    // inside `componentDidCatch` is itself flawed - that's why we recommend
     // `getDerivedStateFromError` instead. However, it could be improved by
     // checking if remainingLanes includes Sync work, instead of whether there's
     // any work remaining at all (which would also include stuff like Suspense

@@ -22,7 +22,7 @@ const sequelize = new Sequelize(
       idle: 10000,
     },
     dialectOptions: {
-      // ⚠️ NE PAS mettre charset/collate ici — ce sont des options invalides pour mysql2
+      // ⚠️ NE PAS mettre charset/collate ici - ce sont des options invalides pour mysql2
       // Elles sont définies au niveau de la BDD directement (init.sql)
       supportBigNumbers: true,
       bigNumberStrings: true,
@@ -47,7 +47,7 @@ const connectDB = async () => {
       return sequelize;
     } catch (err) {
       retries -= 1;
-      logger.warn(`⚠️  MySQL non disponible — tentatives restantes: ${retries}. Attente 5s...`);
+      logger.warn(`⚠️  MySQL non disponible - tentatives restantes: ${retries}. Attente 5s...`);
       if (!retries) throw err;
       await new Promise((r) => setTimeout(r, 5000));
     }

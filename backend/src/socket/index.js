@@ -144,7 +144,7 @@ const initSocket = (io) => {
 
     /**
      * Initier un appel
-     * ✅ FIX: Support appel de groupe — notify tous les membres sauf l'appelant
+     * ✅ FIX: Support appel de groupe - notify tous les membres sauf l'appelant
      */
     socket.on('call:initiate', async ({ calleeId, type = 'audio', callId, conversationId }) => {
       try {
@@ -236,7 +236,7 @@ const initSocket = (io) => {
     });
 
     /**
-     * Accepter un appel — l'appelé décroche
+     * Accepter un appel - l'appelé décroche
      * ✅ FIX: Pour les appels de groupe, les autres membres continuent à sonner
      */
     socket.on('call:accept', async ({ callId }) => {
@@ -266,7 +266,7 @@ const initSocket = (io) => {
           session.acceptedBy.add(userId);
 
           // ✅ Les autres membres qui n'ont pas encore décroché continuent à sonner
-          // (on ne fait rien — leur modal est toujours affiché)
+          // (on ne fait rien - leur modal est toujours affiché)
           // On log juste pour le suivi
           const stillRinging = [...session.memberIds].filter(
             (id) => !session.acceptedBy.has(id) && id !== userId
@@ -374,7 +374,7 @@ const initSocket = (io) => {
           }
         }
 
-        logger.info(`Appel terminé: ${callId} — durée: ${call.duration_seconds}s`);
+        logger.info(`Appel terminé: ${callId} - durée: ${call.duration_seconds}s`);
       } catch (err) {
         logger.error('Erreur call:end:', err.message);
       }

@@ -57,7 +57,7 @@ api.interceptors.response.use(
 
     // Pas de réseau / timeout
     if (!error.response) {
-      console.warn('[API] Erreur réseau — serveur injoignable:', error.message);
+      console.warn('[API] Erreur réseau - serveur injoignable:', error.message);
       return Promise.reject(error);
     }
 

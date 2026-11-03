@@ -12,7 +12,7 @@ import type { Notification } from '../store/notificationStore';
 
 async function showLocalNotification(title: string, body: string, data?: Record<string, string>): Promise<void> {
   try {
-    console.log('[PushNotif]', title, '—', body);
+    console.log('[PushNotif]', title, '-', body);
   } catch (err) {
     console.warn('[PushNotif] Erreur notification locale:', err);
   }
@@ -32,7 +32,7 @@ export const useSocketEvents = () => {
 
   // ── Socket connecté / reconnecté ─────────────────────────────
   const handleSocketConnected = useCallback(() => {
-    console.log('[Socket] Reconnecté — rechargement des données...');
+    console.log('[Socket] Reconnecté - rechargement des données...');
     loadConversations().catch(() => {});
     hasLoadedAfterConnect.current = true;
   }, [loadConversations]);

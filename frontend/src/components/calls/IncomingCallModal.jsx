@@ -96,7 +96,7 @@ export default function IncomingCallModal() {
       const offer = await waitForOffer(15000);
 
       if (!offer) {
-        toast.error('Délai dépassé — réessayez');
+        toast.error('Délai dépassé - réessayez');
         socket.emit('call:reject', { callId: incomingCall.callId });
         clearIncomingCall();
         return;

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Réinitialisation complète
+# Téléphonie CAP-EPAC - Réinitialisation complète
 # ═══════════════════════════════════════════════════════════════
 set -e
 

@@ -98,7 +98,7 @@ if command -v ufw &>/dev/null; then
     UFW_STATUS=$(ufw status 2>/dev/null | head -3)
     echo "$UFW_STATUS"
     if ufw status | grep -q "Status: active"; then
-        warn "UFW actif — vérifier les règles ci-dessus"
+        warn "UFW actif - vérifier les règles ci-dessus"
         echo "  → Autoriser les ports Docker depuis VPN :"
         echo "    sudo ufw allow from 10.8.0.0/24 to any"
     else

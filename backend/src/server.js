@@ -230,7 +230,7 @@ const bootstrap = async () => {
     server.listen(PORT, '0.0.0.0', async () => {
       logger.info(`
 ╔══════════════════════════════════════════════════════╗
-║         Téléphonie CAP-EPAC — Backend               ║
+║         Téléphonie CAP-EPAC - Backend               ║
 ║  Serveur démarré sur le port ${PORT}                     ║
 ║  Env: ${process.env.NODE_ENV || 'development'}                              ║
 ╚══════════════════════════════════════════════════════╝`);
@@ -247,7 +247,7 @@ const bootstrap = async () => {
     });
 
     const gracefulShutdown = (signal) => {
-      logger.info(`Signal ${signal} — arrêt...`);
+      logger.info(`Signal ${signal} - arrêt...`);
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(1), 10000);
     };

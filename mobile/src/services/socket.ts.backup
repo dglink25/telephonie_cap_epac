@@ -33,8 +33,8 @@ class SocketService {
   private async _doConnect(): Promise<void> {
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-      console.warn('[Socket] Pas de token — connexion abandonnée');
-      throw new Error('Token manquant — connexion socket impossible');
+      console.warn('[Socket] Pas de token - connexion abandonnée');
+      throw new Error('Token manquant - connexion socket impossible');
     }
 
     if (this.socket) {
@@ -166,7 +166,7 @@ class SocketService {
 
   sendEvent(event: string, data: unknown): void {
     if (!this.socket?.connected) {
-      console.warn('[Socket] Pas connecté — événement ignoré:', event);
+      console.warn('[Socket] Pas connecté - événement ignoré:', event);
       return;
     }
     this.socket.emit(event, data);

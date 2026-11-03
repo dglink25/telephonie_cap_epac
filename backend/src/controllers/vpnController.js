@@ -152,7 +152,7 @@ const generateConfig = async (req, res, next) => {
       // Ajouter le peer dans wg0.conf
       const peerBlock = [
         '',
-        `# Client: ${user.username} (${user.display_name}) — ${clientIp}`,
+        `# Client: ${user.username} (${user.display_name}) - ${clientIp}`,
         '[Peer]',
         `PublicKey = ${clientPub}`,
         `PresharedKey = ${clientPsk}`,

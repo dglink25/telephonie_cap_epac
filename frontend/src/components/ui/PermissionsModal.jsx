@@ -174,11 +174,11 @@ export default function PermissionsModal({ onClose, onAllGranted }) {
 
                   {showHelp && (
                     <div className="mt-3 space-y-3">
-                      {/* Solution 1 — Chrome Flags */}
+                      {/* Solution 1 - Chrome Flags */}
                       <div className="bg-white border border-orange-200 rounded-lg p-3">
                         <p className="text-xs font-bold text-orange-800 mb-2 flex items-center gap-1">
                           <HelpCircle className="w-3 h-3" />
-                          Solution 1 — Chrome : Forcer HTTPS sur l'IP locale
+                          Solution 1 - Chrome : Forcer HTTPS sur l'IP locale
                         </p>
                         <ol className="text-xs text-orange-700 space-y-1 list-decimal list-inside">
                           <li>Ouvrir Chrome et aller sur :<br/>
@@ -197,11 +197,11 @@ export default function PermissionsModal({ onClose, onAllGranted }) {
                         </button>
                       </div>
 
-                      {/* Solution 2 — Icône cadenas */}
+                      {/* Solution 2 - Icône cadenas */}
                       <div className="bg-white border border-orange-200 rounded-lg p-3">
                         <p className="text-xs font-bold text-orange-800 mb-2 flex items-center gap-1">
                           <Lock className="w-3 h-3" />
-                          Solution 2 — Autoriser via l'icône cadenas
+                          Solution 2 - Autoriser via l'icône cadenas
                         </p>
                         <ol className="text-xs text-orange-700 space-y-1 list-decimal list-inside">
                           <li>Cliquer sur le <strong>cadenas ou avertissement</strong> dans la barre d'adresse</li>
@@ -211,11 +211,11 @@ export default function PermissionsModal({ onClose, onAllGranted }) {
                         </ol>
                       </div>
 
-                      {/* Solution 3 — Certificat de confiance */}
+                      {/* Solution 3 - Certificat de confiance */}
                       <div className="bg-white border border-orange-200 rounded-lg p-3">
                         <p className="text-xs font-bold text-orange-800 mb-2 flex items-center gap-1">
                           <AlertCircle className="w-3 h-3" />
-                          Solution 3 (définitive) — Certificat de confiance mkcert
+                          Solution 3 (définitive) - Certificat de confiance mkcert
                         </p>
                         <ol className="text-xs text-orange-700 space-y-1 list-decimal list-inside">
                           <li>Sur le serveur : <code className="bg-orange-100 px-1 rounded">bash scripts/install-mkcert.sh</code></li>

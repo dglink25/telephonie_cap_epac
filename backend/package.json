@@ -1,7 +1,7 @@
 {
   "name": "telephonie-cap-epac-backend",
   "version": "1.0.0",
-  "description": "Backend Téléphonie CAP-EPAC — Signalisation, API REST, Socket.IO",
+  "description": "Backend Téléphonie CAP-EPAC - Signalisation, API REST, Socket.IO",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

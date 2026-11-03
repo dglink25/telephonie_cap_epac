@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# CAP-EPAC Mobile — Script d'installation et démarrage
+# CAP-EPAC Mobile - Script d'installation et démarrage
 # Usage : bash setup.sh
 # ═══════════════════════════════════════════════════════════════
 set -e
@@ -12,7 +12,7 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║        CAP-EPAC Mobile — Installation               ║${NC}"
+echo -e "${GREEN}║        CAP-EPAC Mobile - Installation               ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -21,7 +21,7 @@ info "Vérification des prérequis..."
 
 command -v node >/dev/null 2>&1 || error "Node.js non installé. Installer depuis https://nodejs.org"
 command -v npm  >/dev/null 2>&1 || error "npm non installé"
-command -v java >/dev/null 2>&1 || { warn "Java non détecté — Android natif ne compilera pas sans JDK 17"; }
+command -v java >/dev/null 2>&1 || { warn "Java non détecté - Android natif ne compilera pas sans JDK 17"; }
 
 NODE_VER=$(node --version | cut -d. -f1 | tr -d 'v')
 if [ "$NODE_VER" -lt 18 ]; then
@@ -72,7 +72,7 @@ if [ "$DL_CA" = "o" ] || [ "$DL_CA" = "O" ]; then
     if curl -fsk "http://${SERVER_IP}:8080/rootCA.pem" -o android/app/src/main/res/raw/cap_epac_ca.pem 2>/dev/null; then
         info "Certificat CA téléchargé ✅"
     else
-        warn "Téléchargement échoué — copiez le fichier manuellement"
+        warn "Téléchargement échoué - copiez le fichier manuellement"
     fi
 fi
 
@@ -120,7 +120,7 @@ echo "  │"
 echo "  │  3. Lancer l'app :"
 echo "  │     npx react-native run-android"
 echo "  │"
-echo "  │  ⚠️  NE PAS utiliser 'expo start' — ce projet est"
+echo "  │  ⚠️  NE PAS utiliser 'expo start' - ce projet est"
 echo "  │     React Native CLI pur, pas Expo."
 echo "  │"
 echo "  └───────────────────────────────────────────────────────"

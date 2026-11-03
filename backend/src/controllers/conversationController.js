@@ -195,7 +195,7 @@ const getMessages = async (req, res, next) => {
 };
 
 /**
- * POST /api/conversations/:id/messages — Envoyer un message (texte + tout type de fichier)
+ * POST /api/conversations/:id/messages - Envoyer un message (texte + tout type de fichier)
  */
 const sendMessage = async (req, res, next) => {
   try {
@@ -333,7 +333,7 @@ const sendMessage = async (req, res, next) => {
     // ── Callback webhook automatique ──────────────────────────
     // Si la conversation contient des messages webhook entrants non répondus,
     // envoyer automatiquement la réponse de l'agent vers le callback_url
-    // L'utilisateur répond normalement dans le chat — pas besoin d'API spéciale
+    // L'utilisateur répond normalement dans le chat - pas besoin d'API spéciale
     try {
       const BOT_USERNAME = 'assistant_site_vitrine';
       const bot = await User.findOne({ where: { username: BOT_USERNAME } });
@@ -385,7 +385,7 @@ const sendMessage = async (req, res, next) => {
 };
 
 /**
- * PUT /api/conversations/:convId/messages/:msgId — Modifier (dans les 15 min)
+ * PUT /api/conversations/:convId/messages/:msgId - Modifier (dans les 15 min)
  */
 const editMessage = async (req, res, next) => {
   try {
@@ -426,7 +426,7 @@ const editMessage = async (req, res, next) => {
 };
 
 /**
- * DELETE /api/conversations/:convId/messages/:msgId — Retirer un message
+ * DELETE /api/conversations/:convId/messages/:msgId - Retirer un message
  * Deux modes : soft delete (pour tout le monde) ou retrait partiel (pour soi)
  */
 const deleteMessage = async (req, res, next) => {

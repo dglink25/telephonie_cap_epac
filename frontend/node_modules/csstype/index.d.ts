@@ -8734,7 +8734,7 @@ export interface ObsoleteProperties<TLength = (string & {}) | 0, TTime = string 
    */
   boxPack?: Property.BoxPack | undefined;
   /**
-   * The **`clip`** CSS property defines a visible portion of an element. The `clip` property applies only to absolutely positioned elements — that is, elements with `position:absolute` or `position:fixed`.
+   * The **`clip`** CSS property defines a visible portion of an element. The `clip` property applies only to absolutely positioned elements - that is, elements with `position:absolute` or `position:fixed`.
    *
    * **Syntax**: `<shape> | auto`
    *
@@ -18493,7 +18493,7 @@ export interface ObsoletePropertiesHyphen<TLength = (string & {}) | 0, TTime = s
    */
   "box-pack"?: Property.BoxPack | undefined;
   /**
-   * The **`clip`** CSS property defines a visible portion of an element. The `clip` property applies only to absolutely positioned elements — that is, elements with `position:absolute` or `position:fixed`.
+   * The **`clip`** CSS property defines a visible portion of an element. The `clip` property applies only to absolutely positioned elements - that is, elements with `position:absolute` or `position:fixed`.
    *
    * **Syntax**: `<shape> | auto`
    *

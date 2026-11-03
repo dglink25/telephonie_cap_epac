@@ -63,8 +63,8 @@ function UserProfileModal({ user, onClose, onEdit }) {
 
           <div className="bg-slate-50 rounded-xl p-4 space-y-3">
             <ProfileRow icon={<Mail className="w-4 h-4" />}      label="Email"              value={user.email} />
-            <ProfileRow icon={<Building2 className="w-4 h-4" />} label="Service"            value={user.department || '—'} />
-            <ProfileRow icon={<Phone className="w-4 h-4" />}     label="Poste"              value={user.phone_extension || '—'} />
+            <ProfileRow icon={<Building2 className="w-4 h-4" />} label="Service"            value={user.department || '-'} />
+            <ProfileRow icon={<Phone className="w-4 h-4" />}     label="Poste"              value={user.phone_extension || '-'} />
             <ProfileRow icon={<UserIcon className="w-4 h-4" />}  label="Rôle"               value={user.role === 'admin' ? 'Administrateur' : 'Utilisateur'} />
             {user.last_seen_at && (
               <ProfileRow
@@ -117,7 +117,7 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn }) {
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-slate-600 hidden md:table-cell">{user.email}</td>
-      <td className="px-4 py-3 text-sm text-slate-500 hidden lg:table-cell">{user.department || '—'}</td>
+      <td className="px-4 py-3 text-sm text-slate-500 hidden lg:table-cell">{user.department || '-'}</td>
       <td className="px-4 py-3">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
           isAdmin ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-600'
@@ -497,7 +497,7 @@ export default function AdminPage() {
               <Shield className="w-5 h-5 text-primary-600" /> Administration
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {allUsers.length} utilisateur{allUsers.length > 1 ? 's' : ''} —{' '}
+              {allUsers.length} utilisateur{allUsers.length > 1 ? 's' : ''} -{' '}
               <span className="text-primary-600">{activeCount} actif{activeCount > 1 ? 's' : ''}</span>
               {inactiveCount > 0 && (
                 <span className="text-red-500">, {inactiveCount} désactivé{inactiveCount > 1 ? 's' : ''}</span>

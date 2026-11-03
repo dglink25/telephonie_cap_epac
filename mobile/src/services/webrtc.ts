@@ -10,7 +10,7 @@ import {
 import InCallManager from 'react-native-incall-manager';
 import { socketService } from './socket';
 
-// Configuration STUN/TURN servers — LAN en priorité
+// Configuration STUN/TURN servers - LAN en priorité
 const ICE_SERVERS = {
   iceServers: [
     {
@@ -58,13 +58,13 @@ class WebRTCService {
     // C'est la cause du "Local fingerprint does not match identity"
     // React peut appeler initializeCall deux fois (StrictMode, re-render)
     if (this.isInitialized && this.callConfig?.callId === config.callId) {
-      console.warn('[WebRTC] initializeCall ignoré — déjà initialisé pour callId=', config.callId);
+      console.warn('[WebRTC] initializeCall ignoré - déjà initialisé pour callId=', config.callId);
       return;
     }
 
     // Si c'est un appel différent, nettoyer proprement d'abord
     if (this.isInitialized && this.callConfig?.callId !== config.callId) {
-      console.warn('[WebRTC] Nouveau callId détecté — nettoyage avant réinitialisation');
+      console.warn('[WebRTC] Nouveau callId détecté - nettoyage avant réinitialisation');
       this.cleanup();
     }
 
@@ -178,7 +178,7 @@ class WebRTCService {
         console.error('[WebRTC] Connexion échouée');
         if (this.onCallEndCallback) this.onCallEndCallback();
       }
-      // Ne pas appeler endCall() sur 'disconnected' — peut être temporaire
+      // Ne pas appeler endCall() sur 'disconnected' - peut être temporaire
     };
 
     pc.oniceconnectionstatechange = () => {
@@ -228,7 +228,7 @@ class WebRTCService {
     if (state !== 'stable') {
       console.warn('[WebRTC] handleOffer: état de signalisation inattendu:', state);
       if (state === 'have-remote-offer') {
-        // Offre déjà définie — ignorer le doublon
+        // Offre déjà définie - ignorer le doublon
         console.warn('[WebRTC] Offre déjà reçue, ignorée');
         return;
       }
@@ -271,7 +271,7 @@ class WebRTCService {
 
     const state = this.peerConnection.signalingState;
     if (state !== 'have-local-offer') {
-      console.warn('[WebRTC] handleAnswer: état inattendu:', state, '— ignoré');
+      console.warn('[WebRTC] handleAnswer: état inattendu:', state, '- ignoré');
       return;
     }
 
@@ -297,7 +297,7 @@ class WebRTCService {
     if (!this.peerConnection) return;
 
     if (!this.peerConnection.remoteDescription) {
-      // Mettre en file d'attente — remoteDescription pas encore définie
+      // Mettre en file d'attente - remoteDescription pas encore définie
       this.pendingIceCandidates.push(candidate);
       return;
     }

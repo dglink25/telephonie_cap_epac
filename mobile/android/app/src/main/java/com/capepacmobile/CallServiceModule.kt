@@ -11,7 +11,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONObject
 
 /**
- * CallServiceModule — Module React Native natif
+ * CallServiceModule - Module React Native natif
  *
  * Expose les méthodes suivantes au JavaScript :
  *   - startService(token, serverUrl)  : démarre le Foreground Service
@@ -93,12 +93,12 @@ class CallServiceModule(reactContext: ReactApplicationContext)
 
     @ReactMethod
     fun addListener(eventName: String) {
-        // Requis par React Native pour les EventEmitter — ne rien faire
+        // Requis par React Native pour les EventEmitter - ne rien faire
     }
 
     @ReactMethod
     fun removeListeners(count: Int) {
-        // Requis par React Native pour les EventEmitter — ne rien faire
+        // Requis par React Native pour les EventEmitter - ne rien faire
     }
 
     // ── Réception des broadcasts du service ──────────────────

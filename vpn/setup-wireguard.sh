@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  CAP-EPAC — Configuration WireGuard VPN
+#  CAP-EPAC - Configuration WireGuard VPN
 #  À lancer UNE SEULE FOIS sur le serveur Ubuntu
 #
 #  Usage : sudo bash setup-wireguard.sh
@@ -24,7 +24,7 @@ SERVER_IP=$(ip -4 addr show "$WAN_IF" 2>/dev/null | grep -oP '(?<=inet\s)\d+\.\d
 
 echo ""
 echo -e "${BOLD}${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${BLUE}║   CAP-EPAC — Setup WireGuard VPN            ║${NC}"
+echo -e "${BOLD}${BLUE}║   CAP-EPAC - Setup WireGuard VPN            ║${NC}"
 echo -e "${BOLD}${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  Interface réseau : ${YELLOW}${WAN_IF}${NC}"

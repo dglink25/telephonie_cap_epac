@@ -23,7 +23,7 @@ const getOrCreateGeneralGroup = async () => {
 
     group = await Conversation.create({
       name: GENERAL_GROUP_NAME,
-      description: 'Groupe de discussion général — tous les membres de CAP-EPAC',
+      description: 'Groupe de discussion général - tous les membres de CAP-EPAC',
       type: 'group',
       created_by: admin.id,
       is_general: true,

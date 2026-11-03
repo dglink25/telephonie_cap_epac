@@ -7,7 +7,7 @@ import android.os.Build
 import android.util.Log
 
 /**
- * BootReceiver — Redémarre le service de notification après un reboot du téléphone
+ * BootReceiver - Redémarre le service de notification après un reboot du téléphone
  *
  * Nécessite la permission RECEIVE_BOOT_COMPLETED dans AndroidManifest.xml
  */
@@ -17,7 +17,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
             intent.action == "android.intent.action.QUICKBOOT_POWERON") {
 
-            Log.d("BootReceiver", "Téléphone redémarré — tentative de relance du service")
+            Log.d("BootReceiver", "Téléphone redémarré - tentative de relance du service")
 
             // Lire le token sauvegardé en SharedPreferences
             val prefs = context.getSharedPreferences("cap_epac_prefs", Context.MODE_PRIVATE)
@@ -37,7 +37,7 @@ class BootReceiver : BroadcastReceiver() {
                 }
                 Log.d("BootReceiver", "Service relancé après reboot")
             } else {
-                Log.d("BootReceiver", "Pas de token — service non relancé (utilisateur déconnecté)")
+                Log.d("BootReceiver", "Pas de token - service non relancé (utilisateur déconnecté)")
             }
         }
     }

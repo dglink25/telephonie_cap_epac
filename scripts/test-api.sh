@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Téléphonie CAP-EPAC — Tests d'intégration API (curl)
+# Téléphonie CAP-EPAC - Tests d'intégration API (curl)
 # ═══════════════════════════════════════════════════════════════
 set -e
 
@@ -13,7 +13,7 @@ GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 PASS=0; FAIL=0
 
 ok()   { echo -e "${GREEN}  ✓${NC} $1"; PASS=$((PASS+1)); }
-fail() { echo -e "${RED}  ✗${NC} $1 — $2"; FAIL=$((FAIL+1)); }
+fail() { echo -e "${RED}  ✗${NC} $1 - $2"; FAIL=$((FAIL+1)); }
 step() { echo -e "\n${YELLOW}── $1 ──${NC}"; }
 
 check_status() {
@@ -26,20 +26,20 @@ CURL="curl -sk -w '\n%{http_code}' --cookie-jar /tmp/cap_epac_cookies.txt --cook
 
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
-echo "║    CAP-EPAC — Tests d'intégration API               ║"
+echo "║    CAP-EPAC - Tests d'intégration API               ║"
 echo "╠══════════════════════════════════════════════════════╣"
 echo "║  URL de base : $BASE_URL"
 echo "╚══════════════════════════════════════════════════════╝"
 
 # ── Phase 1 : Healthcheck ─────────────────────────────────────
-step "Phase 1 — Healthcheck"
+step "Phase 1 - Healthcheck"
 
 RESP=$(eval "$CURL '$BASE_URL/health'")
 CODE=$(echo "$RESP" | tail -1)
 check_status 200 "$CODE" "GET /health"
 
 # ── Phase 2 : Authentification ────────────────────────────────
-step "Phase 2 — Authentification"
+step "Phase 2 - Authentification"
 
 # Inscription
 RESP=$(eval "$CURL -X POST '$BASE_URL/api/auth/register' \
@@ -75,7 +75,7 @@ CODE=$(echo "$RESP" | tail -1)
 check_status 200 "$CODE" "POST /api/auth/login (admin)"
 
 # ── Phase 3 : Utilisateurs ────────────────────────────────────
-step "Phase 3 — Annuaire utilisateurs"
+step "Phase 3 - Annuaire utilisateurs"
 
 RESP=$(eval "$CURL -H 'Authorization: Bearer $TOKEN' '$BASE_URL/api/users'")
 CODE=$(echo "$RESP" | tail -1)
@@ -100,7 +100,7 @@ CODE=$(echo "$RESP" | tail -1)
 check_status 200 "$CODE" "PUT /api/users/me/presence"
 
 # ── Phase 4 : Conversations ───────────────────────────────────
-step "Phase 4 — Messagerie"
+step "Phase 4 - Messagerie"
 
 RESP=$(eval "$CURL -H 'Authorization: Bearer $TOKEN' '$BASE_URL/api/conversations'")
 CODE=$(echo "$RESP" | tail -1)
@@ -176,7 +176,7 @@ if [ -n "$CONV_ID" ]; then
 fi
 
 # ── Phase 5 : Appels ──────────────────────────────────────────
-step "Phase 5 — Journal des appels"
+step "Phase 5 - Journal des appels"
 
 RESP=$(eval "$CURL -H 'Authorization: Bearer $TOKEN' '$BASE_URL/api/calls'")
 CODE=$(echo "$RESP" | tail -1)
@@ -187,7 +187,7 @@ CODE=$(echo "$RESP" | tail -1)
 check_status 200 "$CODE" "GET /api/calls?status=completed"
 
 # ── Phase 6 : Sécurité ───────────────────────────────────────
-step "Phase 6 — Tests de sécurité"
+step "Phase 6 - Tests de sécurité"
 
 # Accès sans token
 RESP=$(eval "$CURL '$BASE_URL/api/users'")

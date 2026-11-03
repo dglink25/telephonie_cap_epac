@@ -25,7 +25,7 @@ const isGroupAdmin = async (conversationId, userId) => {
 };
 
 /**
- * GET /api/groups/:id — Infos complètes du groupe
+ * GET /api/groups/:id - Infos complètes du groupe
  */
 const getGroupInfo = async (req, res, next) => {
   try {
@@ -66,7 +66,7 @@ const getGroupInfo = async (req, res, next) => {
 };
 
 /**
- * PUT /api/groups/:id — Modifier nom/description du groupe
+ * PUT /api/groups/:id - Modifier nom/description du groupe
  */
 const updateGroupInfo = async (req, res, next) => {
   try {
@@ -107,7 +107,7 @@ const updateGroupInfo = async (req, res, next) => {
 };
 
 /**
- * POST /api/groups/:id/avatar — Changer la photo du groupe
+ * POST /api/groups/:id/avatar - Changer la photo du groupe
  */
 const updateGroupAvatar = async (req, res, next) => {
   try {
@@ -143,7 +143,7 @@ const updateGroupAvatar = async (req, res, next) => {
 };
 
 /**
- * POST /api/groups/:id/members — Ajouter des membres au groupe
+ * POST /api/groups/:id/members - Ajouter des membres au groupe
  */
 const addMembers = async (req, res, next) => {
   try {
@@ -204,7 +204,7 @@ const addMembers = async (req, res, next) => {
 };
 
 /**
- * DELETE /api/groups/:id/members/:memberId — Retirer un membre
+ * DELETE /api/groups/:id/members/:memberId - Retirer un membre
  */
 const removeMember = async (req, res, next) => {
   try {
@@ -257,7 +257,7 @@ const removeMember = async (req, res, next) => {
 };
 
 /**
- * DELETE /api/groups/:id/leave — Quitter le groupe
+ * DELETE /api/groups/:id/leave - Quitter le groupe
  */
 const leaveGroup = async (req, res, next) => {
   try {
@@ -322,7 +322,7 @@ const leaveGroup = async (req, res, next) => {
 };
 
 /**
- * PUT /api/groups/:id/members/:memberId/role — Changer le rôle d'un membre
+ * PUT /api/groups/:id/members/:memberId/role - Changer le rôle d'un membre
  */
 const updateMemberRole = async (req, res, next) => {
   try {

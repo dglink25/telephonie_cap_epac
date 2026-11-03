@@ -83,7 +83,7 @@ export default function App() {
           <Route path="admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         </Route>
 
-        {/* Visioconférence — hors MainLayout (plein écran) */}
+        {/* Visioconférence - hors MainLayout (plein écran) */}
         <Route path="/meeting/:roomName" element={<PrivateRoute><MeetingPage /></PrivateRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -94,7 +94,7 @@ export default function App() {
       <OutgoingCallModal />
       <ActiveCallBar />
 
-      {/* Modal permissions — s'affiche uniquement si connecté et permissions manquantes */}
+      {/* Modal permissions - s'affiche uniquement si connecté et permissions manquantes */}
       {isAuthenticated && showModal && (
         <PermissionsModal
           onClose={closeModal}

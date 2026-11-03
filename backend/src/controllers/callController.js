@@ -4,7 +4,7 @@ const { CallLog, User } = require('../models');
 const logger = require('../utils/logger');
 
 /**
- * GET /api/calls — Journal des appels de l'utilisateur
+ * GET /api/calls - Journal des appels de l'utilisateur
  */
 const getCallLogs = async (req, res, next) => {
   try {
@@ -47,7 +47,7 @@ const getCallLogs = async (req, res, next) => {
 };
 
 /**
- * GET /api/calls/stats — Statistiques des appels (admin)
+ * GET /api/calls/stats - Statistiques des appels (admin)
  */
 const getCallStats = async (req, res, next) => {
   try {
@@ -83,7 +83,7 @@ const getCallStats = async (req, res, next) => {
 };
 
 /**
- * GET /api/calls/:id — Détail d'un appel
+ * GET /api/calls/:id - Détail d'un appel
  */
 const getCallById = async (req, res, next) => {
   try {
@@ -107,7 +107,7 @@ const getCallById = async (req, res, next) => {
 };
 
 /**
- * POST /api/calls — Créer une entrée de journal d'appel
+ * POST /api/calls - Créer une entrée de journal d'appel
  */
 const createCallLog = async (req, res, next) => {
   try {
@@ -126,7 +126,7 @@ const createCallLog = async (req, res, next) => {
 };
 
 /**
- * PATCH /api/calls/:id — Mettre à jour le statut d'un appel
+ * PATCH /api/calls/:id - Mettre à jour le statut d'un appel
  */
 const updateCallLog = async (req, res, next) => {
   try {

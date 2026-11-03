@@ -46,14 +46,14 @@ import IncomingCallScreen from '../screens/calls/IncomingCallScreen';
 import OutgoingCallScreen from '../screens/calls/OutgoingCallScreen';
 import ActiveCallScreen from '../screens/calls/ActiveCallScreen';
 
-// Meeting — visioconférence
+// Meeting - visioconférence
 import MeetingScreen    from '../screens/meeting/MeetingScreen';
 import NewMeetingScreen from '../screens/meeting/NewMeetingScreen';
 
 // Admin
 import AdminScreen from '../screens/admin/AdminScreen';
 
-// ✅ Ref navigation globale — accessible depuis n'importe où (useSocket, etc.)
+// ✅ Ref navigation globale - accessible depuis n'importe où (useSocket, etc.)
 export const navigationRef = createNavigationContainerRef<any>();
 
 export function navigate(name: string, params?: object) {
@@ -236,7 +236,7 @@ const AppContent = () => {
         navigationRef.navigate('Tabs' as never);
       }
     }
-    // ⚠️ Ne pas gérer 'connecting' ici — IncomingCallScreen et OutgoingCallScreen
+    // ⚠️ Ne pas gérer 'connecting' ici - IncomingCallScreen et OutgoingCallScreen
     // naviguent eux-mêmes vers ActiveCall pour éviter la double navigation
   }, [callStatus]);
 

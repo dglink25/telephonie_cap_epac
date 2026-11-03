@@ -207,7 +207,7 @@ const incomingMessage = async (req, res, next) => {
       });
     }
 
-    logger.info(`[Webhook] Message entrant stocké : ${dbMessage.id} — conv:${conv.id}`);
+    logger.info(`[Webhook] Message entrant stocké : ${dbMessage.id} - conv:${conv.id}`);
 
     return res.status(201).json({
       success:        true,
@@ -255,7 +255,7 @@ const replyToMessage = async (req, res, next) => {
     try {
       parsedOriginal = JSON.parse(original.file_url);
     } catch {
-      return res.status(400).json({ success: false, message: 'Message original invalide — pas de métadonnées webhook' });
+      return res.status(400).json({ success: false, message: 'Message original invalide - pas de métadonnées webhook' });
     }
 
     const { callback_url, metadata } = parsedOriginal;
@@ -313,7 +313,7 @@ const replyToMessage = async (req, res, next) => {
         callbackStatus = 'sent';
       } else {
         callbackStatus = `callback_http_${callbackHttpCode}`;
-        logger.warn(`[Webhook] Callback retourné HTTP ${callbackHttpCode} — considéré comme échec`);
+        logger.warn(`[Webhook] Callback retourné HTTP ${callbackHttpCode} - considéré comme échec`);
       }
     } catch (callbackErr) {
       callbackStatus = 'callback_failed';

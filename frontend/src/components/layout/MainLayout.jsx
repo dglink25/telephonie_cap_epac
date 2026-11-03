@@ -75,7 +75,7 @@ export default function MainLayout() {
       // (peut arriver si call:accepted est émis deux fois ou pour plusieurs membres groupe)
       const lockKey = `${realCallId}:${acceptedBy}`;
       if (handlingCallIds.current.has(lockKey)) {
-        console.log('[Call] call:accepted déjà traité pour', lockKey, '— ignoré');
+        console.log('[Call] call:accepted déjà traité pour', lockKey, '- ignoré');
         return;
       }
       handlingCallIds.current.add(lockKey);
@@ -87,7 +87,7 @@ export default function MainLayout() {
       const targetId = acceptedBy || p.calleeId;
 
       if (!targetId) {
-        console.error('[Call] targetId inconnu — annulation');
+        console.error('[Call] targetId inconnu - annulation');
         handlingCallIds.current.delete(lockKey);
         return;
       }
@@ -104,7 +104,7 @@ export default function MainLayout() {
         pendingRef.current = null;
         handlingCallIds.current.clear();
       }
-      // Ne pas supprimer lockKey — empeche re-traitement du même accept
+      // Ne pas supprimer lockKey - empeche re-traitement du même accept
     };
 
     // ── L'appelé a refusé ─────────────────────────────────────
@@ -120,7 +120,7 @@ export default function MainLayout() {
     // ── Un membre du groupe a refusé (pas tous) ───────────────
     const onMemberRejected = ({ rejectedBy }) => {
       console.log('[Call] membre a refusé:', rejectedBy);
-      // Ne rien faire — les autres membres sonnent encore
+      // Ne rien faire - les autres membres sonnent encore
     };
 
     // ── Appel terminé ─────────────────────────────────────────

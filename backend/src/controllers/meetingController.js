@@ -68,7 +68,7 @@ const createMeeting = async (req, res, next) => {
     let roomUrl = `${JITSI_URL}/${roomName}`;
     if (token) roomUrl += `?jwt=${token}`;
 
-    // URL de partage (sans token — les invités rejoignent sans modération)
+    // URL de partage (sans token - les invités rejoignent sans modération)
     const shareUrl = `${JITSI_URL}/${roomName}`;
 
     logger.info(`[Meeting] Salle créée: ${roomName} par ${user.display_name}`);

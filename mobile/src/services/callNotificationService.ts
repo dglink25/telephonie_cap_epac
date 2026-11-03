@@ -23,7 +23,7 @@ export async function startCallNotificationService(): Promise<void> {
   try {
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-      console.warn('[CallService] Pas de token — service non démarré');
+      console.warn('[CallService] Pas de token - service non démarré');
       return;
     }
     await saveServiceConfig(token, SERVER_BASE);
