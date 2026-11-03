@@ -1,129 +1,102 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  WireGuard — Ajouter un client VPN
-#  Usage : sudo bash add-client.sh <nom_client>
-#  Ex    : sudo bash add-client.sh jean-mobile
+#  CAP-EPAC — Ajouter un client WireGuard VPN
+#
+#  Usage : sudo bash add-client.sh <nom_utilisateur>
+#  Exemple: sudo bash add-client.sh alice
+#           sudo bash add-client.sh mobile-bob
 # ═══════════════════════════════════════════════════════════════
+
 set -e
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
-info()    { echo -e "${GREEN}[✓]${NC} $1"; }
-warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
-section() { echo -e "\n${BLUE}══ $1 ══${NC}"; }
+BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
 
-[[ $EUID -ne 0 ]] && error "Ce script doit être exécuté en root (sudo)"
-[[ -z "$1" ]]     && error "Usage : sudo bash add-client.sh <nom_client>"
+ok()   { echo -e "${GREEN}[✓]${NC} $1"; }
+info() { echo -e "${BLUE}[→]${NC} $1"; }
+warn() { echo -e "${YELLOW}[!]${NC} $1"; }
+
+[ "$EUID" -ne 0 ] && echo "Lancer avec sudo" && exit 1
+[ -z "$1" ] && echo "Usage: sudo bash add-client.sh <nom>" && exit 1
 
 CLIENT_NAME="$1"
-CONFIG_DIR="/etc/wireguard"
-CLIENTS_DIR="$CONFIG_DIR/clients"
-SERVER_INFO="$CONFIG_DIR/server_info.env"
+CLIENT_DIR="/etc/wireguard/clients"
+mkdir -p "$CLIENT_DIR"
 
-[[ ! -f "$SERVER_INFO" ]] && error "Fichier server_info.env introuvable. Lancez d'abord setup-wireguard.sh"
+# ── Récupérer infos serveur ────────────────────────────────────
+SERVER_PUB=$(cat /etc/wireguard/server_public.key)
+SERVER_IP=$(ip route | grep default | awk '{print $9}' | head -1)
+[ -z "$SERVER_IP" ] && SERVER_IP=$(hostname -I | awk '{print $1}')
 
-# Charger la config serveur
-source "$SERVER_INFO"
+# ── Trouver une IP libre dans 10.8.0.x ───────────────────────
+LAST_IP=$(grep "AllowedIPs = 10.8.0" /etc/wireguard/wg0.conf 2>/dev/null | \
+  grep -oE '10\.8\.0\.[0-9]+' | sort -t. -k4 -n | tail -1 | cut -d. -f4)
+[ -z "$LAST_IP" ] && LAST_IP=1
+CLIENT_IP="10.8.0.$((LAST_IP + 1))"
 
-mkdir -p "$CLIENTS_DIR/$CLIENT_NAME"
+# ── Générer les clés client ────────────────────────────────────
+CLIENT_PRIV=$(wg genkey)
+CLIENT_PUB=$(echo "$CLIENT_PRIV" | wg pubkey)
+CLIENT_PSK=$(wg genpsk)
 
-section "Création du client : $CLIENT_NAME"
-
-# ── Trouver la prochaine IP disponible ────────────────────────
-# Le serveur est .1, les clients commencent à .2
-LAST_IP=$(grep -oP "${WG_SUBNET}\.\K\d+" "$CONFIG_DIR/$WG_IFACE.conf" 2>/dev/null | \
-          grep -v "^1$" | sort -n | tail -1)
-
-if [[ -z "$LAST_IP" ]]; then
-    CLIENT_IP_LAST=2
-else
-    CLIENT_IP_LAST=$((LAST_IP + 1))
-fi
-
-[[ $CLIENT_IP_LAST -gt 254 ]] && error "Réseau VPN plein (max 253 clients)"
-
-CLIENT_VPN_IP="${WG_SUBNET}.${CLIENT_IP_LAST}"
-info "IP VPN attribuée : $CLIENT_VPN_IP"
-
-# ── Génération des clés client ────────────────────────────────
-wg genkey | tee "$CLIENTS_DIR/$CLIENT_NAME/private.key" | \
-    wg pubkey > "$CLIENTS_DIR/$CLIENT_NAME/public.key"
-chmod 600 "$CLIENTS_DIR/$CLIENT_NAME/private.key"
-
-CLIENT_PRIVATE=$(cat "$CLIENTS_DIR/$CLIENT_NAME/private.key")
-CLIENT_PUBLIC=$(cat "$CLIENTS_DIR/$CLIENT_NAME/public.key")
-
-info "Clés client générées"
-
-# ── Fichier de config client ──────────────────────────────────
-# AllowedIPs = 10.8.0.0/24,192.168.10.0/24
-# → permet au client d'accéder au VPN ET au LAN de l'entreprise
-
-cat > "$CLIENTS_DIR/$CLIENT_NAME/${CLIENT_NAME}.conf" << EOF
+# ── Config client ──────────────────────────────────────────────
+cat > "${CLIENT_DIR}/${CLIENT_NAME}.conf" << EOF
 [Interface]
-# Nom : ${CLIENT_NAME}
-PrivateKey = ${CLIENT_PRIVATE}
-Address    = ${CLIENT_VPN_IP}/24
-DNS        = 8.8.8.8, 1.1.1.1
+PrivateKey = ${CLIENT_PRIV}
+Address = ${CLIENT_IP}/32
+DNS = 8.8.8.8
 
 [Peer]
-# Serveur CAP-EPAC
-PublicKey  = ${SERVER_PUBLIC}
-Endpoint   = ${PUBLIC_IP}:${WG_PORT}
-AllowedIPs = ${WG_SUBNET}.0/24, 192.168.10.0/24
-# Keepalive : maintient la connexion même derrière un NAT
+PublicKey = ${SERVER_PUB}
+PresharedKey = ${CLIENT_PSK}
+Endpoint = VOTRE_IP_PUBLIQUE_OU_DDNS:51820
+AllowedIPs = 10.8.0.0/24, 192.168.10.0/24
 PersistentKeepalive = 25
 EOF
-
-info "Fichier de configuration client créé"
+chmod 600 "${CLIENT_DIR}/${CLIENT_NAME}.conf"
 
 # ── Ajouter le client dans la config serveur ──────────────────
-cat >> "$CONFIG_DIR/$WG_IFACE.conf" << EOF
+cat >> /etc/wireguard/wg0.conf << EOF
 
+# Client: ${CLIENT_NAME} — ${CLIENT_IP}
 [Peer]
-# Client : ${CLIENT_NAME}
-PublicKey  = ${CLIENT_PUBLIC}
-AllowedIPs = ${CLIENT_VPN_IP}/32
+PublicKey = ${CLIENT_PUB}
+PresharedKey = ${CLIENT_PSK}
+AllowedIPs = ${CLIENT_IP}/32
 EOF
 
-info "Client ajouté dans la configuration serveur"
+# ── Recharger WireGuard sans couper les connexions ────────────
+wg addconf wg0 <(cat << EOF
+[Peer]
+PublicKey = ${CLIENT_PUB}
+PresharedKey = ${CLIENT_PSK}
+AllowedIPs = ${CLIENT_IP}/32
+EOF
+) 2>/dev/null || wg-quick down wg0 && wg-quick up wg0
 
-# ── Appliquer sans redémarrer ─────────────────────────────────
-wg set "$WG_IFACE" peer "$CLIENT_PUBLIC" allowed-ips "${CLIENT_VPN_IP}/32"
-info "Client activé en temps réel (pas de redémarrage nécessaire)"
+ok "Client '${CLIENT_NAME}' ajouté → ${CLIENT_IP}"
 
-# ── Générer le QR code ────────────────────────────────────────
-section "QR Code (à scanner avec l'app WireGuard)"
-
-QR_FILE="$CLIENTS_DIR/$CLIENT_NAME/${CLIENT_NAME}-qr.png"
-
-# Afficher dans le terminal
-qrencode -t ansiutf8 < "$CLIENTS_DIR/$CLIENT_NAME/${CLIENT_NAME}.conf"
-
-# Sauvegarder en PNG
-qrencode -t PNG -o "$QR_FILE" < "$CLIENTS_DIR/$CLIENT_NAME/${CLIENT_NAME}.conf"
-
-# ── Résumé ────────────────────────────────────────────────────
+# ── Afficher le QR code ───────────────────────────────────────
 echo ""
-echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║      Client VPN créé avec succès !                  ║${NC}"
-echo -e "${GREEN}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║${NC}  Nom          : ${CYAN}${CLIENT_NAME}${NC}"
-echo -e "${GREEN}║${NC}  IP VPN       : ${CYAN}${CLIENT_VPN_IP}${NC}"
-echo -e "${GREEN}║${NC}  Serveur      : ${CYAN}${PUBLIC_IP}:${WG_PORT}${NC}"
-echo -e "${GREEN}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║${NC}  Config  : $CLIENTS_DIR/$CLIENT_NAME/${CLIENT_NAME}.conf"
-echo -e "${GREEN}║${NC}  QR Code : $QR_FILE"
-echo -e "${GREEN}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║${NC}  Instructions pour le téléphone :               ${GREEN}║${NC}"
-echo -e "${GREEN}║${NC}  1. Installer ${YELLOW}WireGuard${NC} (Play Store / App Store)  ${GREEN}║${NC}"
-echo -e "${GREEN}║${NC}  2. Appuyer sur + → Scanner le QR code          ${GREEN}║${NC}"
-echo -e "${GREEN}║${NC}  3. Activer le tunnel                            ${GREEN}║${NC}"
-echo -e "${GREEN}║${NC}  4. L'app CAP-EPAC fonctionnera normalement      ${GREEN}║${NC}"
-echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}${BLUE}══ Config client : ${CLIENT_NAME} ══${NC}"
 echo ""
-echo -e "  Voir tous les clients : ${YELLOW}sudo wg show${NC}"
-echo " "
 
+if command -v qrencode >/dev/null 2>&1; then
+  qrencode -t ansiutf8 < "${CLIENT_DIR}/${CLIENT_NAME}.conf"
+  echo ""
+  ok "Scanner ce QR code avec l'app WireGuard (Android/iOS)"
+else
+  warn "qrencode non installé — installer avec : sudo apt install qrencode -y"
+  info "Puis relancer : sudo bash add-client.sh ${CLIENT_NAME}"
+fi
 
+echo ""
+echo -e "  Fichier config : ${YELLOW}${CLIENT_DIR}/${CLIENT_NAME}.conf${NC}"
+echo ""
+echo -e "${YELLOW}⚠  IMPORTANT : éditer la ligne Endpoint dans le fichier :${NC}"
+echo -e "   Remplacer ${YELLOW}VOTRE_IP_PUBLIQUE_OU_DDNS${NC} par :"
+echo -e "   → Votre IP publique (ex: 197.x.x.x)"
+echo -e "   → Ou votre DDNS (ex: mondomaine.dynu.net)"
+echo ""
+echo -e "  Vérifier votre IP publique : ${BLUE}curl -s ifconfig.me${NC}"
+echo ""
