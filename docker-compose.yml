@@ -145,8 +145,10 @@ services:
 
   # ─────────────────────────────────────────
   # Nginx Reverse Proxy
-  #   19080 → HTTP  (web browser sans SSL)
-  #   19443 → HTTPS (web browser)
+  #   80    → HTTP  (port standard — redirect HTTPS, domaine DNS)
+  #   443   → HTTPS (port standard — domaine DNS telephonie-cap-epac.bj)
+  #   19080 → HTTP  (accès IP direct sans DNS)
+  #   19443 → HTTPS (accès IP direct sans DNS)
   #   18282 → HTTP  (app mobile API — port fixe dans l'APK)
   # ─────────────────────────────────────────
   nginx:
@@ -154,8 +156,10 @@ services:
     container_name: cap-epac-nginx
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-19080}:80"
-      - "${HTTPS_PORT:-19443}:443"
+      - "80:80"
+      - "443:443"
+      - "${HTTP_PORT:-19080}:19080"
+      - "${HTTPS_PORT:-19443}:19443"
       - "${MOBILE_PORT:-18282}:8080"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro

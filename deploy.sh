@@ -349,8 +349,8 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
 
   command -v docker >/dev/null 2>&1 || { set -e; error "Docker non installé"; }
 
-  # Ouvrir ports firewall
-  for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT 53; do
+  # Ouvrir ports firewall (standard 80/443 + plage personnalisée)
+  for PORT in 80 443 $HTTP_PORT $HTTPS_PORT $MOBILE_PORT 53; do
     iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
   done
   iptables -I INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || true
