@@ -680,11 +680,13 @@ export default function ChatPage() {
 
   const typingUsers    = activeConv?.members?.filter((m) => m.id !== user.id && isTyping[m.id]);
   const otherMember    = activeConv?.type === 'direct' ? activeConv.members?.find((m) => m.id !== user.id) : null;
-  const filteredConvs  = conversations.filter((c) => {
-    const other = c.members?.find((m) => m.id !== user.id);
-    const name  = c.type === 'direct' ? other?.display_name : c.name;
-    return name?.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const filteredConvs  = conversations
+    .filter((c) => {
+      const other = c.members?.find((m) => m.id !== user.id);
+      const name  = c.type === 'direct' ? other?.display_name : c.name;
+      return name?.toLowerCase().includes(searchQuery.toLowerCase());
+    })
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
