@@ -84,12 +84,14 @@ JITSI_PORT="${JITSI_PORT:-19444}"
 MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
 JITSI_URL="${JITSI_URL:-https://meet.jit.si}"
 
-# ── URLs d'accès (domaine prioritaire sur IP si fourni) ───────────────────────
+# ── URLs d'accès ──────────────────────────────────────────────────────────────
+# Avec domaine DNS LAN → HTTP (pas de cert à installer, zéro avertissement)
+# Avec IP seulement   → HTTPS (nécessaire pour WebRTC sur IP)
 if [ -n "$DOMAIN" ]; then
-  ACCESS_URL="https://${DOMAIN}"
-  API_URL="https://${DOMAIN}/api"
-  SOCKET_URL="https://${DOMAIN}"
-  CORS_ORIGINS="https://${DOMAIN},https://${SERVER_IP}:${HTTPS_PORT}"
+  ACCESS_URL="http://${DOMAIN}"
+  API_URL="http://${DOMAIN}/api"
+  SOCKET_URL="http://${DOMAIN}"
+  CORS_ORIGINS="http://${DOMAIN},https://${SERVER_IP}:${HTTPS_PORT},http://${SERVER_IP}:${HTTP_PORT}"
 else
   ACCESS_URL="https://${SERVER_IP}:${HTTPS_PORT}"
   API_URL="https://${SERVER_IP}:${HTTPS_PORT}/api"
