@@ -29,6 +29,14 @@ warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 
+# Garantir que le résumé s'affiche même en cas d'erreur inattendue
+_show_summary() {
+  local EXIT_CODE=$?
+  [ $EXIT_CODE -ne 0 ] && echo -e "\n${YELLOW}[!] Script interrompu (code $EXIT_CODE) — état Docker :${NC}"
+  [ $EXIT_CODE -ne 0 ] && docker compose ps 2>/dev/null || true
+}
+trap _show_summary EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -337,8 +345,9 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   section "7/8 — Docker"
+  set +e   # Les commandes Docker peuvent retourner non-zéro sans être fatales
 
-  command -v docker >/dev/null 2>&1 || error "Docker non installé"
+  command -v docker >/dev/null 2>&1 || { set -e; error "Docker non installé"; }
 
   # Ouvrir ports firewall
   for PORT in $HTTP_PORT $HTTPS_PORT $MOBILE_PORT 53; do
@@ -391,13 +400,28 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
     [ -f "$f" ] && docker cp "$f" "cap-epac-backend:/app/${f#backend/}" 2>/dev/null && SYNCED=$((SYNCED+1))
   done
   ok "$SYNCED fichiers backend synchronisés"
-  docker compose restart backend 2>/dev/null; sleep 10
+  docker compose restart backend 2>/dev/null || true
+  sleep 15
 
-  # Vérification
-  for URL in "https://${SERVER_IP}:${HTTPS_PORT}/health" "http://${SERVER_IP}:${HTTP_PORT}/health"; do
-    HEALTH=$(curl -sk --max-time 5 "$URL" 2>/dev/null)
-    echo "$HEALTH" | grep -q '"status":"ok"' && ok "Backend accessible ✓" && break
+  # Vérification santé backend (ne bloque jamais le script)
+  BACKEND_OK=false
+  for ATTEMPT in 1 2 3; do
+    for URL in "https://${SERVER_IP}:${HTTPS_PORT}/health" "http://${SERVER_IP}:${HTTP_PORT}/health"; do
+      HEALTH=$(curl -sk --max-time 6 "$URL" 2>/dev/null || true)
+      if echo "$HEALTH" | grep -q '"status":"ok"'; then
+        ok "Backend accessible ✓"
+        BACKEND_OK=true
+        break 2
+      fi
+    done
+    [ "$ATTEMPT" -lt 3 ] && printf "." && sleep 10
   done
+  echo ""
+  if [ "$BACKEND_OK" = false ]; then
+    warn "Backend pas encore prêt — vérifier : docker compose logs backend --tail=20"
+    warn "Si ETIMEDOUT MySQL : sudo iptables -t raw -F PREROUTING && docker compose restart backend"
+  fi
+  set -e   # Remettre le mode strict
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -425,15 +449,15 @@ if [ "$BUILD_APK" = true ] && [ -d "mobile/android" ]; then
     ok "SDK Android : ${ANDROID_SDK}"
 
     info "Build APK Release..."
-    if cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -3; then
-      cd "$SCRIPT_DIR"
+    BUILD_OK=false
+    (cd mobile/android && ./gradlew assembleRelease --no-daemon -q 2>&1 | tail -5) && BUILD_OK=true || true
+    if [ "$BUILD_OK" = true ]; then
       for APK in \
         "mobile/android/app/build/outputs/apk/release/app-release.apk" \
         mobile/android/app/build/outputs/apk/release/*.apk; do
         [ -f "$APK" ] && ok "APK généré : $(basename "$APK") ($(du -sh "$APK" | cut -f1))" && break
       done
     else
-      cd "$SCRIPT_DIR"
       warn "Build APK échoué — relancer : bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only"
     fi
   else
