@@ -159,58 +159,38 @@ ok ".env mis à jour"
 if [ -n "$DOMAIN" ]; then
   section "2/8 — Configuration DNS local (${DOMAIN})"
 
-  if ! command -v dnsmasq >/dev/null 2>&1; then
-    info "Installation de dnsmasq..."
-    apt-get install -y dnsmasq 2>/dev/null || \
-    sudo apt-get install -y dnsmasq 2>/dev/null || \
-    warn "Impossible d'installer dnsmasq — DNS non configuré"
-  fi
-
-  if command -v dnsmasq >/dev/null 2>&1; then
-    # Fichier de config dnsmasq pour CAP-EPAC
+  # Tenter dnsmasq uniquement si on a les droits sudo (serveur) et pas sur machine de dev
+  DNS_CONFIGURED=false
+  if command -v dnsmasq >/dev/null 2>&1 || sudo apt-get install -y dnsmasq -qq 2>/dev/null; then
     DNS_CONF="/etc/dnsmasq.d/cap-epac.conf"
-    sudo tee "$DNS_CONF" > /dev/null << DNSEOF
+    if sudo tee "$DNS_CONF" > /dev/null 2>&1 << DNSEOF
 # CAP-EPAC — DNS local généré par deploy.sh
-# Tous les appareils du LAN qui utilisent ce serveur comme DNS
-# résoudront ${DOMAIN} vers ${SERVER_IP}
-
 address=/${DOMAIN}/${SERVER_IP}
-
-# Interface réseau (écouter sur toutes les interfaces LAN)
 interface=lo
 bind-interfaces
-
-# Cache DNS
 cache-size=1000
 log-queries=no
 DNSEOF
-
-    # Redémarrer dnsmasq
-    sudo systemctl enable dnsmasq 2>/dev/null || true
-    sudo systemctl restart dnsmasq 2>/dev/null && \
-      ok "dnsmasq redémarré → ${DOMAIN} pointe vers ${SERVER_IP}" || \
-      warn "dnsmasq n'a pas pu redémarrer — vérifier : sudo systemctl status dnsmasq"
-
-    # Ajouter au /etc/hosts du serveur lui-même
-    if ! grep -q "$DOMAIN" /etc/hosts 2>/dev/null; then
-      echo "${SERVER_IP}  ${DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
-      ok "/etc/hosts → ${SERVER_IP} ${DOMAIN}"
-    else
-      sudo sed -i "s|^.*${DOMAIN}.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts
-      ok "/etc/hosts mis à jour"
+    then
+      sudo systemctl enable dnsmasq 2>/dev/null || true
+      if sudo systemctl restart dnsmasq 2>/dev/null; then
+        ok "dnsmasq → ${DOMAIN} = ${SERVER_IP}"
+        DNS_CONFIGURED=true
+      else
+        warn "dnsmasq non démarré (normal sur machine de dev, OK sur serveur Ubuntu)"
+      fi
     fi
-
-    # Afficher l'IP du serveur DNS pour configuration des appareils clients
-    echo ""
-    echo -e "  ${YELLOW}┌─ Configuration DNS sur les appareils clients ──────────────┐${NC}"
-    echo -e "  ${YELLOW}│${NC} Dans les paramètres WiFi/réseau de chaque appareil,"
-    echo -e "  ${YELLOW}│${NC} configurer le DNS manuel vers : ${CYAN}${SERVER_IP}${NC}"
-    echo -e "  ${YELLOW}│${NC} ou configurer le routeur pour distribuer ce DNS via DHCP"
-    echo -e "  ${YELLOW}│${NC}"
-    echo -e "  ${YELLOW}│${NC} Accès après configuration : ${CYAN}https://${DOMAIN}${NC}"
-    echo -e "  ${YELLOW}└────────────────────────────────────────────────────────────┘${NC}"
-    echo ""
   fi
+
+  # /etc/hosts — fonctionne sur TOUTES les machines (serveur ET dev)
+  if grep -q "$DOMAIN" /etc/hosts 2>/dev/null; then
+    sudo sed -i "s|^.*\b${DOMAIN}\b.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts 2>/dev/null || \
+      sed -i "s|^.*\b${DOMAIN}\b.*|${SERVER_IP}  ${DOMAIN}|g" /etc/hosts 2>/dev/null || true
+  else
+    echo "${SERVER_IP}  ${DOMAIN}" | sudo tee -a /etc/hosts > /dev/null 2>/dev/null || \
+      echo "${SERVER_IP}  ${DOMAIN}" >> /etc/hosts 2>/dev/null || true
+  fi
+  ok "/etc/hosts → ${SERVER_IP}  ${DOMAIN}"
 else
   section "2/8 — DNS (ignoré — pas de domaine fourni)"
   info "Pour activer le DNS : bash deploy.sh ${SERVER_IP} mon-domaine.local"
@@ -330,9 +310,12 @@ REGEN=false
 # Vérifier si le cert couvre l'IP et éventuellement le domaine
 if [ "$REGEN" = false ]; then
   CERT_TEXT=$(openssl x509 -in nginx/ssl/cert.pem -text 2>/dev/null)
-  ! echo "$CERT_TEXT" | grep -q "$SERVER_IP" && REGEN=true
+  CERT_IP=$(echo "$CERT_TEXT" | grep -oE 'IP Address:[0-9.]+' | grep -oE '[0-9.]+' | head -1)
+  CERT_DNS=$(echo "$CERT_TEXT" | grep -oE 'DNS:[^,]+' | head -1)
+  # Régénérer seulement si l'IP OU le domaine a changé
+  [ "$CERT_IP" != "$SERVER_IP" ] && REGEN=true
   [ -n "$DOMAIN" ] && ! echo "$CERT_TEXT" | grep -qi "$DOMAIN" && REGEN=true
-  [ "$REGEN" = true ] && warn "Certificat SSL ne couvre pas l'IP/domaine — régénération..."
+  [ "$REGEN" = true ] && warn "Certificat SSL obsolète — régénération..."
 fi
 
 if [ "$REGEN" = true ]; then
@@ -471,18 +454,27 @@ echo -e "${GREEN}${BOLD}"
 echo "  ╔══════════════════════════════════════════════════════════════╗"
 echo "  ║           Déploiement terminé !                             ║"
 echo "  ╠══════════════════════════════════════════════════════════════╣"
-echo -e "  ║${NC}  Application  : ${CYAN}${ACCESS_URL}${NC}"
-[ -n "$DOMAIN" ] && \
-echo -e "  ║  Alt URL      : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
-echo -e "  ║  API mobile   : ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
-echo -e "  ║  Admin        : admin / Admin@CapEpac2025"
+echo -e "  ║${NC}  Web (LAN)    : ${CYAN}${ACCESS_URL}${NC}"
+echo -e "  ║  Web (IP)    : ${CYAN}https://${SERVER_IP}:${HTTPS_PORT}${NC}"
+echo -e "  ║  Mobile (LAN): ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
+echo -e "  ║  Admin       : admin / Admin@CapEpac2025"
+echo -e "${GREEN}${BOLD}  ╠══════════════════════════════════════════════════════════════╣${NC}"
 if [ -n "$DOMAIN" ]; then
-echo -e "  ╠══════════════════════════════════════════════════════════════╣"
-echo -e "  ║  DNS local    : configurez les appareils avec DNS=${CYAN}${SERVER_IP}${NC}"
-echo -e "  ║  Accès domaine: ${CYAN}https://${DOMAIN}${NC} (après config DNS)"
+echo -e "  ${YELLOW}┌─ DNS LAN — Pour accéder via https://${DOMAIN} ─────────┐${NC}"
+echo -e "  ${YELLOW}│${NC}  Configurez le routeur DHCP pour distribuer ce DNS :"
+echo -e "  ${YELLOW}│${NC}  → DNS primaire : ${CYAN}${SERVER_IP}${NC}"
+echo -e "  ${YELLOW}│${NC}  Ou manuellement sur chaque appareil :"
+echo -e "  ${YELLOW}│${NC}  → WiFi → DNS manuel → ${CYAN}${SERVER_IP}${NC}"
+echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
 fi
+echo -e "  ${YELLOW}┌─ Mobile hors réseau (VPN WireGuard) ───────────────────┐${NC}"
+echo -e "  ${YELLOW}│${NC}  1. Connecter le VPN WireGuard sur le téléphone"
+echo -e "  ${YELLOW}│${NC}  2. L'app CAP-EPAC se connecte via ${CYAN}http://${SERVER_IP}:${MOBILE_PORT}${NC}"
+echo -e "  ${YELLOW}│${NC}  3. Même expérience que dans le réseau local"
+echo -e "  ${YELLOW}└────────────────────────────────────────────────────────┘${NC}"
 echo -e "${GREEN}${BOLD}  ╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  Logs  : ${YELLOW}docker compose logs -f${NC}"
 echo -e "  Arrêt : ${YELLOW}docker compose down${NC}"
+echo -e "  APK   : ${YELLOW}bash deploy.sh ${SERVER_IP}${DOMAIN:+ $DOMAIN} --apk-only${NC}  (depuis machine dev)"
 echo ""
