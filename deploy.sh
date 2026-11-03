@@ -478,37 +478,37 @@ _gen_install_ca_page() {
   <h2>2. Installer selon votre appareil</h2>
 
   <div class="step">
-    <span class="os">🤖 Android</span><br>
+    <span class="os">Android</span><br>
     Paramètres → Sécurité → Chiffrement et identifiants →
     Installer un certificat → <code>Certificat CA</code> → choisir le fichier .crt
   </div>
 
   <div class="step">
-    <span class="os">🍎 iPhone / iPad</span><br>
+    <span class="os">iPhone / iPad</span><br>
     Ouvrir le fichier .pem → Installer le profil → Paramètres →
     Général → Info → Réglages certificat → Activer la confiance totale
   </div>
 
   <div class="step">
-    <span class="os">🪟 Windows</span><br>
+    <span class="os"> Windows</span><br>
     Double-clic sur rootCA.pem → Installer le certificat →
     Ordinateur local → <code>Autorités de certification racines de confiance</code>
   </div>
 
   <div class="step">
-    <span class="os">🐧 Linux (Chrome/Firefox)</span><br>
+    <span class="os">Linux (Chrome/Firefox)</span><br>
     Chrome : <code>chrome://settings/certificates</code> → Autorités → Importer<br>
     Firefox : Paramètres → Vie privée → Certificats → Voir les certificats → Importer
   </div>
 
   <div class="step">
-    <span class="os">🍎 macOS</span><br>
+    <span class="os">macOS</span><br>
     Double-clic → Trousseaux → Ajouter → Double-clic sur le cert →
     Approuver → Toujours faire confiance
   </div>
 
   <div class="done">
-    <a class="btn" href="${APP_URL}">✅ Accéder à CAP-EPAC Téléphonie</a>
+    <a class="btn" href="${APP_URL}">Accéder à CAP-EPAC Téléphonie</a>
   </div>
 </div>
 </body>
