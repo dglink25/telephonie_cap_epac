@@ -67,13 +67,17 @@ AllowedIPs = ${CLIENT_IP}/32
 EOF
 
 # ── Recharger WireGuard sans couper les connexions ────────────
-wg addconf wg0 <(cat << EOF
-[Peer]
+if wg show wg0 >/dev/null 2>&1; then
+  # WireGuard tourne — ajouter le peer à chaud sans redémarrer
+  wg addconf wg0 <(echo "[Peer]
 PublicKey = ${CLIENT_PUB}
 PresharedKey = ${CLIENT_PSK}
-AllowedIPs = ${CLIENT_IP}/32
-EOF
-) 2>/dev/null || wg-quick down wg0 && wg-quick up wg0
+AllowedIPs = ${CLIENT_IP}/32")
+  ok "Peer ajouté à chaud (sans coupure)"
+else
+  wg-quick up wg0
+  ok "WireGuard démarré"
+fi
 
 ok "Client '${CLIENT_NAME}' ajouté → ${CLIENT_IP}"
 
