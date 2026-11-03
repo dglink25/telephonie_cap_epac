@@ -342,18 +342,6 @@ git reset --hard origin/main
 
 ---
 
-## Identifiants par défaut
-
-| Service | Identifiant | Mot de passe |
-|---|---|---|
-| Application web | `admin` | `Admin@CapEpac2025` |
-| MySQL utilisateur | `cap_epac_user` | `CapEpac@2025` |
-| MySQL root | `root` | `CapEpac@Root2025` |
-| Redis | *(pas d'utilisateur)* | `CapEpacRedis2025` |
-| Webhook | *(secret header)* | `CapEpacWebhook@Secret2025` |
-
----
-
 ## Visioconférence (Jitsi)
 
 Configuré pour utiliser `https://meet.jit.si` par défaut (aucune installation requise).
