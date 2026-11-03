@@ -1,107 +1,71 @@
 // src/controllers/vpnController.js
+// Le backend Docker ne peut pas exécuter wg directement.
+// Il passe par le wg-agent (HTTP sur host.docker.internal:51821)
+// qui tourne sur l'hôte Ubuntu avec les droits root.
 'use strict';
 
-const { execSync, execFileSync } = require('child_process');
-const fs   = require('fs');
-const path = require('path');
+const http   = require('http');
 const { User } = require('../models');
 const logger = require('../utils/logger');
 
-const WG_CONF     = '/etc/wireguard/wg0.conf';
-const CLIENT_DIR  = '/etc/wireguard/clients';
-const VPN_SUBNET  = '10.8.0';
-const WG_PUB_KEY  = '/etc/wireguard/server_public.key';
+const WG_AGENT_HOST = process.env.WG_AGENT_HOST || 'host.docker.internal';
+const WG_AGENT_PORT = parseInt(process.env.WG_AGENT_PORT || '51821');
+const VPN_ENDPOINT  = process.env.VPN_ENDPOINT  || process.env.SERVER_LAN_IP || '';
 
-// ── Helpers ──────────────────────────────────────────────────────
-
-const wgAvailable = () => {
-  try { execSync('which wg', { stdio: 'pipe' }); return true; }
-  catch { return false; }
-};
-
-const serverPubKey = () => {
-  try { return fs.readFileSync(WG_PUB_KEY, 'utf8').trim(); }
-  catch { return null; }
-};
-
-const nextClientIp = () => {
-  if (!fs.existsSync(WG_CONF)) return `${VPN_SUBNET}.2`;
-  const conf = fs.readFileSync(WG_CONF, 'utf8');
-  const ips = [...conf.matchAll(/AllowedIPs\s*=\s*10\.8\.0\.(\d+)/g)]
-    .map((m) => parseInt(m[1]));
-  const last = ips.length ? Math.max(...ips) : 1;
-  return `${VPN_SUBNET}.${last + 1}`;
-};
-
-const getClientConfig = (userId) => {
-  const file = path.join(CLIENT_DIR, `user_${userId}.conf`);
-  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-};
-
-// ── GET /api/vpn/status ────────────────────────────────────────
-const getStatus = async (req, res) => {
-  const available = wgAvailable();
-  const configured = fs.existsSync(WG_CONF);
-  const pubKey = serverPubKey();
-
-  let running = false;
-  if (available && configured) {
-    try { execSync('wg show wg0', { stdio: 'pipe' }); running = true; }
-    catch { running = false; }
-  }
-
-  return res.json({
-    success: true,
-    data: { available, configured, running, serverPubKey: pubKey },
+// ── Appel HTTP vers le wg-agent sur l'hôte ──────────────────────
+const agentRequest = (method, path, body = null) =>
+  new Promise((resolve, reject) => {
+    const bodyStr = body ? JSON.stringify(body) : '';
+    const options = {
+      hostname: WG_AGENT_HOST,
+      port:     WG_AGENT_PORT,
+      path,
+      method,
+      headers: {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr),
+      },
+    };
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(8000, () => { req.destroy(); reject(new Error('wg-agent timeout')); });
+    if (bodyStr) req.write(bodyStr);
+    req.end();
   });
+
+// ── GET /api/vpn/status ─────────────────────────────────────────
+const getStatus = async (req, res) => {
+  try {
+    const result = await agentRequest('GET', '/status');
+    return res.json({ success: true, data: result.body });
+  } catch {
+    return res.json({
+      success: true,
+      data: { available: false, running: false, serverPubKey: null,
+              error: 'wg-agent non démarré — lancer : sudo bash vpn/wg-agent.sh --install' },
+    });
+  }
 };
 
-// ── GET /api/vpn/clients ──────────────────────────────────────
+// ── GET /api/vpn/clients ────────────────────────────────────────
 const listClients = async (req, res, next) => {
   try {
-    if (!fs.existsSync(CLIENT_DIR)) {
-      return res.json({ success: true, data: { clients: [] } });
-    }
-
-    const files = fs.readdirSync(CLIENT_DIR).filter((f) => f.endsWith('.conf'));
-    const clients = await Promise.all(
-      files.map(async (f) => {
-        const userId = f.replace('user_', '').replace('.conf', '');
-        const conf   = fs.readFileSync(path.join(CLIENT_DIR, f), 'utf8');
-        const ipMatch = conf.match(/Address\s*=\s*([\d.]+)/);
-        const user   = await User.findByPk(userId, {
-          attributes: ['id', 'display_name', 'username'],
-        }).catch(() => null);
-
-        return {
-          userId,
-          ip: ipMatch?.[1] || '?',
-          user: user ? { id: user.id, display_name: user.display_name, username: user.username } : null,
-        };
-      })
-    );
-
-    return res.json({ success: true, data: { clients } });
+    const result = await agentRequest('GET', '/clients');
+    return res.json({ success: true, data: result.body });
   } catch (err) { next(err); }
 };
 
-// ── POST /api/vpn/generate/:userId ───────────────────────────
+// ── POST /api/vpn/generate/:userId ──────────────────────────────
 const generateConfig = async (req, res, next) => {
   try {
     const { userId } = req.params;
-
-    if (!wgAvailable()) {
-      return res.status(503).json({
-        success: false,
-        message: 'WireGuard non disponible sur ce serveur. Installer avec : sudo apt install wireguard',
-      });
-    }
-    if (!fs.existsSync(WG_CONF)) {
-      return res.status(503).json({
-        success: false,
-        message: 'WireGuard non configuré. Lancer : sudo bash vpn/setup-wireguard.sh',
-      });
-    }
 
     const user = await User.findByPk(userId, {
       attributes: ['id', 'display_name', 'username'],
@@ -110,118 +74,53 @@ const generateConfig = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
     }
 
-    // Vérifier si une config existe déjà
-    const existingConf = getClientConfig(userId);
-
-    let clientConf;
-    if (existingConf) {
-      // Retourner la config existante
-      clientConf = existingConf;
-      logger.info(`[VPN] Config existante retournée pour ${user.username}`);
-    } else {
-      // Générer nouvelles clés
-      const clientPriv = execSync('wg genkey', { stdio: 'pipe' }).toString().trim();
-      const clientPub  = execSync(`echo "${clientPriv}" | wg pubkey`, { stdio: 'pipe' }).toString().trim();
-      const clientPsk  = execSync('wg genpsk', { stdio: 'pipe' }).toString().trim();
-      const clientIp   = nextClientIp();
-
-      // Récupérer l'IP publique ou le domaine configuré
-      const serverEndpoint = process.env.VPN_ENDPOINT ||
-        process.env.SERVER_LAN_IP || '192.168.10.139';
-      const serverPub = serverPubKey();
-
-      // Construire la config client
-      clientConf = [
-        '[Interface]',
-        `PrivateKey = ${clientPriv}`,
-        `Address = ${clientIp}/32`,
-        'DNS = 8.8.8.8',
-        '',
-        '[Peer]',
-        `PublicKey = ${serverPub}`,
-        `PresharedKey = ${clientPsk}`,
-        `Endpoint = ${serverEndpoint}:51820`,
-        `AllowedIPs = ${VPN_SUBNET}.0/24, 192.168.10.0/24`,
-        'PersistentKeepalive = 25',
-      ].join('\n');
-
-      // Sauvegarder la config client
-      fs.mkdirSync(CLIENT_DIR, { recursive: true });
-      fs.writeFileSync(path.join(CLIENT_DIR, `user_${userId}.conf`), clientConf, { mode: 0o600 });
-
-      // Ajouter le peer dans wg0.conf
-      const peerBlock = [
-        '',
-        `# Client: ${user.username} (${user.display_name}) - ${clientIp}`,
-        '[Peer]',
-        `PublicKey = ${clientPub}`,
-        `PresharedKey = ${clientPsk}`,
-        `AllowedIPs = ${clientIp}/32`,
-      ].join('\n');
-      fs.appendFileSync(WG_CONF, peerBlock);
-
-      // Ajouter le peer à chaud sans redémarrer
-      try {
-        const tmpFile = `/tmp/wg_peer_${userId}.conf`;
-        fs.writeFileSync(tmpFile, [
-          '[Peer]',
-          `PublicKey = ${clientPub}`,
-          `PresharedKey = ${clientPsk}`,
-          `AllowedIPs = ${clientIp}/32`,
-        ].join('\n'));
-        execSync(`wg addconf wg0 ${tmpFile}`, { stdio: 'pipe' });
-        fs.unlinkSync(tmpFile);
-      } catch (e) {
-        logger.warn(`[VPN] wg addconf échoué (WireGuard pas actif?) : ${e.message}`);
-      }
-
-      logger.info(`[VPN] Config générée pour ${user.username} → ${clientIp}`);
+    let result;
+    try {
+      result = await agentRequest('POST', '/generate', {
+        userId:   user.id,
+        username: user.username,
+        endpoint: VPN_ENDPOINT,
+      });
+    } catch {
+      return res.status(503).json({
+        success: false,
+        message: 'wg-agent non disponible. Sur le serveur : sudo bash vpn/wg-agent.sh --install',
+      });
     }
+
+    if (result.status !== 200) {
+      return res.status(result.status).json({ success: false, message: result.body?.error || 'Erreur agent' });
+    }
+
+    // La config est encodée avec \n littéraux — les restaurer
+    const config = (result.body.config || '').replace(/\\n/g, '\n');
+
+    logger.info(`[VPN] Config ${result.body.existed ? 'existante retournée' : 'générée'} pour ${user.username}`);
 
     return res.json({
       success: true,
       data: {
-        config: clientConf,
+        config,
+        existed: result.body.existed || false,
         user: { id: user.id, display_name: user.display_name, username: user.username },
       },
     });
   } catch (err) { next(err); }
 };
 
-// ── DELETE /api/vpn/revoke/:userId ───────────────────────────
+// ── DELETE /api/vpn/revoke/:userId ──────────────────────────────
 const revokeConfig = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const confFile = path.join(CLIENT_DIR, `user_${userId}.conf`);
+    let result;
+    try {
+      result = await agentRequest('DELETE', `/revoke/${userId}`);
+    } catch {
+      return res.status(503).json({ success: false, message: 'wg-agent non disponible' });
+    }
 
-    if (!fs.existsSync(confFile)) {
+    if (result.status === 404) {
       return res.status(404).json({ success: false, message: 'Aucune config VPN pour cet utilisateur' });
-    }
-
-    // Lire la clé publique du client depuis wg0.conf pour la retirer
-    const conf = fs.readFileSync(confFile, 'utf8');
-    const privKey = conf.match(/PrivateKey\s*=\s*(.+)/)?.[1]?.trim();
-    if (privKey) {
-      try {
-        const pubKey = execSync(`echo "${privKey}" | wg pubkey`, { stdio: 'pipe' }).toString().trim();
-        execSync(`wg set wg0 peer ${pubKey} remove`, { stdio: 'pipe' });
-      } catch { /* ignore si wg pas actif */ }
-    }
-
-    // Supprimer le fichier config
-    fs.unlinkSync(confFile);
-
-    // Nettoyer wg0.conf (retirer le bloc [Peer] correspondant)
-    if (fs.existsSync(WG_CONF)) {
-      const wgConf = fs.readFileSync(WG_CONF, 'utf8');
-      const user = await User.findByPk(userId, { attributes: ['username'] }).catch(() => null);
-      if (user) {
-        const cleaned = wgConf.replace(
-          new RegExp(`\\n# Client: ${user.username}[^\\n]*\\n\\[Peer\\]\\nPublicKey = [^\\n]+\\nPresharedKey = [^\\n]+\\nAllowedIPs = [^\\n]+`, 'g'),
-          ''
-        );
-        fs.writeFileSync(WG_CONF, cleaned);
-      }
     }
 
     logger.info(`[VPN] Config révoquée pour userId=${userId}`);
