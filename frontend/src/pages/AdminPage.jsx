@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, UserX, UserCheck, Shield, Loader2, X, Check,
-  Mail, Phone, Building2, Calendar, User as UserIcon,
+  Mail, Phone, Building2, Calendar, User as UserIcon, Wifi, Trash2,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
 import { useFeedback } from '../components/ui/FeedbackModal';
@@ -97,7 +98,7 @@ function ProfileRow({ icon, label, value }) {
 }
 
 
-function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
+function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn }) {
   const isAdmin   = user.role === 'admin';
   const isSelf    = user.id === currentUserId;
   const canToggle = !isAdmin && !isSelf;
@@ -152,6 +153,13 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle }) {
               {user.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
             </button>
           )}
+          <button
+            onClick={() => onVpn(user)}
+            className="btn-icon w-8 h-8 text-slate-500 hover:text-primary-600 hover:bg-primary-50"
+            title="Configurer VPN WireGuard"
+          >
+            <Wifi className="w-4 h-4" />
+          </button>
         </div>
       </td>
     </tr>
@@ -279,6 +287,159 @@ function UserModal({ user, onClose, onSaved, showFeedback }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Modal VPN WireGuard
+// ─────────────────────────────────────────────────────────────────
+function VpnModal({ user, onClose, showFeedback }) {
+  const [visible,   setVisible]   = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [config,    setConfig]    = useState(null);
+  const [loading,   setLoading]   = useState(false);
+  const [copied,    setCopied]    = useState(false);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  const handleClose = () => { setVisible(false); setTimeout(onClose, 220); };
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.post(`/vpn/generate/${user.id}`);
+      const conf = data.data.config;
+      setConfig(conf);
+      const url = await QRCode.toDataURL(conf, { width: 300, margin: 2,
+        color: { dark: '#0f172a', light: '#ffffff' } });
+      setQrDataUrl(url);
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Erreur génération VPN');
+    } finally { setLoading(false); }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(config).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleRevoke = async () => {
+    if (!window.confirm(`Révoquer l'accès VPN de ${user.display_name} ?`)) return;
+    try {
+      await api.delete(`/vpn/revoke/${user.id}`);
+      showFeedback('success', 'Accès VPN révoqué');
+      handleClose();
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Erreur révocation');
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{
+        background: `rgba(0,0,0,${visible ? 0.55 : 0})`,
+        backdropFilter: visible ? 'blur(4px)' : 'blur(0px)',
+        transition: 'background 0.22s ease, backdrop-filter 0.22s ease',
+      }}
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+        style={{
+          transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)',
+          opacity:   visible ? 1 : 0,
+          transition: 'transform 0.22s cubic-bezier(0.34,1.4,0.64,1), opacity 0.18s ease',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-primary-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center">
+              <Wifi className="w-5 h-5 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-800">Config VPN WireGuard</h3>
+              <p className="text-xs text-slate-500">{user.display_name}</p>
+            </div>
+          </div>
+          <button onClick={handleClose} className="p-1 rounded-lg hover:bg-slate-100">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!qrDataUrl ? (
+            <>
+              <p className="text-sm text-slate-600 text-center">
+                Générer la configuration VPN pour permettre à{' '}
+                <strong>{user.display_name}</strong> d'accéder au système hors réseau.
+              </p>
+              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 space-y-1">
+                <p className="font-medium">Comment ça marche :</p>
+                <p>1. Cliquer "Générer" → QR code affiché</p>
+                <p>2. Scanner avec l'app <strong>WireGuard</strong> (Android/iOS)</p>
+                <p>3. Activer le VPN → accès au système depuis n'importe où</p>
+              </div>
+              <button
+                onClick={handleGenerate}
+                disabled={loading}
+                className="btn-primary w-full"
+              >
+                {loading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Génération...</>
+                  : <><Wifi className="w-4 h-4" /> Générer la config VPN</>
+                }
+              </button>
+            </>
+          ) : (
+            <>
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <div className="p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-sm">
+                  <img src={qrDataUrl} alt="QR Code WireGuard" className="w-56 h-56" />
+                </div>
+              </div>
+              <p className="text-center text-sm text-slate-600">
+                Scanner avec l'app <strong>WireGuard</strong> sur le téléphone
+              </p>
+
+              {/* Config texte */}
+              <div className="bg-slate-900 rounded-xl p-3 relative">
+                <pre className="text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap">
+                  {config}
+                </pre>
+                <button
+                  onClick={handleCopy}
+                  className="absolute top-2 right-2 text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded-lg transition-colors"
+                >
+                  {copied ? '✓ Copié' : 'Copier'}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="btn-secondary flex-1 text-sm"
+                >
+                  Régénérer
+                </button>
+                <button
+                  onClick={handleRevoke}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                >
+                  <Trash2 className="w-4 h-4" /> Révoquer
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Page principale
 // ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -288,6 +449,7 @@ export default function AdminPage() {
 
   const [editUser,     setEditUser]     = useState(null);
   const [profileUser,  setProfileUser]  = useState(null);
+  const [vpnUser,      setVpnUser]      = useState(null);
   const [showCreate,   setShowCreate]   = useState(false);
   const [search,       setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -409,6 +571,7 @@ export default function AdminPage() {
                     onView={setProfileUser}
                     onEdit={setEditUser}
                     onToggle={(u) => toggleMutation.mutate({ id: u.id, is_active: u.is_active })}
+                    onVpn={setVpnUser}
                   />
                 ))}
               </tbody>
@@ -438,6 +601,13 @@ export default function AdminPage() {
           user={profileUser}
           onClose={() => setProfileUser(null)}
           onEdit={(u) => { setProfileUser(null); setTimeout(() => setEditUser(u), 240); }}
+        />
+      )}
+      {vpnUser && (
+        <VpnModal
+          user={vpnUser}
+          onClose={() => setVpnUser(null)}
+          showFeedback={showFeedback}
         />
       )}
 

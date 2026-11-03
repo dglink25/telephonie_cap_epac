@@ -10,6 +10,7 @@ const groupRoutes        = require('./groups');
 const notificationRoutes = require('./notifications');
 const webhookRoutes      = require('./webhook');
 const meetingRoutes      = require('./meetings');
+const vpnRoutes          = require('./vpn');
 
 router.use('/auth',          authRoutes);
 router.use('/users',         userRoutes);
@@ -19,5 +20,6 @@ router.use('/groups',        groupRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/webhook',       webhookRoutes);
 router.use('/meetings',      meetingRoutes);
+router.use('/vpn',           vpnRoutes);
 
 module.exports = router;
