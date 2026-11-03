@@ -85,13 +85,12 @@ MYSQL_EXT_PORT="${MYSQL_PORT:-13307}"
 JITSI_URL="${JITSI_URL:-https://meet.jit.si}"
 
 # ── URLs d'accès ──────────────────────────────────────────────────────────────
-# Avec domaine DNS LAN → HTTP (pas de cert à installer, zéro avertissement)
-# Avec IP seulement   → HTTPS (nécessaire pour WebRTC sur IP)
+# Toujours HTTPS — WebRTC (micro/caméra/appels) l'exige
 if [ -n "$DOMAIN" ]; then
-  ACCESS_URL="http://${DOMAIN}"
-  API_URL="http://${DOMAIN}/api"
-  SOCKET_URL="http://${DOMAIN}"
-  CORS_ORIGINS="http://${DOMAIN},https://${SERVER_IP}:${HTTPS_PORT},http://${SERVER_IP}:${HTTP_PORT}"
+  ACCESS_URL="https://${DOMAIN}"
+  API_URL="https://${DOMAIN}/api"
+  SOCKET_URL="https://${DOMAIN}"
+  CORS_ORIGINS="https://${DOMAIN},https://${SERVER_IP}:${HTTPS_PORT}"
 else
   ACCESS_URL="https://${SERVER_IP}:${HTTPS_PORT}"
   API_URL="https://${SERVER_IP}:${HTTPS_PORT}/api"
@@ -337,84 +336,208 @@ _cert_needs_regen() {
   return 1   # cert OK, pas besoin de régénérer
 }
 
-# ── Fonction : générer avec mkcert (cert de confiance) ────────────────────────
+# ── Fonction : générer avec mkcert (cert de confiance LAN) ───────────────────
 _gen_cert_mkcert() {
   local MKCERT_BIN
   MKCERT_BIN=$(command -v mkcert 2>/dev/null)
   [ -z "$MKCERT_BIN" ] && return 1
 
-  info "mkcert détecté — génération certificat de confiance..."
-
-  # Installer la CA locale si pas encore fait
+  info "mkcert détecté — génération certificat de confiance LAN..."
+  local CAROOT
   CAROOT=$("$MKCERT_BIN" -CAROOT 2>/dev/null)
   "$MKCERT_BIN" -install 2>/dev/null || true
 
-  # Construire la liste des domaines/IPs
-  local DOMAINS="${SERVER_IP} localhost"
+  local DOMAINS="${SERVER_IP} localhost 127.0.0.1"
   [ -n "$DOMAIN" ] && DOMAINS="${DOMAIN} *.${DOMAIN} ${DOMAINS}"
 
-  # Générer dans un dossier temp puis déplacer
   local TMPDIR
   TMPDIR=$(mktemp -d)
-  (
-    cd "$TMPDIR"
-    # shellcheck disable=SC2086
-    "$MKCERT_BIN" -key-file key.pem -cert-file cert.pem $DOMAINS 2>/dev/null
-  )
+  # shellcheck disable=SC2086
+  (cd "$TMPDIR" && "$MKCERT_BIN" -key-file key.pem -cert-file cert.pem $DOMAINS 2>/dev/null)
 
   if [ -f "$TMPDIR/cert.pem" ] && [ -f "$TMPDIR/key.pem" ]; then
     mv "$TMPDIR/cert.pem" nginx/ssl/cert.pem
     mv "$TMPDIR/key.pem"  nginx/ssl/key.pem
     rm -rf "$TMPDIR"
-
-    # Copier la CA racine pour distribution aux clients
-    if [ -n "$CAROOT" ] && [ -f "${CAROOT}/rootCA.pem" ]; then
+    [ -n "$CAROOT" ] && [ -f "${CAROOT}/rootCA.pem" ] && \
       cp "${CAROOT}/rootCA.pem" nginx/ssl/rootCA.pem
-      ok "CA racine copiée → nginx/ssl/rootCA.pem (à distribuer aux clients)"
-    fi
-    ok "Certificat mkcert généré (navigateurs accepteront sans avertissement sur les machines avec la CA installée)"
     return 0
   fi
-
   rm -rf "$TMPDIR"
   return 1
 }
 
-# ── Fonction : générer avec openssl (fallback auto-signé) ─────────────────────
+# ── Fonction : copier les certs sur le serveur distant via SSH ────────────────
+_push_certs_to_server() {
+  # Appelée uniquement quand on est sur la machine de dev (mkcert dispo)
+  # et que SERVER_IP != IP locale
+  local LOCAL_IP
+  LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ "$SERVER_IP" = "$LOCAL_IP" ] && return 0   # on EST le serveur, rien à copier
+
+  command -v ssh >/dev/null 2>&1 || return 0
+  command -v scp >/dev/null 2>&1 || return 0
+
+  # Trouver l'utilisateur SSH du serveur (essayer lab1503, ubuntu, root)
+  local SSH_USER=""
+  for U in lab1503 ubuntu admin root; do
+    if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+           -o BatchMode=yes "${U}@${SERVER_IP}" "echo ok" 2>/dev/null | grep -q ok; then
+      SSH_USER="$U"
+      break
+    fi
+  done
+
+  if [ -z "$SSH_USER" ]; then
+    warn "SSH vers ${SERVER_IP} impossible (clé SSH non configurée) — copie manuelle requise"
+    warn "  Pour configurer SSH sans mot de passe :"
+    warn "  ssh-copy-id lab1503@${SERVER_IP}"
+    return 0
+  fi
+
+  local REMOTE_DIR
+  REMOTE_DIR=$(ssh -o ConnectTimeout=5 "${SSH_USER}@${SERVER_IP}" \
+    "find /mnt /home /opt -maxdepth 4 -name 'docker-compose.yml' 2>/dev/null | head -1 | xargs dirname" 2>/dev/null)
+  [ -z "$REMOTE_DIR" ] && REMOTE_DIR="/mnt/CAP_Data/telephonie_cap_epac"
+
+  info "Copie des certificats SSL vers ${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/ ..."
+  ssh "${SSH_USER}@${SERVER_IP}" "mkdir -p ${REMOTE_DIR}/nginx/ssl" 2>/dev/null
+  scp -q nginx/ssl/cert.pem nginx/ssl/key.pem \
+      "${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/" 2>/dev/null && \
+    ok "Certificats copiés sur le serveur — plus d'avertissement SSL sur le LAN" || \
+    warn "Copie SSH échouée — relancer : scp nginx/ssl/cert.pem nginx/ssl/key.pem ${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/"
+
+  if [ -f "nginx/ssl/rootCA.pem" ]; then
+    scp -q nginx/ssl/rootCA.pem \
+        "${SSH_USER}@${SERVER_IP}:${REMOTE_DIR}/nginx/ssl/" 2>/dev/null || true
+  fi
+
+  # Recharger nginx sur le serveur pour prendre le nouveau cert
+  ssh "${SSH_USER}@${SERVER_IP}" \
+    "cd ${REMOTE_DIR} && docker compose exec nginx nginx -s reload 2>/dev/null || docker compose restart nginx 2>/dev/null" \
+    2>/dev/null && ok "nginx rechargé sur le serveur avec le nouveau certificat" || true
+}
+
+# ── Fonction : générer avec openssl (fallback) ────────────────────────────────
 _gen_cert_openssl() {
   local SAN="IP:${SERVER_IP},DNS:localhost"
   [ -n "$DOMAIN" ] && SAN="${SAN},DNS:${DOMAIN},DNS:*.${DOMAIN}"
-
   openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
     -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
     -subj "/CN=${DOMAIN:-$SERVER_IP}/O=CAP-EPAC/C=BJ" \
     -addext "subjectAltName=${SAN}" 2>/dev/null
+  # Pas de rootCA.pem en openssl auto-signé = le cert lui-même est sa propre CA
+  cp nginx/ssl/cert.pem nginx/ssl/rootCA.pem 2>/dev/null || true
+}
 
-  warn "Certificat auto-signé généré (les navigateurs afficheront un avertissement)"
-  warn "  → Importer nginx/ssl/rootCA.pem dans le navigateur pour supprimer l'avertissement"
-  warn "  → Ou installer mkcert sur cette machine pour un cert de confiance automatique"
+# ── Fonction : générer la page HTML d'installation CA ────────────────────────
+_gen_install_ca_page() {
+  [ ! -f "nginx/ssl/rootCA.pem" ] && return 0
+  local CA_URL_IP="http://${SERVER_IP}:${HTTP_PORT:-19080}/rootCA.pem"
+  local CA_URL_DOMAIN=""
+  [ -n "$DOMAIN" ] && CA_URL_DOMAIN="http://${DOMAIN}/rootCA.pem"
+  local APP_URL="${ACCESS_URL}"
+
+  cat > nginx/ssl/install-ca.html << HTMLEOF
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAP-EPAC — Installer le certificat SSL</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
+  .card { background: #1e293b; border-radius: 12px; padding: 24px;
+          max-width: 600px; margin: 20px auto; }
+  h1 { color: #38bdf8; font-size: 1.4em; }
+  h2 { color: #94a3b8; font-size: 1em; margin-top: 20px; }
+  .btn { display: inline-block; background: #0ea5e9; color: white;
+         padding: 12px 24px; border-radius: 8px; text-decoration: none;
+         font-weight: bold; margin: 8px 4px; }
+  .btn:hover { background: #0284c7; }
+  .step { background: #0f172a; border-radius: 8px; padding: 12px;
+          margin: 8px 0; border-left: 3px solid #38bdf8; }
+  .os { font-weight: bold; color: #38bdf8; }
+  code { background: #334155; padding: 2px 6px; border-radius: 4px;
+         font-size: 0.9em; }
+  .done { text-align: center; margin-top: 20px; }
+  .done a { background: #10b981; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📱 CAP-EPAC — Installer le certificat de confiance</h1>
+  <p>Cette étape est nécessaire <strong>une seule fois</strong> par appareil
+     pour accéder à <strong>${APP_URL}</strong> sans avertissement.</p>
+
+  <h2>1. Télécharger le certificat</h2>
+  <a class="btn" href="/rootCA.pem" download="cap-epac-CA.pem">⬇ Télécharger rootCA.pem</a>
+  <a class="btn" href="/rootCA.crt" download="cap-epac-CA.crt">⬇ Télécharger rootCA.crt</a>
+
+  <h2>2. Installer selon votre appareil</h2>
+
+  <div class="step">
+    <span class="os">🤖 Android</span><br>
+    Paramètres → Sécurité → Chiffrement et identifiants →
+    Installer un certificat → <code>Certificat CA</code> → choisir le fichier .crt
+  </div>
+
+  <div class="step">
+    <span class="os">🍎 iPhone / iPad</span><br>
+    Ouvrir le fichier .pem → Installer le profil → Paramètres →
+    Général → Info → Réglages certificat → Activer la confiance totale
+  </div>
+
+  <div class="step">
+    <span class="os">🪟 Windows</span><br>
+    Double-clic sur rootCA.pem → Installer le certificat →
+    Ordinateur local → <code>Autorités de certification racines de confiance</code>
+  </div>
+
+  <div class="step">
+    <span class="os">🐧 Linux (Chrome/Firefox)</span><br>
+    Chrome : <code>chrome://settings/certificates</code> → Autorités → Importer<br>
+    Firefox : Paramètres → Vie privée → Certificats → Voir les certificats → Importer
+  </div>
+
+  <div class="step">
+    <span class="os">🍎 macOS</span><br>
+    Double-clic → Trousseaux → Ajouter → Double-clic sur le cert →
+    Approuver → Toujours faire confiance
+  </div>
+
+  <div class="done">
+    <a class="btn" href="${APP_URL}">✅ Accéder à CAP-EPAC Téléphonie</a>
+  </div>
+</div>
+</body>
+</html>
+HTMLEOF
+  ok "Page d'installation CA → http://${SERVER_IP}:${HTTP_PORT:-19080}/installer-certificat"
 }
 
 # ── Vérifier et régénérer si nécessaire ───────────────────────────────────────
 if _cert_needs_regen; then
   info "Génération du certificat SSL..."
-  # Supprimer les anciens certs
   rm -f nginx/ssl/cert.pem nginx/ssl/key.pem
-
-  # Essayer mkcert en premier, fallback openssl
-  if ! _gen_cert_mkcert; then
+  if _gen_cert_mkcert; then
+    ok "Certificat mkcert généré (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
+    # Si on est sur la machine de dev, copier automatiquement sur le serveur
+    _push_certs_to_server
+  else
     _gen_cert_openssl
+    warn "Certificat auto-signé (mkcert non installé)"
+    warn "  Installer mkcert : https://mkcert.dev"
   fi
-
-  ok "Certificats SSL → nginx/ssl/cert.pem + key.pem (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
 else
-  ok "Certificats SSL valides (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN} — aucune régénération nécessaire)"
+  ok "Certificats SSL valides (IP:${SERVER_IP}${DOMAIN:+, DNS:$DOMAIN})"
+  # Toujours essayer de pousser si on est sur la machine de dev
+  command -v mkcert >/dev/null 2>&1 && _push_certs_to_server || true
 fi
 
-# ── Page de téléchargement de la CA (accessible depuis tout le LAN) ───────────
-if [ -f "nginx/ssl/rootCA.pem" ]; then
-  info "CA racine disponible sur : http://${SERVER_IP}:${HTTP_PORT:-19080}/rootCA.pem"
-fi
+# Générer la page d'installation CA dans tous les cas
+_gen_install_ca_page
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 7. DOCKER
