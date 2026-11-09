@@ -193,6 +193,14 @@ function UserModal({ user, onClose, onSaved, showFeedback }) {
     phone_extension: user?.phone_extension || '',
   });
   const [loading, setLoading] = useState(false);
+  const [newDept, setNewDept] = useState(''); // pour saisir un nouveau service
+
+  // Charger la liste des services existants
+  const { data: deptData } = useQuery({
+    queryKey: ['departments-list'],
+    queryFn: () => api.get('/visibility/departments').then((r) => r.data.data.departments),
+  });
+  const departments = deptData || [];
 
   const set = (f) => (e) => setForm((s) => ({ ...s, [f]: e.target.value }));
 
@@ -204,11 +212,13 @@ function UserModal({ user, onClose, onSaved, showFeedback }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    // Si "nouveau service" saisi, l'utiliser
+    const finalForm = { ...form, department: newDept.trim() || form.department };
     try {
       if (user) {
-        await api.put(`/users/admin/${user.id}`, form);
+        await api.put(`/users/admin/${user.id}`, finalForm);
       } else {
-        await api.post('/users/admin', form);
+        await api.post('/users/admin', finalForm);
       }
       onSaved();
       handleClose();
@@ -276,7 +286,32 @@ function UserModal({ user, onClose, onSaved, showFeedback }) {
             )}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Service</label>
-              <input className="input" value={form.department} onChange={set('department')} />
+              <select
+                className="input"
+                value={newDept ? '__new__' : (form.department || '')}
+                onChange={(e) => {
+                  if (e.target.value === '__new__') {
+                    setNewDept('');
+                  } else {
+                    setForm((s) => ({ ...s, department: e.target.value }));
+                    setNewDept('');
+                  }
+                }}
+              >
+                <option value="">— Aucun service —</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+                <option value="__new__">+ Nouveau service...</option>
+              </select>
+              {(newDept !== undefined && (form.department === '__new__' || newDept !== '' || !departments.includes(form.department) && form.department)) && (
+                <input
+                  className="input mt-1.5"
+                  placeholder="Nom du nouveau service"
+                  value={newDept || (departments.includes(form.department) ? '' : form.department)}
+                  onChange={(e) => setNewDept(e.target.value)}
+                />
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Poste</label>
