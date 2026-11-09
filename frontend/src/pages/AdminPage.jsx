@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, UserX, UserCheck, Shield, Loader2, X, Check,
-  Mail, Phone, Building2, Calendar, User as UserIcon, Wifi, Trash2,
+  Mail, Phone, Building2, Calendar, User as UserIcon, Wifi, Trash2, AlertTriangle,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import useAuthStore from '../store/authStore';
@@ -98,10 +98,11 @@ function ProfileRow({ icon, label, value }) {
 }
 
 
-function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn }) {
+function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn, onHardDelete }) {
   const isAdmin   = user.role === 'admin';
   const isSelf    = user.id === currentUserId;
   const canToggle = !isAdmin && !isSelf;
+  const canDelete = !isAdmin && !isSelf;
 
   return (
     <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => onView(user)}>
@@ -145,7 +146,7 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn }) {
               onClick={() => onToggle(user)}
               className={`btn-icon w-8 h-8 ${
                 user.is_active
-                  ? 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                  ? 'text-slate-500 hover:text-orange-600 hover:bg-orange-50'
                   : 'text-slate-500 hover:text-primary-600 hover:bg-primary-50'
               }`}
               title={user.is_active ? 'Désactiver le compte' : 'Activer le compte'}
@@ -160,7 +161,15 @@ function UserRow({ user, currentUserId, onView, onEdit, onToggle, onVpn }) {
           >
             <Wifi className="w-4 h-4" />
           </button>
-        </div>
+          {canDelete && (
+            <button
+              onClick={() => onHardDelete(user)}
+              className="btn-icon w-8 h-8 text-slate-500 hover:text-red-600 hover:bg-red-50"
+              title="Supprimer définitivement"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}        </div>
       </td>
     </tr>
   );
@@ -450,6 +459,7 @@ export default function AdminPage() {
   const [editUser,     setEditUser]     = useState(null);
   const [profileUser,  setProfileUser]  = useState(null);
   const [vpnUser,      setVpnUser]      = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [showCreate,   setShowCreate]   = useState(false);
   const [search,       setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -481,6 +491,18 @@ export default function AdminPage() {
     onError: (err) => {
       const msg = err.response?.data?.message || 'Erreur lors de la mise à jour.';
       showFeedback('error', msg);
+    },
+  });
+
+  const hardDeleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/users/admin/${id}/hard`),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries(['admin-users']);
+      setDeleteTarget(null);
+      showFeedback('success', 'Utilisateur supprimé définitivement.');
+    },
+    onError: (err) => {
+      showFeedback('error', err.response?.data?.message || 'Erreur lors de la suppression.');
     },
   });
 
@@ -572,6 +594,7 @@ export default function AdminPage() {
                     onEdit={setEditUser}
                     onToggle={(u) => toggleMutation.mutate({ id: u.id, is_active: u.is_active })}
                     onVpn={setVpnUser}
+                    onHardDelete={setDeleteTarget}
                   />
                 ))}
               </tbody>
@@ -609,6 +632,49 @@ export default function AdminPage() {
           onClose={() => setVpnUser(null)}
           showFeedback={showFeedback}
         />
+      )}
+
+      {/* Modal suppression définitive */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Suppression définitive</h3>
+                <p className="text-sm text-slate-500">Cette action est irréversible</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600">
+              Supprimer définitivement <strong>{deleteTarget.display_name}</strong> ?
+              <br />
+              <span className="text-red-500 text-xs">
+                Tous ses messages, appels, et données seront supprimés.
+              </span>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="btn-secondary flex-1"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => hardDeleteMutation.mutate(deleteTarget.id)}
+                disabled={hardDeleteMutation.isPending}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {hardDeleteMutation.isPending
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Trash2 className="w-4 h-4" />
+                }
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {feedbackNode}

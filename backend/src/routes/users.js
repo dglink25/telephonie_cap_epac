@@ -9,7 +9,7 @@ const {
   getUsers, getUsersAdmin,
   getUserById, updateProfile, uploadAvatar,
   updatePresence, getMyPresence,
-  adminCreateUser, adminUpdateUser, adminDeleteUser,
+  adminCreateUser, adminUpdateUser, adminDeleteUser, adminHardDeleteUser,
 } = require('../controllers/userController');
 
 // ── Multer avatars ───────────────────────────────────────────────
@@ -43,9 +43,10 @@ router.post('/me/avatar',   authenticate, avatarUpload.single('avatar'), uploadA
 router.get('/admin-list',   authenticate, requireAdmin, getUsersAdmin);
 
 // Routes admin CRUD
-router.post('/admin',       authenticate, requireAdmin, validate(schemas.register), adminCreateUser);
-router.put('/admin/:id',    authenticate, requireAdmin, adminUpdateUser);
-router.delete('/admin/:id', authenticate, requireAdmin, adminDeleteUser);
+router.post('/admin',            authenticate, requireAdmin, validate(schemas.register), adminCreateUser);
+router.put('/admin/:id',         authenticate, requireAdmin, adminUpdateUser);
+router.delete('/admin/:id',      authenticate, requireAdmin, adminDeleteUser);
+router.delete('/admin/:id/hard', authenticate, requireAdmin, adminHardDeleteUser);
 
 // ── Routes génériques (APRÈS les routes fixes) ───────────────────
 router.get('/',    authenticate, getUsers);

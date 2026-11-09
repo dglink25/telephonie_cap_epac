@@ -295,6 +295,70 @@ const adminDeleteUser = async (req, res, next) => {
   }
 };
 
+const adminHardDeleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Impossible de supprimer son propre compte' });
+    }
+
+    const {
+      ConversationMember, MessageReaction, MessageReadStatus,
+      RefreshToken, Notification, Message, CallLog,
+    } = require('../models');
+
+    const user = await User.findByPk(id);
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
+
+    const username = user.username;
+
+    // 1. Supprimer les tokens de session
+    await RefreshToken.destroy({ where: { user_id: id } });
+
+    // 2. Supprimer les notifications
+    await Notification.destroy({ where: { user_id: id } });
+
+    // 3. Retirer de toutes les conversations
+    await ConversationMember.destroy({ where: { user_id: id } });
+
+    // 4. Anonymiser les messages (garder l'historique mais masquer l'identité)
+    await Message.update(
+      { content: '[Message d\'un utilisateur supprimé]', is_deleted: true },
+      { where: { sender_id: id } }
+    );
+
+    // 5. Supprimer les réactions
+    await MessageReaction.destroy({ where: { user_id: id } });
+
+    // 6. Supprimer les statuts de lecture
+    await MessageReadStatus.destroy({ where: { user_id: id } });
+
+    // 7. Anonymiser les appels
+    await CallLog.update({ caller_id: null }, { where: { caller_id: id } }).catch(() => {});
+    await CallLog.update({ callee_id: null }, { where: { callee_id: id } }).catch(() => {});
+
+    // 8. Supprimer l'avatar si présent
+    if (user.avatar_url) {
+      const avatarPath = path.join(__dirname, '../../uploads', user.avatar_url);
+      if (fs.existsSync(avatarPath)) fs.unlinkSync(avatarPath);
+    }
+
+    // 9. Révoquer la config VPN si elle existe
+    const vpnConf = `/etc/wireguard/clients/user_${id}.conf`;
+    if (fs.existsSync(vpnConf)) fs.unlinkSync(vpnConf);
+
+    // 10. Supprimer l'utilisateur
+    await user.destroy();
+
+    logger.info(`[Admin] Utilisateur supprimé définitivement: ${username} par ${req.user.username}`);
+
+    return res.json({ success: true, message: `Utilisateur "${username}" supprimé définitivement` });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getUsers,
   getUsersAdmin,
@@ -306,4 +370,5 @@ module.exports = {
   adminCreateUser,
   adminUpdateUser,
   adminDeleteUser,
+  adminHardDeleteUser,
 };
