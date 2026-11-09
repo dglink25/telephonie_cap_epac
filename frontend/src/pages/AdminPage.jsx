@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, UserX, UserCheck, Shield, Loader2, X, Check,
-  Mail, Phone, Building2, Calendar, User as UserIcon, Wifi, Trash2, AlertTriangle,
+  Mail, Phone, Building2, Calendar, User as UserIcon, Wifi, Trash2,
+  AlertTriangle, Eye, EyeOff, Users, Lock,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import useAuthStore from '../store/authStore';
@@ -449,6 +450,158 @@ function VpnModal({ user, onClose, showFeedback }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Panel Visibilité inter-services
+// ─────────────────────────────────────────────────────────────────
+function VisibilityPanel({ showFeedback }) {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['visibility-matrix'],
+    queryFn: () => api.get('/visibility/matrix').then((r) => r.data.data),
+  });
+
+  const [matrix, setMatrix]   = useState({});
+  const [saving, setSaving]   = useState(false);
+
+  useEffect(() => {
+    if (data?.matrix) setMatrix(data.matrix);
+  }, [data]);
+
+  const departments = data?.departments || [];
+
+  const toggle = (from, to) => {
+    if (from === to) return; // un service se voit toujours lui-même
+    setMatrix((prev) => ({
+      ...prev,
+      [from]: { ...prev[from], [to]: !prev[from]?.[to] },
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Construire la liste des règles à partir de la matrice
+      const rules = [];
+      departments.forEach((from) => {
+        departments.forEach((to) => {
+          if (from !== to && matrix[from]?.[to]) {
+            rules.push({ from, to });
+          }
+        });
+      });
+      await api.post('/visibility/matrix', { rules });
+      showFeedback('success', 'Règles de visibilité enregistrées');
+      refetch();
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) return (
+    <div className="flex justify-center py-12">
+      <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+    </div>
+  );
+
+  if (departments.length === 0) return (
+    <div className="text-center py-12 text-slate-400">
+      <Building2 className="w-10 h-10 mx-auto mb-2 opacity-40" />
+      <p className="text-sm">Aucun service configuré</p>
+      <p className="text-xs mt-1">Assignez des services aux utilisateurs d'abord</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Légende */}
+      <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 space-y-1">
+        <p className="font-medium flex items-center gap-2">
+          <Eye className="w-4 h-4" /> Règles de visibilité inter-services
+        </p>
+        <p>Cocher la case signifie : les utilisateurs de la <strong>ligne</strong> peuvent voir les utilisateurs de la <strong>colonne</strong>.</p>
+        <p>La relation est <strong>directionnelle</strong> — non symétrique.</p>
+        <p>Un service voit toujours ses propres membres.</p>
+        <p>Les utilisateurs <strong>sans service</strong> ne voient personne (sauf le Groupe Général).</p>
+      </div>
+
+      {/* Matrice */}
+      <div className="bg-white rounded-xl border border-slate-100 overflow-auto shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 z-10 min-w-[160px]">
+                Service ↓ peut voir →
+              </th>
+              {departments.map((dept) => (
+                <th key={dept} className="px-3 py-3 text-center text-xs font-medium text-slate-600 min-w-[100px]">
+                  <div className="flex flex-col items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-primary-400" />
+                    <span className="truncate max-w-[90px]">{dept}</span>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {departments.map((from) => (
+              <tr key={from} className="hover:bg-slate-50 transition-colors">
+                <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-3.5 h-3.5 text-primary-600" />
+                    </div>
+                    <span className="font-medium text-slate-700 text-xs">{from}</span>
+                  </div>
+                </td>
+                {departments.map((to) => {
+                  const isSelf    = from === to;
+                  const isChecked = isSelf || (matrix[from]?.[to] ?? false);
+                  return (
+                    <td key={to} className="px-3 py-3 text-center">
+                      {isSelf ? (
+                        <div className="flex justify-center">
+                          <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center" title="Toujours visible">
+                            <Check className="w-3.5 h-3.5 text-primary-600" />
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => toggle(from, to)}
+                          className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mx-auto transition-colors ${
+                            isChecked
+                              ? 'bg-primary-500 border-primary-500 text-white'
+                              : 'border-slate-300 hover:border-primary-400'
+                          }`}
+                          title={isChecked ? `${from} voit ${to}` : `${from} ne voit pas ${to}`}
+                        >
+                          {isChecked && <Check className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bouton sauvegarder */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary px-6"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Enregistrer les règles
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Page principale
 // ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -461,6 +614,7 @@ export default function AdminPage() {
   const [vpnUser,      setVpnUser]      = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showCreate,   setShowCreate]   = useState(false);
+  const [activeTab,    setActiveTab]    = useState('users'); // 'users' | 'visibility'
   const [search,       setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -533,38 +687,66 @@ export default function AdminPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <input
-            className="input flex-1 min-w-[160px] max-w-sm"
-            placeholder="Rechercher..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            {[
-              { key: 'all',      label: 'Tous' },
-              { key: 'active',   label: 'Actifs' },
-              { key: 'inactive', label: 'Désactivés' },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setFilterStatus(key)}
-                className={`text-xs px-3 py-1 rounded-md transition-colors ${
-                  filterStatus === key
-                    ? 'bg-white text-slate-800 shadow-sm font-medium'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {activeTab === 'users' && (
+            <>
+              <input
+                className="input flex-1 min-w-[160px] max-w-sm"
+                placeholder="Rechercher..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                {[
+                  { key: 'all',      label: 'Tous' },
+                  { key: 'active',   label: 'Actifs' },
+                  { key: 'inactive', label: 'Désactivés' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setFilterStatus(key)}
+                    className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                      filterStatus === key
+                        ? 'bg-white text-slate-800 shadow-sm font-medium'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Onglets */}
+        <div className="flex gap-1 mt-4 border-b border-slate-100">
+          {[
+            { key: 'users',      label: 'Utilisateurs',        icon: UserIcon },
+            { key: 'visibility', label: 'Visibilité services',  icon: Eye },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                activeTab === key
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tableau */}
+      {/* Contenu selon onglet */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="overflow-x-auto">
+        {activeTab === 'visibility' ? (
+          <VisibilityPanel showFeedback={showFeedback} />
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
@@ -600,7 +782,8 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}

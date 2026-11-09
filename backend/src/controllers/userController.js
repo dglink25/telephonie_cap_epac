@@ -11,8 +11,25 @@ const getUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 50, search = '', department } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    const { getVisibleDepartments } = require('./visibilityController');
 
     const where = { is_active: true };
+
+    // ── Filtre de visibilité inter-services ──────────────────────
+    // Les admins voient tout le monde
+    // Les utilisateurs sans service ne voient personne (sauf eux-mêmes)
+    // Les utilisateurs avec service voient leur service + les services autorisés
+    if (req.user.role !== 'admin') {
+      const userDept = req.user.department;
+      if (!userDept) {
+        // Pas de service → ne voit que lui-même
+        where.id = req.user.id;
+      } else {
+        const visibleDepts = await getVisibleDepartments(userDept);
+        where.department = { [Op.in]: visibleDepts };
+      }
+    }
+
     if (search) {
       where[Op.or] = [
         { display_name: { [Op.like]: `%${search}%` } },
@@ -32,7 +49,6 @@ const getUsers = async (req, res, next) => {
       offset,
     });
 
-    // Enrichir avec la présence Redis
     const usersWithPresence = await Promise.all(
       rows.map(async (user) => {
         const presence = await getUserPresence(user.id);

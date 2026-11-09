@@ -11,6 +11,7 @@ const notificationRoutes = require('./notifications');
 const webhookRoutes      = require('./webhook');
 const meetingRoutes      = require('./meetings');
 const vpnRoutes          = require('./vpn');
+const visibilityRoutes   = require('./visibility');
 
 router.use('/auth',          authRoutes);
 router.use('/users',         userRoutes);
@@ -21,5 +22,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/webhook',       webhookRoutes);
 router.use('/meetings',      meetingRoutes);
 router.use('/vpn',           vpnRoutes);
+router.use('/visibility',    visibilityRoutes);
 
 module.exports = router;

@@ -5,6 +5,7 @@ const Conversation = require('./Conversation');
 const Message = require('./Message');
 const CallLog = require('./CallLog');
 const Notification = require('./Notification')(sequelize);
+const DepartmentVisibility = require('./DepartmentVisibility');
 
 // ── ConversationMember (table de jointure) ──────────────────────
 const { DataTypes } = require('sequelize');
@@ -98,4 +99,5 @@ module.exports = {
   CallLog,
   RefreshToken,
   Notification,
+  DepartmentVisibility,
 };
