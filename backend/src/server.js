@@ -182,6 +182,12 @@ const bootstrap = async () => {
     await connectDB();
     await connectRedis();
 
+    // Synchroniser les nouvelles tables (DepartmentVisibility, etc.)
+    const { DepartmentVisibility } = require('./models');
+    await DepartmentVisibility.sync({ alter: false }).catch((e) =>
+      logger.warn('[Bootstrap] DepartmentVisibility sync:', e.message)
+    );
+
     // Créer les dossiers uploads
     ['uploads','uploads/avatars','uploads/images','uploads/videos','uploads/audios','uploads/documents','logs'].forEach((dir) => {
       const full = path.join(__dirname, '..', dir);

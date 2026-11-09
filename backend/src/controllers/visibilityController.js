@@ -37,6 +37,9 @@ const getRules = async (req, res, next) => {
 // Retourne la matrice complète (pour l'UI admin)
 const getMatrix = async (req, res, next) => {
   try {
+    // S'assurer que la table existe
+    await DepartmentVisibility.sync({ alter: false }).catch(() => {});
+
     // Tous les services
     const rows = await User.findAll({
       attributes: ['department'],
