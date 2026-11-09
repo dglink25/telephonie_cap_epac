@@ -585,20 +585,37 @@ if [ "$START_DOCKER" = true ] && [ "$APK_ONLY" = false ]; then
   done
   echo ""
 
-  # Synchronisation backend
+  # Synchronisation backend — copie tout src/ dans le conteneur
   info "Synchronisation backend..."
   SYNCED=0
-  for f in \
-    backend/src/routes/index.js \
-    backend/src/routes/meetings.js \
-    backend/src/routes/webhook.js \
-    backend/src/controllers/meetingController.js \
-    backend/src/controllers/webhookController.js \
-    backend/src/controllers/conversationController.js \
-    backend/src/server.js; do
-    [ -f "$f" ] && docker cp "$f" "cap-epac-backend:/app/${f#backend/}" 2>/dev/null && SYNCED=$((SYNCED+1))
-  done
-  ok "$SYNCED fichiers backend synchronisés"
+
+  # Créer les répertoires nécessaires dans le conteneur
+  docker exec cap-epac-backend mkdir -p \
+    /app/src/routes \
+    /app/src/controllers \
+    /app/src/models \
+    /app/src/services \
+    /app/src/middleware \
+    /app/src/socket \
+    /app/src/utils \
+    /app/src/config \
+    2>/dev/null || true
+
+  # Copier tout le dossier src/ d'un coup
+  if docker cp backend/src/. cap-epac-backend:/app/src/ 2>/dev/null; then
+    SYNCED=$(find backend/src -name "*.js" | wc -l)
+    ok "$SYNCED fichiers backend synchronisés"
+  else
+    # Fallback : copier fichier par fichier
+    for f in $(find backend/src -name "*.js" 2>/dev/null); do
+      DEST="/app/${f#backend/}"
+      DEST_DIR=$(dirname "$DEST")
+      docker exec cap-epac-backend mkdir -p "$DEST_DIR" 2>/dev/null || true
+      docker cp "$f" "cap-epac-backend:${DEST}" 2>/dev/null && SYNCED=$((SYNCED+1))
+    done
+    ok "$SYNCED fichiers backend synchronisés"
+  fi
+
   docker compose restart backend 2>/dev/null || true
   sleep 15
 
